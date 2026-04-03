@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="../CommonC.App/CommonC.App.csproj" />
+  <Project Path="CommonC.csproj" />
+</Solution>
