@@ -19,6 +19,11 @@ namespace CommonC.Printer
             Settings = settings;
         }
 
+
+
+        // -- Expressions -- //
+
+
         void PrintStringExpression(StringExpression stringExpression)
         {
             Builder.Append($"\"{stringExpression.Value}\"");
@@ -57,6 +62,88 @@ namespace CommonC.Printer
             } 
         }
 
+        void PrintCallExpression(CallExpression callExpression, string indentation)
+        {
+            if(callExpression.Expression != null)
+            {
+                PrintExpression(callExpression.Expression, indentation);
+            }
+            Builder.Append("(");
+            if(callExpression.Arguments != null)
+            {
+                PrintExpressions(callExpression.Arguments, indentation);
+            }
+            Builder.Append(")");
+        }
+
+        void PrintArithmeticExpression(ArithmeticExpression arithmeticExpression, string indentation)
+        {
+            PrintExpression(arithmeticExpression.Left, indentation);
+
+            switch(arithmeticExpression.Operator)
+            {
+                case ArithmeticOperator.Addition:
+                    Builder.Append(" + ");
+                    break;
+                case ArithmeticOperator.Subtraction:
+                    Builder.Append(" - ");
+                    break;
+                case ArithmeticOperator.Multiplication:
+                    Builder.Append(" * ");
+                    break;
+                case ArithmeticOperator.Division:
+                    Builder.Append(" / ");
+                    break;
+                case ArithmeticOperator.Modulus:
+                    Builder.Append(" % ");
+                    break;
+                case ArithmeticOperator.Exponential:
+                    Builder.Append(" ^ ");
+                    break;
+            }
+
+            PrintExpression(arithmeticExpression.Right, indentation);
+        }
+
+        void PrintRangeExpression(RangeExpression rangeExpression, string indentation)
+        {
+            PrintExpression(rangeExpression.Start, indentation);
+            Builder.Append("..");
+            PrintExpression(rangeExpression.End, indentation);
+        }
+
+        void PrintMemberExpression(MemberExpression memberExpression, string indentation)
+        {
+            PrintExpression(memberExpression.Parent, indentation);
+            Builder.Append(".");
+            PrintExpression(memberExpression.Member, indentation);
+        }
+
+        void PrintIndexExpression(IndexExpression indexExpression, string indentation)
+        {
+            PrintExpression(indexExpression.Expression, indentation);
+            Builder.Append("[");
+            PrintExpression(indexExpression.Index, indentation);
+            Builder.Append("]");
+        }
+
+        void PrintArrayExpression(ArrayExpression arrayExpression, string indentation)
+        {
+            Builder.Append("{");
+            if(arrayExpression.Expressions != null)
+            {
+                PrintExpressions(arrayExpression.Expressions, indentation);
+            }
+            Builder.Append("}");
+        }
+
+        void PrintUnpackExpression(UnpackExpression unpackExpression, string indentation)
+        {
+            PrintExpression(unpackExpression.Left, indentation);
+            Builder.Append("->");
+            PrintExpression(unpackExpression.Right, indentation);
+        }
+
 
         void PrintExpression(Expression expression, string indentation)
         {
@@ -89,6 +176,48 @@ namespace CommonC.Printer
                 PrintTypeExpression(typeExpression);
                 return;
             }
+
+            if(expression is CallExpression callExpression)
+            {
+                PrintCallExpression(callExpression, indentation);
+                return;
+            }
+
+            if(expression is ArithmeticExpression arithmeticExpression)
+            {
+                PrintArithmeticExpression(arithmeticExpression, indentation);
+                return;
+            }
+
+            if(expression is RangeExpression rangeExpression)
+            {
+                PrintRangeExpression(rangeExpression, indentation);
+                return;
+            }
+
+            if(expression is MemberExpression memberExpression)
+            {
+                PrintMemberExpression(memberExpression, indentation);
+                return;
+            }
+
+            if(expression is IndexExpression indexExpression)
+            {
+                PrintIndexExpression(indexExpression, indentation);
+                return;
+            }
+
+            if(expression is ArrayExpression arrayExpression)
+            {
+                PrintArrayExpression(arrayExpression, indentation);
+                return;
+            }
+
+            if(expression is UnpackExpression unpackExpression)
+            {
+                PrintUnpackExpression(unpackExpression, indentation);
+                return;
+            }
         }
 
         void PrintExpressions(ExpressionList expressions, string indentation)
@@ -104,6 +233,11 @@ namespace CommonC.Printer
                 PrintExpression(expressions[expressions.Count - 1], indentation);
             }
         }
+
+
+
+        // -- Statements -- //
+
 
         void PrintCallStatement(CallStatement callStatement, string indentation)
         {
@@ -122,6 +256,7 @@ namespace CommonC.Printer
             }
 
             Builder.Append(")");
+            Builder.Append(";");
             Builder.Append(Settings.NewLine);
         }
 
@@ -154,6 +289,21 @@ namespace CommonC.Printer
             }
         }
 
+        void PrintVariableDeclarationStatement(VariableDeclarationStatement variableDeclarationStatement, string indentation)
+        {
+            Builder.Append(indentation);
+            PrintExpression(variableDeclarationStatement.Type, indentation);
+            Builder.Append(" ");
+            Builder.Append(variableDeclarationStatement.Name);
+            if(variableDeclarationStatement.Expression != null)
+            {
+                Builder.Append(" = ");
+                PrintExpression(variableDeclarationStatement.Expression, indentation);
+            }
+            Builder.Append(";");
+            Builder.Append(Settings.NewLine);
+        }
+
         void PrintStatements(StatementList statements, string indentation)
         {
             foreach(Statement statement in statements)
@@ -169,6 +319,10 @@ namespace CommonC.Printer
                 if(statement is FunctionDeclarationStatement functionDeclarationStatement)
                 {
                     PrintFunctionDeclarationStatement(functionDeclarationStatement, indentation);
+                }
+                if (statement is VariableDeclarationStatement variableDeclarationStatement)
+                {
+                    PrintVariableDeclarationStatement(variableDeclarationStatement, indentation);
                 }
             }
         }

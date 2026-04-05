@@ -22,29 +22,7 @@ namespace CommonC.Parser
 
         // -- Expressions -- //
 
-        bool ParseCallExpression(Expression expression, out CallExpression callExpression)
-        {
-            callExpression = new CallExpression()
-            {
-                Expression = expression
-            };
-
-            if(TokenReader.Expect(LexKinds.ParentheseOpen))
-            {
-                TokenReader.Consume();
-                if (ParseExpressions(out ExpressionList expressionList))
-                {
-                    callExpression.Arguments = expressionList;
-                }
-
-                if(TokenReader.ExpectFatal(LexKinds.ParentheseClose))
-                {
-                    TokenReader.Consume();
-                    return true;
-                }
-            }
-            return false;
-        }
+        // -- Simple Expressions -- //
 
         bool ParseStringExpression(out StringExpression stringExpression)
         {
@@ -124,7 +102,26 @@ namespace CommonC.Parser
 
             TokenReader.Consume();
             return true;
-        } 
+        }
+
+        bool ParseArrayExpression(out ArrayExpression arrayExpression)
+        {
+            arrayExpression = new ArrayExpression();
+            if (TokenReader.Expect(LexKinds.BraceOpen))
+            {
+                TokenReader.Consume();
+                if (ParseExpressions(out ExpressionList expressionList))
+                {
+                    arrayExpression.Expressions = expressionList;
+                }
+                if (TokenReader.ExpectFatal(LexKinds.BraceClose))
+                {
+                    TokenReader.Consume();
+                    return true;
+                }
+            }
+            return false;
+        }
 
         /// <summary>
         /// Parses expressions without a right hand side
@@ -163,6 +160,156 @@ namespace CommonC.Parser
                 return true;
             }
 
+            if(ParseArrayExpression(out ArrayExpression arrayExpression))
+            {
+                expression = arrayExpression;
+                return true;
+            }
+
+            return false;
+        }
+
+
+        // -- Complex Expressions -- //
+
+        bool ParseCallExpression(Expression expression, out CallExpression callExpression)
+        {
+            callExpression = new CallExpression()
+            {
+                Expression = expression
+            };
+
+            if (TokenReader.Expect(LexKinds.ParentheseOpen))
+            {
+                TokenReader.Consume();
+                if (ParseExpressions(out ExpressionList expressionList))
+                {
+                    callExpression.Arguments = expressionList;
+                }
+
+                if (TokenReader.ExpectFatal(LexKinds.ParentheseClose))
+                {
+                    TokenReader.Consume();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool ParseArithmeticExpression(Expression leftExpression, out ArithmeticExpression arithmeticExpression)
+        {
+            arithmeticExpression = new ArithmeticExpression()
+            {
+                Left = leftExpression
+            };
+
+            LexKinds arithmeticKind = TokenReader.Peek().Kind;
+            switch (arithmeticKind)
+            {
+                case LexKinds.Addition:
+                case LexKinds.Subtraction:
+                case LexKinds.Multiplication:
+                case LexKinds.Division:
+                case LexKinds.Modulus:
+                case LexKinds.Exponential:
+                    arithmeticExpression.Operator = (ArithmeticOperator)arithmeticKind;
+                    break;
+
+                default:
+                    return false;
+            }
+
+            TokenReader.Consume();
+
+            if (ParseExpression(out Expression rightExpression))
+            {
+                arithmeticExpression.Right = rightExpression;
+                return true;
+            }
+
+            throw new Exception("Invalid right hand expression when parsing arithemtic expression");
+        }
+
+        bool ParseRangeExpression(Expression leftExpression, out RangeExpression rangeExpression)
+        {
+            rangeExpression = new RangeExpression()
+            {
+                Start = leftExpression
+            };
+
+            if (TokenReader.Expect(LexKinds.Dot) && TokenReader.Expect(LexKinds.Dot, 1))
+            {
+                TokenReader.Skip(2);
+                if (ParseExpression(out Expression rightExpression))
+                {
+                    rangeExpression.End = rightExpression;
+                    return true;
+                }
+                throw new Exception("Invalid right hand expression when parsing range expression");
+            }
+            return false;
+        }
+
+        bool ParseMemberExpression(Expression parentExpression, out MemberExpression memberExpression)
+        {
+            memberExpression = new MemberExpression()
+            {
+                Parent = parentExpression
+            };
+
+            if (TokenReader.Expect(LexKinds.Dot))
+            {
+                TokenReader.Consume();
+                if (ParseExpression(out Expression childExpression))
+                {
+                    memberExpression.Member = childExpression;
+                    return true;
+                }
+                throw new Exception("Invalid member expression, expected an identifier after the dot");
+            }
+            return false;
+        }
+
+        bool ParseIndexExpression(Expression expression, out IndexExpression indexExpression)
+        {
+            indexExpression = new IndexExpression()
+            {
+                Expression = expression
+            };
+
+            if (TokenReader.Expect(LexKinds.BracketOpen))
+            {
+                TokenReader.Consume();
+                if (ParseExpression(out Expression indexerExpression))
+                {
+                    indexExpression.Index = indexerExpression;
+                }
+                if (TokenReader.ExpectFatal(LexKinds.BracketClose))
+                {
+                    TokenReader.Consume();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool ParseUnpackExpression(Expression leftExpression, out UnpackExpression unpackExpression)
+        {
+            unpackExpression = new UnpackExpression()
+            {
+                Left = leftExpression
+            };
+
+            if(TokenReader.Expect(LexKinds.Subtraction) && TokenReader.Expect(LexKinds.ChevronClose, 1))
+            {
+                TokenReader.Skip(2);
+                if (ParseExpression(out Expression rightExpression))
+                {
+                    unpackExpression.Right = rightExpression;
+                    return true;
+                }
+                throw new Exception("Invalid right hand expression when parsing unpack expression");
+            }
             return false;
         }
 
@@ -182,16 +329,40 @@ namespace CommonC.Parser
             // Parse expressions with a right hand side.
             for(; ; )
             {
+                if(ParseUnpackExpression(expression, out UnpackExpression unpackExpression))
+                {
+                    expression = unpackExpression;
+                    continue;
+                }
+
                 if (ParseCallExpression(expression, out CallExpression callExpression))
                 {
                     expression = callExpression;
                     continue;
                 }
+                if(ParseArithmeticExpression(expression, out ArithmeticExpression arithmeticExpression))
+                {
+                    expression = arithmeticExpression;
+                    continue;
+                }
+                if(ParseRangeExpression(expression, out RangeExpression rangeExpression))
+                {
+                    expression = rangeExpression;
+                    continue;
+                }
+                if(ParseMemberExpression(expression, out MemberExpression memberExpression))
+                {
+                    expression = memberExpression;
+                    continue;
+                }
+                if(ParseIndexExpression(expression, out IndexExpression indexExpression))
+                {
+                    expression = indexExpression;
+                    continue;
+                }
 
-                break;
+                return true;
             }
-
-            return true;
         }
 
         bool ParseExpressions(out ExpressionList expressionList)
@@ -267,41 +438,58 @@ namespace CommonC.Parser
             return false;
         }
 
-        bool ParseFunctionDeclarationStatement(Expression typeExpression, out FunctionDeclarationStatement functionDeclarationStatement)
+        bool ParseFunctionDeclarationStatement(Expression typeExpression, IdentifierExpression nameExpression, out FunctionDeclarationStatement functionDeclarationStatement)
         {
             functionDeclarationStatement = new FunctionDeclarationStatement() 
             {
                 ReturnType = typeExpression
             };
 
-            if(TokenReader.Expect(LexKinds.Identifier))
-            {
-                functionDeclarationStatement.Name = TokenReader.Consume().Value;
+            functionDeclarationStatement.Name = nameExpression.Name;
 
-                if(TokenReader.Expect(LexKinds.ParentheseOpen))
+            if (TokenReader.Expect(LexKinds.ParentheseOpen))
+            {
+                TokenReader.Consume();
+                if (ParseExpressions(out ExpressionList expressionList))
+                {
+                    functionDeclarationStatement.Parameters = expressionList;
+                }
+
+                if (TokenReader.ExpectFatal(LexKinds.ParentheseClose))
                 {
                     TokenReader.Consume();
-                    if (ParseExpressions(out ExpressionList expressionList))
-                    {
-                        functionDeclarationStatement.Parameters = expressionList;
-                    }
-
-                    if (TokenReader.ExpectFatal(LexKinds.ParentheseClose))
-                    {
-                        TokenReader.Consume();
-                    }
-
-                    if(ParseClosureStatement(out ClosureStatement closureStatement))
-                    {
-                        functionDeclarationStatement.Body = closureStatement;
-                        return true;
-                    }
-
-                    throw new Exception($"Line {TokenReader.Peek().Line}: Invalid function declaration statement");
                 }
+
+                if (ParseClosureStatement(out ClosureStatement closureStatement))
+                {
+                    functionDeclarationStatement.Body = closureStatement;
+                    return true;
+                }
+
+                throw new Exception($"Line {TokenReader.Peek().Line}: Invalid function declaration statement");
             }
 
 
+            return false;
+        }
+
+        bool ParseVariableDeclarationStatement(Expression typeExpression, IdentifierExpression nameExpression, out VariableDeclarationStatement variableDeclarationStatement)
+        {
+            variableDeclarationStatement = new VariableDeclarationStatement()
+            {
+                Type = typeExpression,
+                Name = nameExpression.Name
+            };
+            if (TokenReader.Expect(LexKinds.Equals))
+            {
+                TokenReader.Consume();
+                if (ParseExpression(out Expression valueExpression))
+                {
+                    variableDeclarationStatement.Expression = valueExpression;
+                    return true;
+                }
+                throw new Exception($"Line {TokenReader.Peek().Line}: Invalid variable declaration statement");
+            }
             return false;
         }
 
@@ -321,11 +509,22 @@ namespace CommonC.Parser
                     || expression is IdentifierExpression
                     || expression is MemberExpression)
                 {
-                    if (ParseFunctionDeclarationStatement(expression, out FunctionDeclarationStatement functionDeclarationStatement))
+
+                    if(ParseIdentifierExpression(out IdentifierExpression nameExpression))
                     {
-                        statement = functionDeclarationStatement;
-                        return true;
+                        if (ParseVariableDeclarationStatement(expression, nameExpression, out VariableDeclarationStatement variableDeclarationStatement))
+                        {
+                            statement = variableDeclarationStatement;
+                            return true;
+                        }
+
+                        if (ParseFunctionDeclarationStatement(expression, nameExpression, out FunctionDeclarationStatement functionDeclarationStatement))
+                        {
+                            statement = functionDeclarationStatement;
+                            return true;
+                        }
                     }
+                    
                 }
             }
 
