@@ -313,6 +313,43 @@ namespace CommonC.Parser
             return false;
         }
 
+        bool ParseRelationalExpression(Expression leftExpression, out RelationalExpression relationalExpression)
+        {
+            relationalExpression = new RelationalExpression();
+            relationalExpression.Left = leftExpression;
+
+            switch (TokenReader.Peek().Kind)
+            {
+                case LexKinds.EqualTo:
+                case LexKinds.NotEqualTo:
+                case LexKinds.BiggerOrEqual:
+                case LexKinds.SmallerOrEqual:
+                case LexKinds.ChevronOpen:
+                case LexKinds.ChevronClose:
+                    {
+                        switch (TokenReader.Peek().Kind)
+                        {
+                            case LexKinds.Equals: relationalExpression.Operator = RelationalOperators.EqualTo; break;
+                            case LexKinds.NotEqualTo: relationalExpression.Operator = RelationalOperators.NotEqualTo; break;
+                            case LexKinds.BiggerOrEqual: relationalExpression.Operator = RelationalOperators.BiggerOrEqual; break;
+                            case LexKinds.SmallerOrEqual: relationalExpression.Operator = RelationalOperators.SmallerOrEqual; break;
+                            case LexKinds.ChevronOpen: relationalExpression.Operator = RelationalOperators.SmallerThan; break;
+                            case LexKinds.ChevronClose: relationalExpression.Operator = RelationalOperators.BiggerThan; break;
+                        }
+
+                        TokenReader.Skip(1);
+                        if (ParseExpression(out Expression right))
+                        {
+                            relationalExpression.Right = right;
+                            return true;
+                        }
+                        throw new Exception("Invalid right hand expression when parsing relational expression");
+                    }
+            }
+
+            return false;
+        }
+
         bool ParseExpression(out Expression expression)
         {
             expression = new Expression();
@@ -358,6 +395,11 @@ namespace CommonC.Parser
                 if(ParseIndexExpression(expression, out IndexExpression indexExpression))
                 {
                     expression = indexExpression;
+                    continue;
+                }
+                if(ParseRelationalExpression(expression, out RelationalExpression relationalExpression))
+                {
+                    expression = relationalExpression;
                     continue;
                 }
 
@@ -493,9 +535,127 @@ namespace CommonC.Parser
             return false;
         }
 
+        bool ParseIfStatement(out IfStatement ifStatement)
+        {
+            ifStatement = new IfStatement();
+
+            if (TokenReader.Expect(LexKinds.Keyword, "if"))
+            {
+                TokenReader.Skip(1);
+
+                // Parse if condition
+                if(TokenReader.ExpectFatal(LexKinds.ParentheseOpen))
+                {
+                    TokenReader.Skip(1);
+                }
+
+                if (ParseExpression(out Expression conditionExpression))
+                {
+                    ifStatement.Condition = conditionExpression;
+                }
+                else
+                {
+                    throw new Exception($"Line {TokenReader.Peek().Line}: Invalid if statement, expected a condition expression");
+                }
+
+                if (TokenReader.ExpectFatal(LexKinds.ParentheseClose))
+                {
+                    TokenReader.Skip(1);
+                }
+
+                // Parse if closure
+                if (TokenReader.Expect(LexKinds.BraceOpen))
+                {
+                    if (ParseClosureStatement(out ClosureStatement closureStatement))
+                    {
+                        ifStatement.Body = closureStatement;
+                    }
+                }
+                else if(ParseStatement(out Statement statement))
+                {
+                    ifStatement.Body.Statements.Add(statement);
+                }
+
+                // Check if single statement, if no closure
+
+
+                // Parse elseif
+                for (; ; )
+                {
+                    if(TokenReader.Expect(LexKinds.Keyword, "elseif"))
+                    {
+                        IfStatement elseIfStatement = new IfStatement();
+
+                        TokenReader.Skip(1);
+                        if (TokenReader.ExpectFatal(LexKinds.ParentheseOpen))
+                        {
+                            TokenReader.Skip(1);
+                        }
+
+                        if (ParseExpression(out Expression elseIfConditionExpression))
+                        {
+                            elseIfStatement.Condition = elseIfConditionExpression;
+                        }
+                        else
+                        {
+                            throw new Exception($"Line {TokenReader.Peek().Line}: Invalid elseif statement, expected a condition expression");
+                        }
+
+                        if (TokenReader.ExpectFatal(LexKinds.ParentheseClose))
+                        {
+                            TokenReader.Skip(1);
+                        }
+
+                        if (TokenReader.Expect(LexKinds.BraceOpen))
+                        {
+                            if (ParseClosureStatement(out ClosureStatement elseIfClosureStatement))
+                            {
+                                elseIfStatement.Body = elseIfClosureStatement;
+                            }
+                        }
+                        else if (ParseStatement(out Statement elseIfStatementBody))
+                        {
+                            elseIfStatement.Body.Statements.Add(elseIfStatementBody);
+                        }
+
+                        ifStatement.Condition = elseIfConditionExpression;
+                    }
+
+                    break;
+                }
+
+                // Parse else
+                if (TokenReader.Expect(LexKinds.Keyword, "else"))
+                {
+                    TokenReader.Skip(1);
+                    if (TokenReader.Expect(LexKinds.BraceOpen))
+                    {
+                        if (ParseClosureStatement(out ClosureStatement elseClosureStatement))
+                        {
+                            ifStatement.ElseStatements = elseClosureStatement;
+                        }
+                    }
+                    else if (ParseStatement(out Statement elseStatement))
+                    {
+                        ifStatement.ElseStatements.Statements.Add(elseStatement);
+                    }
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
         bool ParseStatement(out Statement statement)
         {
             statement = new Statement();
+
+            if(ParseIfStatement(out IfStatement ifStatement))
+            {
+                statement = ifStatement;
+                return true;
+            }
 
             if(ParseSimpleExpression(out Expression expression))
             {

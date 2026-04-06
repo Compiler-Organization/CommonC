@@ -144,6 +144,32 @@ namespace CommonC.Printer
             PrintExpression(unpackExpression.Right, indentation);
         }
 
+        void PrintRelationalExpression(RelationalExpression relationalExpression, string indentation)
+        {
+            PrintExpression(relationalExpression.Left, indentation);
+            switch(relationalExpression.Operator)
+            {
+                case RelationalOperators.EqualTo:
+                    Builder.Append(" == ");
+                    break;
+                case RelationalOperators.NotEqualTo:
+                    Builder.Append(" != ");
+                    break;
+                case RelationalOperators.BiggerThan:
+                    Builder.Append(" > ");
+                    break;
+                case RelationalOperators.SmallerThan:
+                    Builder.Append(" < ");
+                    break;
+                case RelationalOperators.BiggerOrEqual:
+                    Builder.Append(" >= ");
+                    break;
+                case RelationalOperators.SmallerOrEqual:
+                    Builder.Append(" <= ");
+                    break;
+            }
+            PrintExpression(relationalExpression.Right, indentation);
+        }
 
         void PrintExpression(Expression expression, string indentation)
         {
@@ -218,6 +244,12 @@ namespace CommonC.Printer
                 PrintUnpackExpression(unpackExpression, indentation);
                 return;
             }
+
+            if(expression is RelationalExpression relationalExpression)
+            {
+                PrintRelationalExpression(relationalExpression, indentation);
+                return;
+            }
         }
 
         void PrintExpressions(ExpressionList expressions, string indentation)
@@ -265,7 +297,13 @@ namespace CommonC.Printer
             Builder.Append(startIndentation);
             Builder.Append("{");
             Builder.Append(Settings.NewLine);
-            PrintStatements(closureStatement.Statements, indentation + Settings.Indentation);
+
+            if(closureStatement.Statements != null)
+            {
+                PrintStatements(closureStatement.Statements, indentation + Settings.Indentation);
+            }
+
+            Builder.Append(indentation);
             Builder.Append("}");
             Builder.Append(Settings.NewLine);
         }
@@ -304,6 +342,39 @@ namespace CommonC.Printer
             Builder.Append(Settings.NewLine);
         }
 
+        void PrintIfStatement(IfStatement ifStatement, string indentation)
+        {
+            Builder.Append(indentation);
+            Builder.Append("if");
+            Builder.Append(" (");
+            PrintExpression(ifStatement.Condition, indentation);
+            Builder.Append(")");
+            Builder.Append(Settings.NewLine);
+            PrintClosureStatement(ifStatement.Body, indentation, indentation);
+
+            if(ifStatement.ElseIfStatements.Count > 0)
+            {
+                foreach(IfStatement elseIfStatement in ifStatement.ElseIfStatements)
+                {
+                    Builder.Append(indentation);
+                    Builder.Append("elseif");
+                    Builder.Append(" (");
+                    PrintExpression(ifStatement.Condition, indentation);
+                    Builder.Append(")");
+                    Builder.Append(Settings.NewLine);
+                    PrintClosureStatement(ifStatement.Body, indentation, indentation);
+                }
+            }
+
+            if(ifStatement.ElseStatements.Statements != null && ifStatement.ElseStatements.Statements.Count > 0)
+            {
+                Builder.Append(indentation);
+                Builder.Append("else");
+                Builder.Append(Settings.NewLine);
+                PrintClosureStatement(ifStatement.ElseStatements, indentation, indentation);
+            }
+        }
+
         void PrintStatements(StatementList statements, string indentation)
         {
             foreach(Statement statement in statements)
@@ -323,6 +394,10 @@ namespace CommonC.Printer
                 if (statement is VariableDeclarationStatement variableDeclarationStatement)
                 {
                     PrintVariableDeclarationStatement(variableDeclarationStatement, indentation);
+                }
+                if(statement is IfStatement ifStatement)
+                {
+                    PrintIfStatement(ifStatement, indentation);
                 }
             }
         }

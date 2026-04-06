@@ -23,10 +23,14 @@ namespace CommonC.Lexer
 
             // Control flow
             "if",
+            "elseif",
+            "else",
 
             // Loops
             "while",
             "for",
+
+            "return",
         };
 
         string Input { get; set; }
