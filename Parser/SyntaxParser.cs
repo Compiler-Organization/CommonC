@@ -632,18 +632,38 @@ namespace CommonC.Parser
                     {
                         if (ParseClosureStatement(out ClosureStatement elseClosureStatement))
                         {
-                            ifStatement.ElseStatements = elseClosureStatement;
+                            ifStatement.Else = elseClosureStatement;
                         }
                     }
                     else if (ParseStatement(out Statement elseStatement))
                     {
-                        ifStatement.ElseStatements.Statements.Add(elseStatement);
+                        ifStatement.Else.Statements.Add(elseStatement);
                     }
                 }
 
                 return true;
             }
 
+            return false;
+        }
+
+        bool ParseAssignmentStatement(Expression variable, out AssignmentStatement assignmentStatement)
+        {
+            assignmentStatement = new AssignmentStatement()
+            {
+                Variable = variable
+            };
+
+            if (TokenReader.Expect(LexKinds.Equals))
+            {
+                TokenReader.Consume();
+                if (ParseExpression(out Expression valueExpression))
+                {
+                    assignmentStatement.Expression = valueExpression;
+                    return true;
+                }
+                throw new Exception($"Line {TokenReader.Peek().Line}: Invalid assignment statement, expected an expression after the equals sign");
+            }
             return false;
         }
 
@@ -662,6 +682,12 @@ namespace CommonC.Parser
                 if(ParseCallStatement(expression, out CallStatement callStatement))
                 {
                     statement = callStatement;
+                    return true;
+                }
+
+                if(ParseAssignmentStatement(expression, out AssignmentStatement assignmentStatement))
+                {
+                    statement = assignmentStatement;
                     return true;
                 }
 

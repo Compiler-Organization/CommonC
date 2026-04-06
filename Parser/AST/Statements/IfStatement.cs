@@ -11,8 +11,8 @@ namespace CommonC.Parser.AST.Statements
 
         public ClosureStatement Body { get; set; } = new ClosureStatement();
 
-        public List<IfStatement> ElseIfStatements { get; set; } = new List<IfStatement>();
+        public List<IfStatement> ElseIfs { get; set; } = new List<IfStatement>();
 
-        public ClosureStatement ElseStatements { get; set; } = new ClosureStatement();
+        public ClosureStatement Else { get; set; } = new ClosureStatement();
     }
 }

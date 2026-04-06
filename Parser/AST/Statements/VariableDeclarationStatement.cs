@@ -1,4 +1,5 @@
-﻿using CommonC.Parser.AST.Expressions;
+﻿using AsmResolver.DotNet.Code.Cil;
+using CommonC.Parser.AST.Expressions;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -12,5 +13,7 @@ namespace CommonC.Parser.AST.Statements
         public string Name { get; set; } = "";
 
         public Expression Expression { get; set; } = new Expression();
+
+        public CilLocalVariable CilLocalVaraible { get; set; } = null!;
     }
 }

@@ -29,7 +29,7 @@ namespace CommonC.CodeGen.DotNet
 
         IMethodDescriptor? WriteLine { get; set; }
 
-        CorLibTypeSignature TranslateReservedType(ModuleDefinition module, ReservedTypes type)
+        CorLibTypeSignature ResolveReservedType(ModuleDefinition module, ReservedTypes type)
         {
             switch (type)
             {
@@ -45,11 +45,11 @@ namespace CommonC.CodeGen.DotNet
             }
         }
 
-        CorLibTypeSignature TranslateUnknownType(ModuleDefinition module, Expression expression)
+        CorLibTypeSignature ResolveType(ModuleDefinition module, Expression expression)
         {
             if (expression is TypeExpression typeExpression)
             {
-                return TranslateReservedType(module, typeExpression.Type);
+                return ResolveReservedType(module, typeExpression.Type);
             }
             else
             {
@@ -93,14 +93,14 @@ namespace CommonC.CodeGen.DotNet
             {
                 if (statement is FunctionDeclarationStatement functionDeclaration)
                 {
-                    var returnType = TranslateUnknownType(module, functionDeclaration.ReturnType);
+                    var returnType = ResolveType(module, functionDeclaration.ReturnType);
                     var parameters = new List<CorLibTypeSignature>();
 
                     if (functionDeclaration.Parameters != null)
                     {
                         foreach (var parameter in functionDeclaration.Parameters)
                         {
-                            parameters.Add(TranslateUnknownType(module, parameter));
+                            parameters.Add(ResolveType(module, parameter));
                         }
                     }
 
@@ -114,7 +114,7 @@ namespace CommonC.CodeGen.DotNet
                     if (functionDeclaration.Body != null && functionDeclaration.Body.Statements != null && functionDeclaration.Body.Statements.Count > 0)
                     {
                         function.CilMethodBody = new CilMethodBody();
-                        GenerateStatements(module, function.CilMethodBody, functionDeclaration.Body.Statements);
+                        GenerateStatements(module, function.CilMethodBody, functionDeclaration.Body.Statements, functionDeclaration.Body.VariableDeclarations);
 
                         if (function.CilMethodBody.Instructions.Last().OpCode != CilOpCodes.Ret)
                         {
@@ -150,26 +150,65 @@ namespace CommonC.CodeGen.DotNet
             }
         }
 
+        // Add support for else if
         void GenerateIfStatement(ModuleDefinition module, CilMethodBody body, IfStatement ifStatement)
         {
-            GenerateExpression(ifStatement.Condition, body);
+
+            GenerateExpression(ifStatement.Condition, ifStatement.Body.VariableDeclarations, body);
 
             CilInstruction falseBranchNop = new CilInstruction(CilOpCodes.Nop);
             ICilLabel falseBranchLabel = falseBranchNop.CreateLabel();
             body.Instructions.Add(CilOpCodes.Brfalse, falseBranchLabel);
 
-            GenerateStatements(module, body, ifStatement.Body.Statements);
+            GenerateStatements(module, body, ifStatement.Body.Statements, ifStatement.Body.VariableDeclarations);
 
+            CilInstruction skipElseBranchNop = new CilInstruction(CilOpCodes.Nop);
+            ICilLabel skipElseBranchLabel = skipElseBranchNop.CreateLabel();
+            if (ifStatement.Else.Statements.Count > 0)
+            {
+                body.Instructions.Add(CilOpCodes.Br, skipElseBranchLabel);
+            }
             body.Instructions.Add(falseBranchNop);
+
+            if(ifStatement.Else.Statements.Count > 0)
+            {
+                GenerateStatements(module, body, ifStatement.Else.Statements, ifStatement.Else.VariableDeclarations);
+                body.Instructions.Add(skipElseBranchNop);
+            }
         }
 
-        void GenerateStatements(ModuleDefinition module, CilMethodBody body, StatementList statementList)
+        void GenerateVariableDeclarationStateement(ModuleDefinition module, CilMethodBody body, VariableDeclarationStatement variableDeclarationStatement, List<VariableDeclarationStatement> variableDeclarationStatements)
+        {
+            CilLocalVariable localVariable = new CilLocalVariable(ResolveType(module, variableDeclarationStatement.Type));
+            body.LocalVariables.Add(localVariable);
+
+            GenerateExpression(variableDeclarationStatement.Expression, variableDeclarationStatements, body);
+            body.Instructions.Add(CilOpCodes.Stloc, localVariable);
+
+            variableDeclarationStatement.CilLocalVaraible = localVariable;
+        }
+
+        void GenerateAssignmentStatement(ModuleDefinition module, CilMethodBody body, AssignmentStatement assignmentStatement, List<VariableDeclarationStatement> variableDeclarationStatements)
+        {
+            GenerateExpression(assignmentStatement.Expression, variableDeclarationStatements, body);
+
+            if(assignmentStatement.Variable is IdentifierExpression identifierExpression)
+            {
+                VariableDeclarationStatement variableDeclaration = variableDeclarationStatements.Where(t => t.Name == identifierExpression.Name).FirstOrDefault() ?? throw new Exception($"Variable '{identifierExpression.Name}' is not declared in the current scope.");
+                body.Instructions.Add(CilOpCodes.Stloc, variableDeclaration.CilLocalVaraible!);
+                return;
+            }
+
+            throw new Exception($"Assignment to expression of type '{assignmentStatement.Variable.GetType().Name}' is not supported in code generation.");
+        }
+
+        void GenerateStatements(ModuleDefinition module, CilMethodBody body, StatementList statementList, List<VariableDeclarationStatement> variableDeclarationStatements)
         {
             foreach (Statement statement in statementList)
             {
                 if (statement is CallStatement callStatement)
                 {
-                    GenerateCallStatement(callStatement, body);
+                    GenerateCallStatement(callStatement, body, variableDeclarationStatements);
                     continue;
                 }
 
@@ -179,17 +218,29 @@ namespace CommonC.CodeGen.DotNet
                     continue;
                 }
 
+                if (statement is VariableDeclarationStatement variableDeclarationStatement)
+                {
+                    GenerateVariableDeclarationStateement(module, body, variableDeclarationStatement, variableDeclarationStatements);
+                    continue;
+                }
+
+                if(statement is AssignmentStatement assignmentStatement)
+                {
+                    GenerateAssignmentStatement(module, body, assignmentStatement, variableDeclarationStatements);
+                    continue;
+                }
+
                 throw new Exception($"Statement of type '{statement.GetType().Name}' is not supported in code generation.");
             }
         }
 
-        void GenerateCallStatement(CallStatement callStatement, CilMethodBody body)
+        void GenerateCallStatement(CallStatement callStatement, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
         {
             if (callStatement.Expression is IdentifierExpression identifierExpression)
             {
                 if (identifierExpression.Name == "log")
                 {
-                    GenerateExpressions(callStatement.Arguments, body);
+                    GenerateExpressions(callStatement.Arguments, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Call, WriteLine!);
                     return;
                 }
@@ -202,15 +253,15 @@ namespace CommonC.CodeGen.DotNet
             throw new Exception($"Function '{identifierExpression.Name}' is not supported in code generation.");
         }
 
-        void GenerateExpressions(ExpressionList expressionList, CilMethodBody body)
+        void GenerateExpressions(ExpressionList expressionList, List<VariableDeclarationStatement> variableDeclarationStatements, CilMethodBody body)
         {
             foreach (Expression expression in expressionList)
             {
-                GenerateExpression(expression, body);
+                GenerateExpression(expression, variableDeclarationStatements, body);
             }
         }
 
-        void GenerateExpression(Expression expression, CilMethodBody body)
+        void GenerateExpression(Expression expression, List<VariableDeclarationStatement> variableDeclarationStatements, CilMethodBody body)
         {
             if (expression is StringExpression stringExpression)
             {
@@ -232,13 +283,19 @@ namespace CommonC.CodeGen.DotNet
 
             if(expression is ArithmeticExpression arithmeticExpression)
             {
-                GenerateArithmeticExpression(arithmeticExpression, body);
+                GenerateArithmeticExpression(arithmeticExpression, body, variableDeclarationStatements);
                 return;
             }
 
             if(expression is RelationalExpression relationalExpression)
             {
-                GenerateRelationalExpression(relationalExpression, body);
+                GenerateRelationalExpression(relationalExpression, body, variableDeclarationStatements);
+                return;
+            }
+
+            if(expression is IdentifierExpression identifierExpression)
+            {
+                GenerateVariable(identifierExpression, variableDeclarationStatements, body);
                 return;
             }
 
@@ -299,94 +356,106 @@ namespace CommonC.CodeGen.DotNet
             body.Instructions.Add(booleanExpression.Value ? CilOpCodes.Ldc_I4_1 : CilOpCodes.Ldc_I4_0);
         }
 
-        void GenerateArithmeticExpression(ArithmeticExpression arithmeticExpression, CilMethodBody body)
+        void GenerateArithmeticExpression(ArithmeticExpression arithmeticExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
         {
             switch (arithmeticExpression.Operator)
             {
                 case ArithmeticOperator.Addition:
-                    GenerateExpression(arithmeticExpression.Left, body);
-                    GenerateExpression(arithmeticExpression.Right, body);
+                    GenerateExpression(arithmeticExpression.Left, variableDeclarationStatements, body);
+                    GenerateExpression(arithmeticExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Add);
                     break;
 
                 case ArithmeticOperator.Subtraction:
-                    GenerateExpression(arithmeticExpression.Left, body);
-                    GenerateExpression(arithmeticExpression.Right, body);
+                    GenerateExpression(arithmeticExpression.Left, variableDeclarationStatements, body);
+                    GenerateExpression(arithmeticExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Sub);
                     break;
 
                 case ArithmeticOperator.Multiplication:
-                    GenerateExpression(arithmeticExpression.Left, body);
-                    GenerateExpression(arithmeticExpression.Right, body);
+                    GenerateExpression(arithmeticExpression.Left, variableDeclarationStatements, body);
+                    GenerateExpression(arithmeticExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Mul);
                     break;
 
                 case ArithmeticOperator.Division:
-                    GenerateExpression(arithmeticExpression.Left, body);
-                    GenerateExpression(arithmeticExpression.Right, body);
+                    GenerateExpression(arithmeticExpression.Left, variableDeclarationStatements, body);
+                    GenerateExpression(arithmeticExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Div);
                     break;
 
                 case ArithmeticOperator.Modulus:
-                    GenerateExpression(arithmeticExpression.Left, body);
-                    GenerateExpression(arithmeticExpression.Right, body);
+                    GenerateExpression(arithmeticExpression.Left, variableDeclarationStatements, body);
+                    GenerateExpression(arithmeticExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Rem);
                     break;
 
                 case ArithmeticOperator.Exponential:
-                    GenerateExpression(arithmeticExpression.Left, body);
-                    GenerateExpression(arithmeticExpression.Right, body);
+                    GenerateExpression(arithmeticExpression.Left, variableDeclarationStatements, body);
+                    GenerateExpression(arithmeticExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Shl);
                     break;
             }
         }
 
-        void GenerateRelationalExpression(RelationalExpression relationalExpression, CilMethodBody body)
+        void GenerateRelationalExpression(RelationalExpression relationalExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
         {
             switch(relationalExpression.Operator)
             {
                 case RelationalOperators.EqualTo:
-                    GenerateExpression(relationalExpression.Left, body);
-                    GenerateExpression(relationalExpression.Right, body);
+                    GenerateExpression(relationalExpression.Left, variableDeclarationStatements, body);
+                    GenerateExpression(relationalExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Ceq);
                     break;
 
                 case RelationalOperators.NotEqualTo:
-                    GenerateExpression(relationalExpression.Left, body);
-                    GenerateExpression(relationalExpression.Right, body);
+                    GenerateExpression(relationalExpression.Left, variableDeclarationStatements, body);
+                    GenerateExpression(relationalExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Ceq);
                     body.Instructions.Add(CilOpCodes.Ldc_I4_0);
                     body.Instructions.Add(CilOpCodes.Ceq);
                     break;
 
                 case RelationalOperators.BiggerThan:
-                    GenerateExpression(relationalExpression.Left, body);
-                    GenerateExpression(relationalExpression.Right, body);
+                    GenerateExpression(relationalExpression.Left, variableDeclarationStatements, body);
+                    GenerateExpression(relationalExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Cgt);
                     break;
 
                 case RelationalOperators.BiggerOrEqual:
-                    GenerateExpression(relationalExpression.Left, body);
-                    GenerateExpression(relationalExpression.Right, body);
+                    GenerateExpression(relationalExpression.Left, variableDeclarationStatements, body);
+                    GenerateExpression(relationalExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Clt);
                     body.Instructions.Add(CilOpCodes.Ldc_I4_0);
                     body.Instructions.Add(CilOpCodes.Ceq);
                     break;
 
                 case RelationalOperators.SmallerThan:
-                    GenerateExpression(relationalExpression.Left, body);
-                    GenerateExpression(relationalExpression.Right, body);
+                    GenerateExpression(relationalExpression.Left, variableDeclarationStatements, body);
+                    GenerateExpression(relationalExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Clt);
                     break;
 
                 case RelationalOperators.SmallerOrEqual:
-                    GenerateExpression(relationalExpression.Left, body);
-                    GenerateExpression(relationalExpression.Right, body);
+                    GenerateExpression(relationalExpression.Left, variableDeclarationStatements, body);
+                    GenerateExpression(relationalExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Cgt);
                     body.Instructions.Add(CilOpCodes.Ldc_I4_0);
                     body.Instructions.Add(CilOpCodes.Ceq);
                     break;
             }
+        }
+
+        void GenerateVariable(IdentifierExpression identifierExpression, List<VariableDeclarationStatement> variableDeclarations, CilMethodBody body)
+        {
+            if(variableDeclarations.Where(t => t.Name == identifierExpression.Name).Count() > 0)
+            {
+                VariableDeclarationStatement variableDeclaration = variableDeclarations.Where(t => t.Name == identifierExpression.Name).First();
+                body.Instructions.Add(CilOpCodes.Ldloc, variableDeclaration.CilLocalVaraible!);
+                return;
+            }
+
+            throw new Exception($"Variable '{identifierExpression.Name}' is not declared in the current scope.");
         }
     }
 }

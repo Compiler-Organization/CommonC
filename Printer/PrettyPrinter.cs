@@ -352,9 +352,9 @@ namespace CommonC.Printer
             Builder.Append(Settings.NewLine);
             PrintClosureStatement(ifStatement.Body, indentation, indentation);
 
-            if(ifStatement.ElseIfStatements.Count > 0)
+            if(ifStatement.ElseIfs.Count > 0)
             {
-                foreach(IfStatement elseIfStatement in ifStatement.ElseIfStatements)
+                foreach(IfStatement elseIfStatement in ifStatement.ElseIfs)
                 {
                     Builder.Append(indentation);
                     Builder.Append("elseif");
@@ -366,12 +366,12 @@ namespace CommonC.Printer
                 }
             }
 
-            if(ifStatement.ElseStatements.Statements != null && ifStatement.ElseStatements.Statements.Count > 0)
+            if(ifStatement.Else.Statements != null && ifStatement.Else.Statements.Count > 0)
             {
                 Builder.Append(indentation);
                 Builder.Append("else");
                 Builder.Append(Settings.NewLine);
-                PrintClosureStatement(ifStatement.ElseStatements, indentation, indentation);
+                PrintClosureStatement(ifStatement.Else, indentation, indentation);
             }
         }
 

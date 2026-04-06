@@ -10,6 +10,8 @@ namespace CommonC.Parser.AST.Statements
     /// </summary>
     public class ClosureStatement : Statement
     {
-        public StatementList Statements { get; set; } = null!;
+        public StatementList Statements { get; set; } = new StatementList();
+
+        public List<VariableDeclarationStatement> VariableDeclarations { get; set; } = new List<VariableDeclarationStatement>();
     }
 }
