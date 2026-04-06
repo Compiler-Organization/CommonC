@@ -171,6 +171,30 @@ namespace CommonC.Printer
             PrintExpression(relationalExpression.Right, indentation);
         }
 
+        void PrintParameterExpression(ParameterExpression parameterExpression, string indentation)
+        {
+            PrintExpression(parameterExpression.Type, indentation);
+            Builder.Append(" ");
+            Builder.Append(parameterExpression.Name);
+            if (parameterExpression.Value != null)
+            {
+                Builder.Append(" = ");
+                PrintExpression(parameterExpression.Value, indentation);
+            }
+        }
+
+        void PrintParameterExpressions(List<ParameterExpression> parameterExpressions, string indentation)
+        {
+            if (parameterExpressions.Count > 0)
+            {
+                for (int i = 0; i < parameterExpressions.Count - 1; i++)
+                {
+                    PrintParameterExpression(parameterExpressions[i], indentation);
+                    Builder.Append(", ");
+                }
+                PrintParameterExpression(parameterExpressions[parameterExpressions.Count - 1], indentation);
+            }
+        }
         void PrintExpression(Expression expression, string indentation)
         {
             if(expression is StringExpression stringExpression)
@@ -317,7 +341,7 @@ namespace CommonC.Printer
             Builder.Append("(");
             if(functionDeclarationStatement.Parameters != null)
             {
-                PrintExpressions(functionDeclarationStatement.Parameters, indentation);
+                PrintParameterExpressions(functionDeclarationStatement.Parameters, indentation);
             }
             Builder.Append(")");
 
@@ -375,6 +399,30 @@ namespace CommonC.Printer
             }
         }
 
+        void PrintForStatement(ForStatement forStatement, string indentation)
+        {
+            Builder.Append(indentation);
+            Builder.Append("for ");
+            PrintExpression(forStatement.Range, indentation);
+            Builder.Append(", ");
+            Builder.Append(forStatement.Variable.Name);
+
+            PrintClosureStatement(forStatement.Body, indentation, indentation);
+        }
+
+        void PrintReturnStatement(ReturnStatement returnStatement, string indentation)
+        {
+            Builder.Append(indentation);
+            Builder.Append("return");
+            if(returnStatement.Expression != null)
+            {
+                Builder.Append(" ");
+                PrintExpression(returnStatement.Expression, indentation);
+                Builder.Append(";");
+                Builder.Append(Settings.NewLine);
+            }
+        }
+
         void PrintStatements(StatementList statements, string indentation)
         {
             foreach(Statement statement in statements)
@@ -398,6 +446,14 @@ namespace CommonC.Printer
                 if(statement is IfStatement ifStatement)
                 {
                     PrintIfStatement(ifStatement, indentation);
+                }
+                if(statement is ForStatement forStatement)
+                {
+                    PrintForStatement(forStatement, indentation);
+                }
+                if(statement is ReturnStatement returnStatement)
+                {
+                    PrintReturnStatement(returnStatement, indentation);
                 }
             }
         }

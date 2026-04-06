@@ -12,8 +12,12 @@ namespace CommonC.Parser.AST.Statements
 
         public string Name { get; set; } = "";
 
-        public Expression Expression { get; set; } = new Expression();
+        public Expression? Expression { get; set; } = null;
 
         public CilLocalVariable CilLocalVaraible { get; set; } = null!;
+
+        public bool isParameter { get; set; } = false;
+
+        public int parameterIndex { get; set; } = 0;
     }
 }

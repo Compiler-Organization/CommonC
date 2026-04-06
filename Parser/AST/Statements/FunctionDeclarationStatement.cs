@@ -11,7 +11,7 @@ namespace CommonC.Parser.AST.Statements
 
         public string Name { get; set; } = "";
 
-        public ExpressionList? Parameters { get; set; }
+        public List<ParameterExpression> Parameters { get; set; } = new List<ParameterExpression>();
 
         public ClosureStatement? Body { get; set; }
     }

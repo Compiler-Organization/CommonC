@@ -27,6 +27,42 @@ log(array->3..5)
 ```
 Here we are unpacking the array from index 3 to index 5 and logging it to the console.
 ___
+## Current capabilities
+Common C can currently run code like fibonacci and factorial functions as shown below:
+```c
+int fibonacci(int n) {
+	int a = 0
+	int b = 1
+	for 0..n, i {
+		int temp = a
+		a = b
+		b = temp + a
+	}
+
+	return a
+}
+
+int factorial(int n)
+{
+	if n <= 1 {
+		return 1
+	}
+	else {
+		return n * factorial(n - 1)
+	}
+}
+
+int main() {
+	int var = 10
+
+	logstr("Fibonacci: ")
+	logint(fibonacci(var))
+	
+	logstr("Factorial: ")
+	logint(factorial(var))
+}
+```
+
 # Syntax
 Simple Expression = Expressions without a right hand side (E.g identifiers, indexes, etc).
 

@@ -96,6 +96,10 @@ namespace CommonC.Parser
                     typeExpression.Type = ReservedTypes.Bool;
                     break;
 
+                case "void":
+                    typeExpression.Type = ReservedTypes.Void;
+                    break;
+
                 default:
                     return false;
             }
@@ -237,9 +241,9 @@ namespace CommonC.Parser
                 Start = leftExpression
             };
 
-            if (TokenReader.Expect(LexKinds.Dot) && TokenReader.Expect(LexKinds.Dot, 1))
+            if (TokenReader.Expect(LexKinds.Range))
             {
-                TokenReader.Skip(2);
+                TokenReader.Skip(1);
                 if (ParseExpression(out Expression rightExpression))
                 {
                     rangeExpression.End = rightExpression;
@@ -348,6 +352,80 @@ namespace CommonC.Parser
             }
 
             return false;
+        }
+
+        bool ParseParameterExpression(out ParameterExpression parameterExpression)
+        {
+            parameterExpression = new ParameterExpression();
+
+            if(ParseTypeExpression(out TypeExpression typeExpression))
+            {
+                parameterExpression.Type = typeExpression;
+            }
+            else
+            {
+                if (ParseIdentifierExpression(out IdentifierExpression identifierExpression))
+                {
+                    if (ParseMemberExpression(identifierExpression, out MemberExpression memberExpression))
+                    {
+                        parameterExpression.Type = memberExpression;
+                    }
+                    else
+                    {
+                        parameterExpression.Type = identifierExpression;
+                    }
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            
+
+            if (ParseIdentifierExpression(out IdentifierExpression nameExpression))
+            {
+                parameterExpression.Name = nameExpression.Name;
+            }
+            else
+            {
+                throw new Exception("Invalid parameter expression, expected an identifier after the type expression");
+            }
+
+            if(TokenReader.Expect(LexKinds.Equals))
+            {
+                TokenReader.Consume();
+                if(ParseExpression(out Expression defaultExpression))
+                {
+                    parameterExpression.Value = defaultExpression;
+                }
+            }
+
+            return true;
+        }
+
+        bool ParseParameterExpressions(out List<ParameterExpression> parameters)
+        {
+            parameters = new List<ParameterExpression>();
+
+            for (; ; )
+            {
+                if (ParseParameterExpression(out ParameterExpression parameter))
+                {
+                    parameters.Add(parameter);
+                    continue;
+                }
+
+                if (TokenReader.Expect(LexKinds.Comma))
+                {
+                    TokenReader.Consume();
+                    continue;
+                }
+
+                break;
+            }
+
+            return parameters.Count > 0;
         }
 
         bool ParseExpression(out Expression expression)
@@ -492,9 +570,9 @@ namespace CommonC.Parser
             if (TokenReader.Expect(LexKinds.ParentheseOpen))
             {
                 TokenReader.Consume();
-                if (ParseExpressions(out ExpressionList expressionList))
+                if (ParseParameterExpressions(out List<ParameterExpression> parameters))
                 {
-                    functionDeclarationStatement.Parameters = expressionList;
+                    functionDeclarationStatement.Parameters = parameters;
                 }
 
                 if (TokenReader.ExpectFatal(LexKinds.ParentheseClose))
@@ -543,12 +621,6 @@ namespace CommonC.Parser
             {
                 TokenReader.Skip(1);
 
-                // Parse if condition
-                if(TokenReader.ExpectFatal(LexKinds.ParentheseOpen))
-                {
-                    TokenReader.Skip(1);
-                }
-
                 if (ParseExpression(out Expression conditionExpression))
                 {
                     ifStatement.Condition = conditionExpression;
@@ -556,11 +628,6 @@ namespace CommonC.Parser
                 else
                 {
                     throw new Exception($"Line {TokenReader.Peek().Line}: Invalid if statement, expected a condition expression");
-                }
-
-                if (TokenReader.ExpectFatal(LexKinds.ParentheseClose))
-                {
-                    TokenReader.Skip(1);
                 }
 
                 // Parse if closure
@@ -587,11 +654,6 @@ namespace CommonC.Parser
                         IfStatement elseIfStatement = new IfStatement();
 
                         TokenReader.Skip(1);
-                        if (TokenReader.ExpectFatal(LexKinds.ParentheseOpen))
-                        {
-                            TokenReader.Skip(1);
-                        }
-
                         if (ParseExpression(out Expression elseIfConditionExpression))
                         {
                             elseIfStatement.Condition = elseIfConditionExpression;
@@ -599,11 +661,6 @@ namespace CommonC.Parser
                         else
                         {
                             throw new Exception($"Line {TokenReader.Peek().Line}: Invalid elseif statement, expected a condition expression");
-                        }
-
-                        if (TokenReader.ExpectFatal(LexKinds.ParentheseClose))
-                        {
-                            TokenReader.Skip(1);
                         }
 
                         if (TokenReader.Expect(LexKinds.BraceOpen))
@@ -667,6 +724,83 @@ namespace CommonC.Parser
             return false;
         }
 
+        bool ParseForStatement(out ForStatement forStatement)
+        {
+            forStatement = new ForStatement();
+            if (TokenReader.Expect(LexKinds.Keyword, "for"))
+            {
+                TokenReader.Skip(1);
+
+                Console.WriteLine($"------ {TokenReader.Peek().Kind}, {TokenReader.Peek().Value}");
+                if (ParseExpression(out Expression expression))
+                {
+                    if (expression is RangeExpression rangeExpression)
+                    {
+                        forStatement.Range = rangeExpression;
+                    }
+                    else
+                    {
+                        throw new Exception($"Line {TokenReader.Peek().Line}: Invalid for statement, expected a range expression after the 'for' keyword, got {expression.GetType().FullName} ({TokenReader.Peek().Kind}, {TokenReader.Peek().Value})");
+                    }
+                }
+                else
+                {
+                    throw new Exception($"Line {TokenReader.Peek().Line}: Invalid for statement, expected expression after the 'for' keyword");
+                }
+
+                if (TokenReader.ExpectFatal(LexKinds.Comma))
+                {
+                    TokenReader.Consume();
+                }
+
+                if (ParseIdentifierExpression(out IdentifierExpression identifierExpression))
+                {
+                    forStatement.Variable = new VariableDeclarationStatement
+                    {
+                        Name = identifierExpression.Name,
+                        Expression = new NumberExpression { Value = "0" },
+                        Type = new TypeExpression { Type = ReservedTypes.Int }
+                    };
+                }
+                else
+                {
+                    throw new Exception($"Line {TokenReader.Peek().Line}: Invalid for statement, expected an identifier after the range expression and comma");
+                }
+
+                // Parse body
+                if (TokenReader.Expect(LexKinds.BraceOpen))
+                {
+                    if (ParseClosureStatement(out ClosureStatement closureStatement))
+                    {
+                        forStatement.Body = closureStatement;
+                        return true;
+                    }
+                }
+                else if (ParseStatement(out Statement bodyStatement))
+                {
+                    forStatement.Body.Statements.Add(bodyStatement);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool ParseReturnStatement(out ReturnStatement returnStatement)
+        {
+            returnStatement = new ReturnStatement();
+            if (TokenReader.Expect(LexKinds.Keyword, "return")
+                || TokenReader.Expect(LexKinds.Keyword, "ret"))
+            {
+                TokenReader.Skip(1);
+                if (ParseExpression(out Expression returnExpression))
+                {
+                    returnStatement.Expression = returnExpression;
+                }
+                return true;
+            }
+            return false;
+        }
+
         bool ParseStatement(out Statement statement)
         {
             statement = new Statement();
@@ -674,6 +808,18 @@ namespace CommonC.Parser
             if(ParseIfStatement(out IfStatement ifStatement))
             {
                 statement = ifStatement;
+                return true;
+            }
+
+            if(ParseForStatement(out ForStatement forStatement))
+            {
+                statement = forStatement;
+                return true;
+            }
+
+            if(ParseReturnStatement(out ReturnStatement returnStatement))
+            {
+                statement = returnStatement;
                 return true;
             }
 

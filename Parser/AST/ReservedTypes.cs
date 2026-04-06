@@ -9,5 +9,6 @@ namespace CommonC.Parser.AST
         String,
         Int,
         Bool,
+        Void,
     }
 }

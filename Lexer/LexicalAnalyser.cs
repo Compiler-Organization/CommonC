@@ -20,6 +20,7 @@ namespace CommonC.Lexer
             "int",
             "boolean",
             "bool",
+            "void",
 
             // Control flow
             "if",
@@ -31,6 +32,7 @@ namespace CommonC.Lexer
             "for",
 
             "return",
+            "ret"
         };
 
         string Input { get; set; }
@@ -287,12 +289,9 @@ namespace CommonC.Lexer
 
                     default:
                         {
-                            if (Char.IsLetterOrDigit(Input[i])
-                                || Input[i] == '.'
-                                || Input[i] == '_'
-                                || Input[i] == ':')
+                            if (Char.IsLetterOrDigit(Input[i]))
                             {
-                                while (Input.Length > i && (Char.IsLetterOrDigit(Input[i]) || Input[i] == '.' || Input[i] == ':' || Input[i] == '_'))
+                                while (Input.Length > i && Char.IsLetterOrDigit(Input[i]))
                                 {
                                     sb.Append(Input[i++]);
                                 }
