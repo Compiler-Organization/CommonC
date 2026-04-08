@@ -21,15 +21,13 @@ namespace CommonC.Semantic
                 {
                     foreach (VariableDeclarationStatement variableDeclarationStatement in functionDeclarationStatement.Body.Statements.OfType<VariableDeclarationStatement>())
                     {
-                        functionDeclarationStatement.Body.VariableDeclarations.Add(variableDeclarationStatement);
+                        functionDeclarationStatement.Body.Locals.Add(variableDeclarationStatement);
                     }
-                    functionDeclarationStatement.Body.VariableDeclarations.AddRange(variableDeclarationStatements);
-
-                    int parameterIndex = 0;
+                    functionDeclarationStatement.Body.Locals.AddRange(variableDeclarationStatements);
 
                     for(int i = 0; i < functionDeclarationStatement.Parameters.Count; i++)
                     {
-                        functionDeclarationStatement.Body.VariableDeclarations.Add(new VariableDeclarationStatement
+                        functionDeclarationStatement.Body.Locals.Add(new VariableDeclarationStatement
                         {
                             Name = functionDeclarationStatement.Parameters[i].Name,
                             Type = functionDeclarationStatement.Parameters[i].Type,
@@ -39,37 +37,37 @@ namespace CommonC.Semantic
                         });
                     }
 
-                    PassVariablesToInnerScope(functionDeclarationStatement.Body.Statements, functionDeclarationStatement.Body.VariableDeclarations);
+                    PassVariablesToInnerScope(functionDeclarationStatement.Body.Statements, functionDeclarationStatement.Body.Locals);
                 }
 
                 if (statement is IfStatement ifStatement)
                 {
                     foreach (VariableDeclarationStatement variableDeclarationStatement in ifStatement.Body.Statements.OfType<VariableDeclarationStatement>())
                     {
-                        ifStatement.Body.VariableDeclarations.Add(variableDeclarationStatement);
+                        ifStatement.Body.Locals.Add(variableDeclarationStatement);
                     }
 
-                    ifStatement.Body.VariableDeclarations.AddRange(variableDeclarationStatements);
-                    PassVariablesToInnerScope(ifStatement.Body.Statements, ifStatement.Body.VariableDeclarations);
+                    ifStatement.Body.Locals.AddRange(variableDeclarationStatements);
+                    PassVariablesToInnerScope(ifStatement.Body.Statements, ifStatement.Body.Locals);
 
                     foreach(IfStatement elseIf in ifStatement.ElseIfs)
                     {
                         foreach (VariableDeclarationStatement variableDeclarationStatement in elseIf.Body.Statements.OfType<VariableDeclarationStatement>())
                         {
-                            elseIf.Body.VariableDeclarations.Add(variableDeclarationStatement);
+                            elseIf.Body.Locals.Add(variableDeclarationStatement);
                         }
-                        elseIf.Body.VariableDeclarations.AddRange(variableDeclarationStatements);
-                        PassVariablesToInnerScope(elseIf.Body.Statements, elseIf.Body.VariableDeclarations);
+                        elseIf.Body.Locals.AddRange(variableDeclarationStatements);
+                        PassVariablesToInnerScope(elseIf.Body.Statements, elseIf.Body.Locals);
                     }
 
                     if(ifStatement.Else.Statements.Count() > 0)
                     {
                         foreach (VariableDeclarationStatement variableDeclarationStatement in ifStatement.Else.Statements.OfType<VariableDeclarationStatement>())
                         {
-                            ifStatement.Else.VariableDeclarations.Add(variableDeclarationStatement);
+                            ifStatement.Else.Locals.Add(variableDeclarationStatement);
                         }
-                        ifStatement.Else.VariableDeclarations.AddRange(variableDeclarationStatements);
-                        PassVariablesToInnerScope(ifStatement.Else.Statements, ifStatement.Else.VariableDeclarations);
+                        ifStatement.Else.Locals.AddRange(variableDeclarationStatements);
+                        PassVariablesToInnerScope(ifStatement.Else.Statements, ifStatement.Else.Locals);
                     }
                 }
 
@@ -77,26 +75,31 @@ namespace CommonC.Semantic
                 {
                     foreach (VariableDeclarationStatement variableDeclarationStatement in forStatement.Body.Statements.OfType<VariableDeclarationStatement>())
                     {
-                        forStatement.Body.VariableDeclarations.Add(variableDeclarationStatement);
+                        forStatement.Body.Locals.Add(variableDeclarationStatement);
                     }
 
-                    forStatement.Body.VariableDeclarations.Add(forStatement.Variable);
+                    forStatement.Body.Locals.Add(forStatement.Variable);
 
-                    forStatement.Body.VariableDeclarations.AddRange(variableDeclarationStatements);
-                    PassVariablesToInnerScope(forStatement.Body.Statements, forStatement.Body.VariableDeclarations);
+                    forStatement.Body.Locals.AddRange(variableDeclarationStatements);
+                    PassVariablesToInnerScope(forStatement.Body.Statements, forStatement.Body.Locals);
                 }
 
                 if(statement is ClosureStatement closureStatement)
                 {
                     foreach (VariableDeclarationStatement variableDeclarationStatement in closureStatement.Statements.OfType<VariableDeclarationStatement>())
                     {
-                        closureStatement.VariableDeclarations.Add(variableDeclarationStatement);
+                        closureStatement.Locals.Add(variableDeclarationStatement);
                     }
 
-                    closureStatement.VariableDeclarations.AddRange(variableDeclarationStatements);
-                    PassVariablesToInnerScope(closureStatement.Statements, closureStatement.VariableDeclarations);
+                    closureStatement.Locals.AddRange(variableDeclarationStatements);
+                    PassVariablesToInnerScope(closureStatement.Statements, closureStatement.Locals);
                 }
             }
+        }
+
+        void AnnotateTypes()
+        {
+            
         }
     }
 }

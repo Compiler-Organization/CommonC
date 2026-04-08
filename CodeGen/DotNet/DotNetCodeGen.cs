@@ -24,9 +24,12 @@ namespace CommonC.CodeGen.DotNet
 
         ModuleDefinition Module { get; set; } = null!;
 
+        CILEmitter Emitter { get; set; }
+
         public DotNetCodeGen(DotNetCodeGenSettings settings)
         {
             Settings = settings;
+            Emitter = new CILEmitter();
         }
 
         IMethodDescriptor? WriteLineInt { get; set; }
@@ -64,7 +67,7 @@ namespace CommonC.CodeGen.DotNet
             }
         }
 
-        TypeReference ResolveType(Expression expression)
+        TypeReference ResolveType(Expression expression, List<VariableDeclarationStatement> locals)
         {
             if (expression is TypeExpression typeExpression)
             {
@@ -94,6 +97,23 @@ namespace CommonC.CodeGen.DotNet
             if (expression is BooleanExpression boolExpression)
             {
                 return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Boolean");
+            }
+
+            if (expression is IdentifierExpression identifierExpression)
+            {
+                List<VariableDeclarationStatement> existingLocals = locals.Where(l => l.Name == identifierExpression.Name).ToList();
+
+                if (existingLocals.Any())
+                {
+                    return ResolveType(existingLocals.FirstOrDefault()!.Type, locals);
+                }
+
+                throw new Exception($"Exception occured when resolving type: Local '{identifierExpression.Name}' does not exist in the current scope.");
+            }
+
+            if(expression is IndexExpression indexExpression)
+            {
+                return ResolveType(indexExpression.Expression, locals);
             }
 
             throw new Exception($"Unknown type expression '{expression}' could not be resolved.");
@@ -193,7 +213,7 @@ namespace CommonC.CodeGen.DotNet
                     if (functionDeclaration.Body != null && functionDeclaration.Body.Statements != null && functionDeclaration.Body.Statements.Count > 0)
                     {
                         function.CilMethodBody = new CilMethodBody();
-                        GenerateStatements(function.CilMethodBody, functionDeclaration.Body.Statements, functionDeclaration.Body.VariableDeclarations);
+                        GenerateStatements(function.CilMethodBody, functionDeclaration.Body.Statements, functionDeclaration.Body.Locals);
 
                         if (function.CilMethodBody.Instructions.Last().OpCode != CilOpCodes.Ret)
                         {
@@ -231,12 +251,12 @@ namespace CommonC.CodeGen.DotNet
             CilInstruction endBranch = new CilInstruction(CilOpCodes.Nop);
             ICilLabel endBranchLabel = endBranch.CreateLabel();
 
-            GenerateExpression(ifStatement.Condition, ifStatement.Body.VariableDeclarations, body);
+            GenerateExpression(ifStatement.Condition, ifStatement.Body.Locals, body);
 
             CilInstruction ifFalseBranch = new CilInstruction(CilOpCodes.Nop);
             body.Instructions.Add(CilOpCodes.Brfalse, ifFalseBranch.CreateLabel());
 
-            GenerateStatements(body, ifStatement.Body.Statements, ifStatement.Body.VariableDeclarations);
+            GenerateStatements(body, ifStatement.Body.Statements, ifStatement.Body.Locals);
 
             if (multipleBranches)
             {
@@ -248,12 +268,12 @@ namespace CommonC.CodeGen.DotNet
 
             foreach (IfStatement elseIfStatement in ifStatement.ElseIfs)
             {
-                GenerateExpression(elseIfStatement.Condition, elseIfStatement.Body.VariableDeclarations, body);
+                GenerateExpression(elseIfStatement.Condition, elseIfStatement.Body.Locals, body);
 
                 CilInstruction elseIfFalseBranch = new CilInstruction(CilOpCodes.Nop);
                 body.Instructions.Add(CilOpCodes.Brfalse, elseIfFalseBranch.CreateLabel());
 
-                GenerateStatements(body, elseIfStatement.Body.Statements, elseIfStatement.Body.VariableDeclarations);
+                GenerateStatements(body, elseIfStatement.Body.Statements, elseIfStatement.Body.Locals);
 
                 body.Instructions.Add(CilOpCodes.Br, endBranchLabel);
                 body.Instructions.Add(elseIfFalseBranch);
@@ -265,7 +285,7 @@ namespace CommonC.CodeGen.DotNet
 
             if (ifStatement.Else.Statements.Count > 0)
             {
-                GenerateStatements(body, ifStatement.Else.Statements, ifStatement.Else.VariableDeclarations);
+                GenerateStatements(body, ifStatement.Else.Statements, ifStatement.Else.Locals);
             }
 
             if (multipleBranches)
@@ -302,20 +322,20 @@ namespace CommonC.CodeGen.DotNet
         void GenerateForStatement(CilMethodBody body, ForStatement forStatement)
         {
             forStatement.Variable.Expression = forStatement.Range.Start;
-            GenerateVariableDeclarationStateement(body, forStatement.Variable, forStatement.Body.VariableDeclarations);
+            GenerateVariableDeclarationStateement(body, forStatement.Variable, forStatement.Body.Locals);
 
             CilInstruction loopStart = new CilInstruction(CilOpCodes.Nop);
             body.Instructions.Add(loopStart);
-            GenerateStatements(body, forStatement.Body.Statements, forStatement.Body.VariableDeclarations);
+            GenerateStatements(body, forStatement.Body.Statements, forStatement.Body.Locals);
 
-            EmitLdc_I4(1, body);
+            Emitter.EmitLdc_I4(1, body);
             body.Instructions.Add(CilOpCodes.Ldloc, forStatement.Variable.CilLocalVaraible!);
             body.Instructions.Add(CilOpCodes.Add);
             body.Instructions.Add(CilOpCodes.Stloc, forStatement.Variable.CilLocalVaraible!);
 
 
             body.Instructions.Add(CilOpCodes.Ldloc, forStatement.Variable.CilLocalVaraible!);
-            GenerateExpression(forStatement.Range.End, forStatement.Body.VariableDeclarations, body);
+            GenerateExpression(forStatement.Range.End, forStatement.Body.Locals, body);
             body.Instructions.Add(CilOpCodes.Cgt);
             body.Instructions.Add(CilOpCodes.Ldc_I4_0);
             body.Instructions.Add(CilOpCodes.Ceq);
@@ -492,48 +512,10 @@ namespace CommonC.CodeGen.DotNet
 
         void GenerateNumberExpression(NumberExpression integerExpression, CilMethodBody body)
         {
-            EmitLdc_I4(int.Parse(integerExpression.Value), body);
+            Emitter.EmitLdc_I4(int.Parse(integerExpression.Value), body);
         }
 
-        void EmitLdc_I4(int value, CilMethodBody body)
-        {
-            switch (value)
-            {
-                case -1:
-                    body.Instructions.Add(CilOpCodes.Ldc_I4_M1);
-                    return;
-                case 0:
-                    body.Instructions.Add(CilOpCodes.Ldc_I4_0);
-                    return;
-                case 1:
-                    body.Instructions.Add(CilOpCodes.Ldc_I4_1);
-                    return;
-                case 2:
-                    body.Instructions.Add(CilOpCodes.Ldc_I4_2);
-                    return;
-                case 3:
-                    body.Instructions.Add(CilOpCodes.Ldc_I4_3);
-                    return;
-                case 4:
-                    body.Instructions.Add(CilOpCodes.Ldc_I4_4);
-                    return;
-                case 5:
-                    body.Instructions.Add(CilOpCodes.Ldc_I4_5);
-                    return;
-                case 6:
-                    body.Instructions.Add(CilOpCodes.Ldc_I4_6);
-                    return;
-                case 7:
-                    body.Instructions.Add(CilOpCodes.Ldc_I4_7);
-                    return;
-                case 8:
-                    body.Instructions.Add(CilOpCodes.Ldc_I4_8);
-                    return;
-                default:
-                    body.Instructions.Add(CilOpCodes.Ldc_I4, value);
-                    return;
-            }
-        }
+        
 
         void GenerateBooleanExpression(BooleanExpression booleanExpression, CilMethodBody body)
         {
@@ -638,7 +620,7 @@ namespace CommonC.CodeGen.DotNet
 
                 if(variableDeclaration.isParameter)
                 {
-                    EmitLdarg(variableDeclaration.parameterIndex, body);
+                    Emitter.EmitLdarg(variableDeclaration.parameterIndex, body);
                     return;
                 }
 
@@ -649,45 +631,14 @@ namespace CommonC.CodeGen.DotNet
             throw new Exception($"Variable '{identifierExpression.Name}' is not declared in the current scope.");
         }
 
-        void EmitLdarg(int index, CilMethodBody body)
-        {
-            switch(index)
-            {
-                case 0:
-                    body.Instructions.Add(CilOpCodes.Ldarg_0);
-                    return;
-                case 1:
-                    body.Instructions.Add(CilOpCodes.Ldarg_1);
-                    return;
-                case 2:
-                    body.Instructions.Add(CilOpCodes.Ldarg_2);
-                    return;
-                case 3:
-                    body.Instructions.Add(CilOpCodes.Ldarg_3);
-                    return;
-            }
-
-            if (index <= byte.MaxValue)
-            {
-                body.Instructions.Add(CilOpCodes.Ldarga_S, index);
-                return;
-            }
-
-            if (index <= ushort.MaxValue)
-            {
-                body.Instructions.Add(CilOpCodes.Ldarg, index);
-                return;
-            }
-
-            throw new Exception($"Argument at {index} is too big, max amount of arguments is {ushort.MaxValue}");
-        }
+        
 
         void GenerateIndexExpression(IndexExpression indexExpression, List<VariableDeclarationStatement> variableDeclarations, CilMethodBody body)
         {
             GenerateExpression(indexExpression.Expression, variableDeclarations, body);
             GenerateExpression(indexExpression.Index, variableDeclarations, body);
 
-            body.Instructions.Add(CilOpCodes.Ldelem_Ref);
+            Emitter.EmitLdelem(ResolveType(indexExpression.Expression, variableDeclarations), body);
         }
 
         void GenerateArrayExpression(ArrayExpression arrayExpression, List<VariableDeclarationStatement> variableDeclarations, CilMethodBody body)
@@ -697,17 +648,21 @@ namespace CommonC.CodeGen.DotNet
                 throw new Exception("Array expression without any elements is not supported in code generation (yet).");
             }
 
-            EmitLdc_I4(arrayExpression.Expressions.Count, body);
-            body.Instructions.Add(CilOpCodes.Newarr, ResolveType(arrayExpression.Expressions[0])); // Temporary workaround until proper type checking is implemented
+            Emitter.EmitLdc_I4(arrayExpression.Expressions.Count, body);
+            TypeReference arrayType = ResolveType(arrayExpression.Expressions[0], variableDeclarations);
+            body.Instructions.Add(CilOpCodes.Newarr, arrayType); // Temporary workaround until proper type checking is implemented
 
             for(int i = 0; i < arrayExpression.Expressions.Count; i++)
             {
                 body.Instructions.Add(CilOpCodes.Dup);
-                EmitLdc_I4(i, body);
+                Emitter.EmitLdc_I4(i, body);
                 GenerateExpression(arrayExpression.Expressions[i], variableDeclarations, body);
-                body.Instructions.Add(CilOpCodes.Stelem_Ref);
+
+                Emitter.EmitStelem(arrayType, body);
             }
         }
+
+        
 
         void GenerateCallExpression(CallExpression callExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
         {
