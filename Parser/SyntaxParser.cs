@@ -127,6 +127,27 @@ namespace CommonC.Parser
             return false;
         }
 
+        bool ParseLengthExpression(out LengthExpression lengthExpression)
+        {
+            lengthExpression = new LengthExpression();
+
+            if(TokenReader.Expect(LexKinds.Hashtag))
+            {
+                TokenReader.Consume();
+                if (ParseExpression(out Expression expression))
+                {
+                    lengthExpression.Expression = expression;
+                    return true;
+                }
+                else
+                {
+                    throw new Exception("Expression expected after length symbol");
+                }
+            }
+
+            return false;
+        }
+
         /// <summary>
         /// Parses expressions without a right hand side
         /// </summary>
@@ -169,6 +190,13 @@ namespace CommonC.Parser
                 expression = arrayExpression;
                 return true;
             }
+
+            if(ParseLengthExpression(out LengthExpression lengthExpression))
+            {
+                expression = lengthExpression;
+                return true;
+            }
+
 
             return false;
         }
@@ -428,7 +456,7 @@ namespace CommonC.Parser
             return parameters.Count > 0;
         }
 
-        bool ParseExpression(out Expression expression)
+        bool ParseExpression(out Expression expression, bool parseSimple = false)
         {
             expression = new Expression();
 
@@ -444,40 +472,44 @@ namespace CommonC.Parser
             // Parse expressions with a right hand side.
             for(; ; )
             {
-                if(ParseUnpackExpression(expression, out UnpackExpression unpackExpression))
+                if(!parseSimple)
                 {
-                    expression = unpackExpression;
-                    continue;
+                    if (ParseUnpackExpression(expression, out UnpackExpression unpackExpression))
+                    {
+                        expression = unpackExpression;
+                        continue;
+                    }
+
+                    if (ParseCallExpression(expression, out CallExpression callExpression))
+                    {
+                        expression = callExpression;
+                        continue;
+                    }
+                    if (ParseArithmeticExpression(expression, out ArithmeticExpression arithmeticExpression))
+                    {
+                        expression = arithmeticExpression;
+                        continue;
+                    }
+                    if (ParseRangeExpression(expression, out RangeExpression rangeExpression))
+                    {
+                        expression = rangeExpression;
+                        continue;
+                    }
+                    if (ParseRelationalExpression(expression, out RelationalExpression relationalExpression))
+                    {
+                        expression = relationalExpression;
+                        continue;
+                    }
                 }
 
-                if (ParseCallExpression(expression, out CallExpression callExpression))
-                {
-                    expression = callExpression;
-                    continue;
-                }
-                if(ParseArithmeticExpression(expression, out ArithmeticExpression arithmeticExpression))
-                {
-                    expression = arithmeticExpression;
-                    continue;
-                }
-                if(ParseRangeExpression(expression, out RangeExpression rangeExpression))
-                {
-                    expression = rangeExpression;
-                    continue;
-                }
-                if(ParseMemberExpression(expression, out MemberExpression memberExpression))
-                {
-                    expression = memberExpression;
-                    continue;
-                }
-                if(ParseIndexExpression(expression, out IndexExpression indexExpression))
+                if (ParseIndexExpression(expression, out IndexExpression indexExpression))
                 {
                     expression = indexExpression;
                     continue;
                 }
-                if(ParseRelationalExpression(expression, out RelationalExpression relationalExpression))
+                if (ParseMemberExpression(expression, out MemberExpression memberExpression))
                 {
-                    expression = relationalExpression;
+                    expression = memberExpression;
                     continue;
                 }
 
@@ -586,7 +618,7 @@ namespace CommonC.Parser
                     return true;
                 }
 
-                throw new Exception($"Line {TokenReader.Peek().Line}: Invalid function declaration statement");
+                throw new Exception($"Line {TokenReader.Peek().Line}: Invalid function declaration statement, got {TokenReader.Peek().Kind}, {TokenReader.Peek().Value}");
             }
 
 
@@ -801,6 +833,36 @@ namespace CommonC.Parser
             return false;
         }
 
+        bool ParseWhileStatement(out WhileStatement whileStatement)
+        {
+            whileStatement = new WhileStatement();
+
+            if(TokenReader.Expect(LexKinds.Keyword, "while"))
+            {
+                TokenReader.Skip(1);
+                if(ParseExpression(out Expression expression))
+                {
+                    whileStatement.Expression = expression;
+                }
+                else
+                {
+                    throw new Exception("Expression expected after while keyword");
+                }
+
+                if(ParseClosureStatement(out ClosureStatement closureStatement))
+                {
+                    whileStatement.Body = closureStatement;
+                }
+                else if (ParseStatement(out Statement bodyStatement))
+                {
+                    whileStatement.Body.Statements.Add(bodyStatement);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         bool ParseStatement(out Statement statement)
         {
             statement = new Statement();
@@ -823,7 +885,13 @@ namespace CommonC.Parser
                 return true;
             }
 
-            if(ParseSimpleExpression(out Expression expression))
+            if(ParseWhileStatement(out WhileStatement whileStatement))
+            {
+                statement = whileStatement;
+                return true;
+            }
+
+            if(ParseExpression(out Expression expression, true))
             {
                 if(ParseCallStatement(expression, out CallStatement callStatement))
                 {

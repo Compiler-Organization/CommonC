@@ -84,7 +84,18 @@ namespace CommonC.Semantic
                     PassVariablesToInnerScope(forStatement.Body.Statements, forStatement.Body.Locals);
                 }
 
-                if(statement is ClosureStatement closureStatement)
+                if (statement is WhileStatement whileStatement)
+                {
+                    foreach (VariableDeclarationStatement variableDeclarationStatement in whileStatement.Body.Statements.OfType<VariableDeclarationStatement>())
+                    {
+                        whileStatement.Body.Locals.Add(variableDeclarationStatement);
+                    }
+
+                    whileStatement.Body.Locals.AddRange(variableDeclarationStatements);
+                    PassVariablesToInnerScope(whileStatement.Body.Statements, whileStatement.Body.Locals);
+                }
+
+                if (statement is ClosureStatement closureStatement)
                 {
                     foreach (VariableDeclarationStatement variableDeclarationStatement in closureStatement.Statements.OfType<VariableDeclarationStatement>())
                     {

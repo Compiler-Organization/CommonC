@@ -195,8 +195,20 @@ namespace CommonC.Printer
                 PrintParameterExpression(parameterExpressions[parameterExpressions.Count - 1], indentation);
             }
         }
+
+        void PrintLengthExpression(LengthExpression lengthExpression, string indentation)
+        {
+            Builder.Append("#");
+            PrintExpression(lengthExpression.Expression, indentation);
+        }
+
         void PrintExpression(Expression expression, string indentation)
         {
+            if(expression is LengthExpression lengthExpression)
+            {
+                PrintLengthExpression(lengthExpression, indentation);
+            }
+
             if(expression is StringExpression stringExpression)
             {
                 PrintStringExpression(stringExpression);
@@ -423,6 +435,13 @@ namespace CommonC.Printer
             }
         }
 
+        void PrintWhileStatement(WhileStatement whileStatement, string indentation)
+        {
+            Builder.Append(indentation);
+            Builder.Append("while ");
+            PrintClosureStatement(whileStatement.Body, indentation, indentation);
+        }
+
         void PrintStatements(StatementList statements, string indentation)
         {
             foreach(Statement statement in statements)
@@ -454,6 +473,10 @@ namespace CommonC.Printer
                 if(statement is ReturnStatement returnStatement)
                 {
                     PrintReturnStatement(returnStatement, indentation);
+                }
+                if(statement is WhileStatement whileStatement)
+                {
+                    PrintWhileStatement(whileStatement, indentation);
                 }
             }
         }

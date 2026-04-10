@@ -16,6 +16,16 @@ using System.Collections.Generic;
 using System.Text;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
+/*
+TODO:
+    * Change so branching doesnt create a nop instruction
+    * Fix exponential calculation
+    * Support index assignment after array has been initialized
+    
+    * Fix parser precedence so it handles n % i == 0 as (n % i) == 0 properly.
+ 
+ */
+
 namespace CommonC.CodeGen.DotNet
 {
     public class DotNetCodeGen
@@ -116,6 +126,16 @@ namespace CommonC.CodeGen.DotNet
                 return ResolveType(indexExpression.Expression, locals);
             }
 
+            if(expression is ArrayExpression arrayExpression)
+            {
+                if(arrayExpression.Expressions == null || arrayExpression.Expressions.Count <= 0)
+                {
+                    throw new Exception("Cannot resolve type of empty arrays");
+                }
+
+                return ResolveType(arrayExpression.Expressions.FirstOrDefault()!, locals);
+            }
+
             throw new Exception($"Unknown type expression '{expression}' could not be resolved.");
         }
 
@@ -187,63 +207,64 @@ namespace CommonC.CodeGen.DotNet
 
         void GenerateFunctionDeclarations(StatementList statements)
         {
-            foreach (Statement statement in statements)
+            foreach (FunctionDeclarationStatement functionDeclaration in statements.OfType<FunctionDeclarationStatement>())
             {
-                if (statement is FunctionDeclarationStatement functionDeclaration)
+                var returnType = ResolveCorLibType(functionDeclaration.ReturnType);
+                var parameters = new List<CorLibTypeSignature>();
+
+                if (functionDeclaration.Parameters != null)
                 {
-                    var returnType = ResolveCorLibType(functionDeclaration.ReturnType);
-                    var parameters = new List<CorLibTypeSignature>();
-
-                    if (functionDeclaration.Parameters != null)
+                    foreach (var parameter in functionDeclaration.Parameters)
                     {
-                        foreach (var parameter in functionDeclaration.Parameters)
-                        {
-                            parameters.Add(ResolveCorLibType(parameter.Type));
-                        }
+                        parameters.Add(ResolveCorLibType(parameter.Type));
                     }
+                }
 
-                    MethodDefinition function = new MethodDefinition(functionDeclaration.Name, MethodAttributes.Public | MethodAttributes.Static, MethodSignature.CreateStatic(returnType, parameters));
-                    Module.TopLevelTypes.First().Methods.Add(function);
+                MethodDefinition function = new MethodDefinition(functionDeclaration.Name, MethodAttributes.Public | MethodAttributes.Static, MethodSignature.CreateStatic(returnType, parameters));
+                functionDeclaration.Method = function;
+                Module.TopLevelTypes.First().Methods.Add(function);
 
-                    if (functionDeclaration.Name == "main")
+                if (functionDeclaration.Name == "main")
+                {
+                    Module.ManagedEntryPointMethod = function;
+                }
+            }
+
+            foreach (FunctionDeclarationStatement functionDeclaration in statements.OfType<FunctionDeclarationStatement>())
+            {
+                if (functionDeclaration.Body != null && functionDeclaration.Body.Statements != null && functionDeclaration.Body.Statements.Count > 0)
+                {
+                    functionDeclaration.Method!.CilMethodBody = new CilMethodBody();
+                    GenerateStatements(functionDeclaration.Method.CilMethodBody, functionDeclaration.Body.Statements, functionDeclaration.Body.Locals);
+
+                    if (functionDeclaration.Method.CilMethodBody.Instructions.Last().OpCode != CilOpCodes.Ret)
                     {
-                        Module.ManagedEntryPointMethod = function;
-                    }
-
-                    if (functionDeclaration.Body != null && functionDeclaration.Body.Statements != null && functionDeclaration.Body.Statements.Count > 0)
-                    {
-                        function.CilMethodBody = new CilMethodBody();
-                        GenerateStatements(function.CilMethodBody, functionDeclaration.Body.Statements, functionDeclaration.Body.Locals);
-
-                        if (function.CilMethodBody.Instructions.Last().OpCode != CilOpCodes.Ret)
+                        if (functionDeclaration.ReturnType is TypeExpression typeExpression)
                         {
-                            if (functionDeclaration.ReturnType is TypeExpression typeExpression)
+                            switch (typeExpression.Type)
                             {
-                                switch (typeExpression.Type)
-                                {
-                                    case ReservedTypes.Int:
-                                        function.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_I4_0);
-                                        break;
-                                    case ReservedTypes.Bool:
-                                        function.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_I4_0);
-                                        break;
-                                    case ReservedTypes.String:
-                                        function.CilMethodBody.Instructions.Add(CilOpCodes.Ldnull);
-                                        break;
-                                    case ReservedTypes.Void:
-                                        break;
-                                    default:
-                                        throw new Exception($"Return type '{typeExpression.Type}' is not supported in code generation.");
-                                }
+                                case ReservedTypes.Int:
+                                    functionDeclaration.Method.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_I4_0);
+                                    break;
+                                case ReservedTypes.Bool:
+                                    functionDeclaration.Method.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_I4_0);
+                                    break;
+                                case ReservedTypes.String:
+                                    functionDeclaration.Method.CilMethodBody.Instructions.Add(CilOpCodes.Ldnull);
+                                    break;
+                                case ReservedTypes.Void:
+                                    break;
+                                default:
+                                    throw new Exception($"Return type '{typeExpression.Type}' is not supported in code generation.");
                             }
-                            function.CilMethodBody.Instructions.Add(CilOpCodes.Ret);
                         }
+                        functionDeclaration.Method.CilMethodBody.Instructions.Add(CilOpCodes.Ret);
                     }
                 }
             }
         }
 
-        // Add support for else if
+        // TODO: Add support for else if
         void GenerateIfStatement(CilMethodBody body, IfStatement ifStatement)
         {
             bool multipleBranches = ifStatement.ElseIfs.Count > 0 || ifStatement.Else.Statements.Count > 0;
@@ -307,12 +328,22 @@ namespace CommonC.CodeGen.DotNet
 
         void GenerateAssignmentStatement(CilMethodBody body, AssignmentStatement assignmentStatement, List<VariableDeclarationStatement> variableDeclarationStatements)
         {
-            GenerateExpression(assignmentStatement.Expression, variableDeclarationStatements, body);
 
             if (assignmentStatement.Variable is IdentifierExpression identifierExpression)
             {
+                GenerateExpression(assignmentStatement.Expression, variableDeclarationStatements, body);
+
                 VariableDeclarationStatement variableDeclaration = variableDeclarationStatements.Where(t => t.Name == identifierExpression.Name).FirstOrDefault() ?? throw new Exception($"Variable '{identifierExpression.Name}' is not declared in the current scope.");
                 body.Instructions.Add(CilOpCodes.Stloc, variableDeclaration.CilLocalVaraible!);
+                return;
+            }
+            if(assignmentStatement.Variable is IndexExpression indexExpression)
+            {
+                GenerateExpression(indexExpression.Expression, variableDeclarationStatements, body);
+                GenerateExpression(indexExpression.Index, variableDeclarationStatements, body);
+                GenerateExpression(assignmentStatement.Expression, variableDeclarationStatements, body);
+
+                Emitter.EmitStelem(ResolveType(indexExpression.Expression, variableDeclarationStatements), body);
                 return;
             }
 
@@ -325,6 +356,9 @@ namespace CommonC.CodeGen.DotNet
             GenerateVariableDeclarationStateement(body, forStatement.Variable, forStatement.Body.Locals);
 
             CilInstruction loopStart = new CilInstruction(CilOpCodes.Nop);
+            CilInstruction conditionStart = new CilInstruction(CilOpCodes.Nop);
+
+            body.Instructions.Add(CilOpCodes.Br, conditionStart.CreateLabel());
             body.Instructions.Add(loopStart);
             GenerateStatements(body, forStatement.Body.Statements, forStatement.Body.Locals);
 
@@ -333,13 +367,28 @@ namespace CommonC.CodeGen.DotNet
             body.Instructions.Add(CilOpCodes.Add);
             body.Instructions.Add(CilOpCodes.Stloc, forStatement.Variable.CilLocalVaraible!);
 
-
-            body.Instructions.Add(CilOpCodes.Ldloc, forStatement.Variable.CilLocalVaraible!);
+            body.Instructions.Add(conditionStart);
             GenerateExpression(forStatement.Range.End, forStatement.Body.Locals, body);
+            body.Instructions.Add(CilOpCodes.Ldloc, forStatement.Variable.CilLocalVaraible!);
             body.Instructions.Add(CilOpCodes.Cgt);
-            body.Instructions.Add(CilOpCodes.Ldc_I4_0);
-            body.Instructions.Add(CilOpCodes.Ceq);
+            //body.Instructions.Add(CilOpCodes.Ldc_I4_0);
+            //body.Instructions.Add(CilOpCodes.Ceq);
 
+            body.Instructions.Add(CilOpCodes.Brtrue, loopStart.CreateLabel());
+        }
+
+        void GenerateWhileStatement(CilMethodBody body, WhileStatement whileStatement)
+        {
+            CilInstruction loopStart = new CilInstruction(CilOpCodes.Nop);
+            CilInstruction conditionStart = new CilInstruction(CilOpCodes.Nop);
+
+            body.Instructions.Add(CilOpCodes.Br, conditionStart.CreateLabel());
+            body.Instructions.Add(loopStart);
+
+            GenerateStatements(body, whileStatement.Body.Statements, whileStatement.Body.Locals);
+
+            body.Instructions.Add(conditionStart);
+            GenerateExpression(whileStatement.Expression, whileStatement.Body.Locals, body);
             body.Instructions.Add(CilOpCodes.Brtrue, loopStart.CreateLabel());
         }
 
@@ -393,6 +442,12 @@ namespace CommonC.CodeGen.DotNet
                     continue;
                 }
 
+                if(statement is WhileStatement whileStatement)
+                {
+                    GenerateWhileStatement(body, whileStatement);
+                    continue;
+                }
+
                 throw new Exception($"Statement of type '{statement.GetType().Name}' is not supported in code generation.");
             }
         }
@@ -440,6 +495,11 @@ namespace CommonC.CodeGen.DotNet
 
         void GenerateExpressions(ExpressionList expressionList, List<VariableDeclarationStatement> variableDeclarationStatements, CilMethodBody body)
         {
+            if(expressionList == null)
+            {
+                return;
+            }
+
             foreach (Expression expression in expressionList)
             {
                 GenerateExpression(expression, variableDeclarationStatements, body);
@@ -502,7 +562,20 @@ namespace CommonC.CodeGen.DotNet
                 return;
             }
 
+            if(expression is LengthExpression lengthExpression)
+            {
+                GenerateLengthExpresssion(lengthExpression, body, variableDeclarationStatements);
+                return;
+            }
+
             throw new Exception($"Expression of type '{expression.GetType().Name}' is not supported in code generation.");
+        }
+
+        void GenerateLengthExpresssion(LengthExpression lengthExpression, CilMethodBody body , List<VariableDeclarationStatement> variableDeclarationStatements)
+        {
+            GenerateExpression(lengthExpression.Expression, variableDeclarationStatements, body);
+            body.Instructions.Add(CilOpCodes.Ldlen);
+            body.Instructions.Add(CilOpCodes.Conv_I4);
         }
 
         void GenerateStringExpression(StringExpression stringExpression, CilMethodBody body)

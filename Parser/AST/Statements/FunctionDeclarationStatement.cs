@@ -1,4 +1,5 @@
-﻿using CommonC.Parser.AST.Expressions;
+﻿using AsmResolver.DotNet;
+using CommonC.Parser.AST.Expressions;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -14,5 +15,7 @@ namespace CommonC.Parser.AST.Statements
         public List<ParameterExpression> Parameters { get; set; } = new List<ParameterExpression>();
 
         public ClosureStatement? Body { get; set; }
+
+        internal MethodDefinition? Method { get; set; }
     }
 }
