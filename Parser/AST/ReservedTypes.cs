@@ -8,6 +8,8 @@ namespace CommonC.Parser.AST
     {
         String,
         Int,
+        Double,
+        Long,
         Bool,
         Void,
     }

@@ -7,5 +7,7 @@ namespace CommonC.Parser.AST.Expressions
     public class NumberExpression : Expression
     {
         public string Value { get; set; } = null!;
+
+        public bool IsDouble { get; set; } = false;
     }
 }

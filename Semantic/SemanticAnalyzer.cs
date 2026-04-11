@@ -32,8 +32,8 @@ namespace CommonC.Semantic
                             Name = functionDeclarationStatement.Parameters[i].Name,
                             Type = functionDeclarationStatement.Parameters[i].Type,
                             Expression = functionDeclarationStatement.Parameters[i].Value,
-                            isParameter = true,
-                            parameterIndex = i
+                            IsParameter = true,
+                            ParameterIndex = i
                         });
                     }
 

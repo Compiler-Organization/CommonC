@@ -1,6 +1,7 @@
 ﻿using CommonC.Lexer.Objects;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -16,10 +17,20 @@ namespace CommonC.Lexer
             // Types
             "string",
             "str",
+
             "integer",
             "int",
+            "i32",
+            
+            "double",
+            "dbl",
+
+            "long",
+            "i64",
+            
             "boolean",
             "bool",
+            
             "void",
 
             // Control flow
@@ -42,9 +53,9 @@ namespace CommonC.Lexer
             this.Input = Input;
         }
 
-        LexKinds Identify(string Value)
+        LexKinds IdentifyPrimitive(string Value)
         {
-            if (ulong.TryParse(Value, out _))
+            if (double.TryParse(Value, NumberStyles.Any, CultureInfo.InvariantCulture, out _))
                 return LexKinds.Number;
 
             if (Value == "false"
@@ -128,6 +139,8 @@ namespace CommonC.Lexer
                     case '.':
                         {
                             kind = LexKinds.Dot;
+
+
 
                             if(Input[i + 1] == '.')
                             {
@@ -258,6 +271,21 @@ namespace CommonC.Lexer
                                 kind = LexKinds.CompoundDiv;
                                 i++;
                             }
+                            else if (Input[i + 1] == '/')
+                            {
+                                i += 2;
+                                while (Input.Length > i)
+                                {
+                                    if (Input[i] == '\n')
+                                    {
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        i++;
+                                    }
+                                }
+                            }
                             break;
                         }
                     case '%':
@@ -291,14 +319,38 @@ namespace CommonC.Lexer
                         {
                             if (Char.IsLetterOrDigit(Input[i]))
                             {
-                                while (Input.Length > i && Char.IsLetterOrDigit(Input[i]))
+                                while (Input.Length > i)
                                 {
-                                    sb.Append(Input[i++]);
+                                    if(Char.IsLetterOrDigit(Input[i]))
+                                    {
+                                        sb.Append(Input[i++]);
+                                    }
+                                    else
+                                    {
+                                        break;
+                                    }
+
+                                    if (Input[i] == '.' && Char.IsDigit(Input[i + 1]) && double.TryParse(sb.ToString(), out _))
+                                    {
+                                        sb.Append(Input[i++]);
+                                        while (Input.Length > i)
+                                        {
+                                            if (Char.IsDigit(Input[i]))
+                                            {
+                                                sb.Append(Input[i++]);
+                                            }
+                                            else
+                                            {
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    }
                                 }
                                 i--;
                             }
                             value = sb.ToString();
-                            kind = Identify(value);
+                            kind = IdentifyPrimitive(value);
 
                             sb.Clear();
                             break;

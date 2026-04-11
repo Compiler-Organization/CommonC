@@ -26,13 +26,37 @@ namespace CommonC.CodeGen.DotNet
                 case 8: body.Instructions.Add(CilOpCodes.Ldc_I4_8); return;
             }
 
-            if (value >= -128 && value <= 127)
+            
+            if (value >= sbyte.MinValue && value <= sbyte.MaxValue)
             {
                 body.Instructions.Add(CilOpCodes.Ldc_I4_S, (sbyte)value);
+                return;
             }
-            else
+
+            if (value >= int.MinValue && value <= int.MaxValue)
             {
-                body.Instructions.Add(CilOpCodes.Ldc_I4, value);
+                body.Instructions.Add(CilOpCodes.Ldc_I4, (int)value);
+                return;
+            }
+
+
+        }
+        
+        public void EmitLdc_R8(double value, CilMethodBody body)
+        {
+            if (value >= double.MinValue && value <= double.MaxValue)
+            {
+                body.Instructions.Add(CilOpCodes.Ldc_R8, value);
+                return;
+            }
+        }
+
+        public void EmitLdc_I8(double value, CilMethodBody body)
+        {
+            if (value >= long.MinValue && value <= long.MaxValue)
+            {
+                body.Instructions.Add(CilOpCodes.Ldc_I8, value);
+                return;
             }
         }
 

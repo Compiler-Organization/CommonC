@@ -13,18 +13,9 @@ using CommonC.Parser.AST.Expressions;
 using CommonC.Parser.AST.Statements;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using static System.Runtime.InteropServices.JavaScript.JSType;
-
-/*
-TODO:
-    * Change so branching doesnt create a nop instruction
-    * Fix exponential calculation
-    * Support index assignment after array has been initialized
-    
-    * Fix parser precedence so it handles n % i == 0 as (n % i) == 0 properly.
- 
- */
 
 namespace CommonC.CodeGen.DotNet
 {
@@ -43,6 +34,8 @@ namespace CommonC.CodeGen.DotNet
         }
 
         IMethodDescriptor? WriteLineInt { get; set; }
+        IMethodDescriptor? WriteLineDouble { get; set; }
+        IMethodDescriptor? WriteLineLong { get; set; }
         IMethodDescriptor? WriteLineStr { get; set; }
         IMethodDescriptor? WriteLineBool { get; set; }
         IMethodDescriptor? WriteLineObj { get; set; }
@@ -55,6 +48,10 @@ namespace CommonC.CodeGen.DotNet
                     return Module.CorLibTypeFactory.String;
                 case ReservedTypes.Int:
                     return Module.CorLibTypeFactory.Int32;
+                case ReservedTypes.Double:
+                    return Module.CorLibTypeFactory.Double;
+                case ReservedTypes.Long:
+                    return Module.CorLibTypeFactory.Int64;
                 case ReservedTypes.Bool:
                     return Module.CorLibTypeFactory.Boolean;
                 case ReservedTypes.Void:
@@ -87,6 +84,10 @@ namespace CommonC.CodeGen.DotNet
                         return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "String");
                     case ReservedTypes.Int:
                         return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Int32");
+                    case ReservedTypes.Long:
+                        return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Int64");
+                    case ReservedTypes.Double:
+                        return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Double");
                     case ReservedTypes.Bool:
                         return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Boolean");
                     default:
@@ -160,6 +161,20 @@ namespace CommonC.CodeGen.DotNet
                 parameterTypes: [Module.CorLibTypeFactory.String]
             ));
 
+            WriteLineDouble = Module.CorLibTypeFactory.CorLibScope
+            .CreateTypeReference("System", "Console")
+            .CreateMemberReference("WriteLine", MethodSignature.CreateStatic(
+                returnType: Module.CorLibTypeFactory.Void,
+                parameterTypes: [Module.CorLibTypeFactory.Double]
+            ));
+
+            WriteLineLong = Module.CorLibTypeFactory.CorLibScope
+            .CreateTypeReference("System", "Console")
+            .CreateMemberReference("WriteLine", MethodSignature.CreateStatic(
+                returnType: Module.CorLibTypeFactory.Void,
+                parameterTypes: [Module.CorLibTypeFactory.Int64]
+            ));
+
             WriteLineBool = Module.CorLibTypeFactory.CorLibScope
             .CreateTypeReference("System", "Console")
             .CreateMemberReference("WriteLine", MethodSignature.CreateStatic(
@@ -174,6 +189,10 @@ namespace CommonC.CodeGen.DotNet
                 parameterTypes: [Module.CorLibTypeFactory.Object]
             ));
 
+            GenerateFieldReferences(statements);
+            GenerateFunctionReferences(statements);
+
+            GenerateFieldDeclarations(statements);
             GenerateFunctionDeclarations(statements);
 
             ManagedPEImageBuilder builder = new ManagedPEImageBuilder();
@@ -205,7 +224,41 @@ namespace CommonC.CodeGen.DotNet
             return peFile;
         }
 
-        void GenerateFunctionDeclarations(StatementList statements)
+        void GenerateFieldReferences(StatementList statements)
+        {
+            foreach (VariableDeclarationStatement variableDeclarationStatement in statements.OfType<VariableDeclarationStatement>())
+            {
+                FieldDefinition fieldDefinition = new FieldDefinition(variableDeclarationStatement.Name, FieldAttributes.Public | FieldAttributes.Static, new FieldSignature(ResolveCorLibType(variableDeclarationStatement.Type)));
+
+                variableDeclarationStatement.IsField = true;
+                variableDeclarationStatement.Field = fieldDefinition;
+
+                Module.TopLevelTypes.First().Fields.Add(fieldDefinition);
+            }
+        }
+
+        void GenerateFieldDeclarations(StatementList statements)
+        {
+            MethodDefinition constructor = Module.TopLevelTypes.First().GetOrCreateStaticConstructor();
+
+            if(constructor.CilMethodBody!.Instructions.First().OpCode == CilOpCodes.Ret)
+            {
+                constructor.CilMethodBody.Instructions.RemoveAt(0);
+            }
+
+            foreach (VariableDeclarationStatement variableDeclarationStatement in statements.OfType<VariableDeclarationStatement>())
+            {
+                if(variableDeclarationStatement.Expression != null)
+                {
+                    GenerateExpression(variableDeclarationStatement.Expression, statements.OfType<VariableDeclarationStatement>().ToList(), constructor.CilMethodBody);
+                    constructor.CilMethodBody.Instructions.Add(CilOpCodes.Stsfld, variableDeclarationStatement.Field);
+                }
+            }
+
+            constructor.CilMethodBody.Instructions.Add(CilOpCodes.Ret);
+        }
+
+        void GenerateFunctionReferences(StatementList statements)
         {
             foreach (FunctionDeclarationStatement functionDeclaration in statements.OfType<FunctionDeclarationStatement>())
             {
@@ -229,7 +282,10 @@ namespace CommonC.CodeGen.DotNet
                     Module.ManagedEntryPointMethod = function;
                 }
             }
+        }
 
+        void GenerateFunctionDeclarations(StatementList statements)
+        {
             foreach (FunctionDeclarationStatement functionDeclaration in statements.OfType<FunctionDeclarationStatement>())
             {
                 if (functionDeclaration.Body != null && functionDeclaration.Body.Statements != null && functionDeclaration.Body.Statements.Count > 0)
@@ -245,6 +301,12 @@ namespace CommonC.CodeGen.DotNet
                             {
                                 case ReservedTypes.Int:
                                     functionDeclaration.Method.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_I4_0);
+                                    break;
+                                case ReservedTypes.Double:
+                                    functionDeclaration.Method.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_R8, 0);
+                                    break;
+                                case ReservedTypes.Long:
+                                    functionDeclaration.Method.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_I8, 0);
                                     break;
                                 case ReservedTypes.Bool:
                                     functionDeclaration.Method.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_I4_0);
@@ -323,7 +385,7 @@ namespace CommonC.CodeGen.DotNet
             GenerateExpression(variableDeclarationStatement.Expression, variableDeclarationStatements, body);
             body.Instructions.Add(CilOpCodes.Stloc, localVariable);
 
-            variableDeclarationStatement.CilLocalVaraible = localVariable;
+            variableDeclarationStatement.CilLocalVariable = localVariable;
         }
 
         void GenerateAssignmentStatement(CilMethodBody body, AssignmentStatement assignmentStatement, List<VariableDeclarationStatement> variableDeclarationStatements)
@@ -333,8 +395,18 @@ namespace CommonC.CodeGen.DotNet
             {
                 GenerateExpression(assignmentStatement.Expression, variableDeclarationStatements, body);
 
-                VariableDeclarationStatement variableDeclaration = variableDeclarationStatements.Where(t => t.Name == identifierExpression.Name).FirstOrDefault() ?? throw new Exception($"Variable '{identifierExpression.Name}' is not declared in the current scope.");
-                body.Instructions.Add(CilOpCodes.Stloc, variableDeclaration.CilLocalVaraible!);
+                List<FieldDefinition> fieldDefs = Module.TopLevelTypes.First().Fields.Where(t => t.Name == identifierExpression.Name).ToList();
+
+                if(fieldDefs.Any())
+                {
+                    body.Instructions.Add(CilOpCodes.Stsfld, fieldDefs.First());
+                }
+                else
+                {
+                    VariableDeclarationStatement variableDeclaration = variableDeclarationStatements.Where(t => t.Name == identifierExpression.Name).FirstOrDefault() ?? throw new Exception($"Variable '{identifierExpression.Name}' is not declared in the current scope.");
+
+                    body.Instructions.Add(CilOpCodes.Stloc, variableDeclaration.CilLocalVariable!);
+                }
                 return;
             }
             if(assignmentStatement.Variable is IndexExpression indexExpression)
@@ -363,13 +435,13 @@ namespace CommonC.CodeGen.DotNet
             GenerateStatements(body, forStatement.Body.Statements, forStatement.Body.Locals);
 
             Emitter.EmitLdc_I4(1, body);
-            body.Instructions.Add(CilOpCodes.Ldloc, forStatement.Variable.CilLocalVaraible!);
+            body.Instructions.Add(CilOpCodes.Ldloc, forStatement.Variable.CilLocalVariable!);
             body.Instructions.Add(CilOpCodes.Add);
-            body.Instructions.Add(CilOpCodes.Stloc, forStatement.Variable.CilLocalVaraible!);
+            body.Instructions.Add(CilOpCodes.Stloc, forStatement.Variable.CilLocalVariable!);
 
             body.Instructions.Add(conditionStart);
             GenerateExpression(forStatement.Range.End, forStatement.Body.Locals, body);
-            body.Instructions.Add(CilOpCodes.Ldloc, forStatement.Variable.CilLocalVaraible!);
+            body.Instructions.Add(CilOpCodes.Ldloc, forStatement.Variable.CilLocalVariable!);
             body.Instructions.Add(CilOpCodes.Cgt);
             //body.Instructions.Add(CilOpCodes.Ldc_I4_0);
             //body.Instructions.Add(CilOpCodes.Ceq);
@@ -465,6 +537,12 @@ namespace CommonC.CodeGen.DotNet
                 {
                     case "logint":
                         body.Instructions.Add(CilOpCodes.Call, WriteLineInt!);
+                        return;
+                    case "logdbl":
+                        body.Instructions.Add(CilOpCodes.Call, WriteLineDouble!);
+                        return;
+                    case "loglong":
+                        body.Instructions.Add(CilOpCodes.Call, WriteLineLong!);
                         return;
                     case "logstr":
                         body.Instructions.Add(CilOpCodes.Call, WriteLineStr!);
@@ -568,7 +646,65 @@ namespace CommonC.CodeGen.DotNet
                 return;
             }
 
+            if(expression is ArrayInitializerExpression arrayInitializerExpression)
+            {
+                GenerateArrayInitializerExpression(arrayInitializerExpression, body, variableDeclarationStatements);
+                return;
+            }
+
+            if(expression is NotExpression notExpression)
+            {
+                GenerateNotExpression(notExpression, body, variableDeclarationStatements);
+                return;
+            }
+
+            if(expression is NegateExpression negateExpression)
+            {
+                GenerateNegateExpression(negateExpression, body, variableDeclarationStatements);
+                return;
+            }
+
+            if(expression is ParenthesizedExpression parenthesizedExpression)
+            {
+                GenerateParenthesizedExpression(parenthesizedExpression, body, variableDeclarationStatements);
+                return;
+            }
+
             throw new Exception($"Expression of type '{expression.GetType().Name}' is not supported in code generation.");
+        }
+
+        void GenerateParenthesizedExpression(ParenthesizedExpression parenthesizedExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
+        {
+            GenerateExpression(parenthesizedExpression.Expression, variableDeclarationStatements, body);
+        }
+
+        void GenerateNotExpression(NotExpression notExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
+        {
+            GenerateExpression(notExpression.Expression, variableDeclarationStatements, body);
+            body.Instructions.Add(CilOpCodes.Ldc_I4_0);
+            body.Instructions.Add(CilOpCodes.Ceq);
+        }
+
+        void GenerateNegateExpression(NegateExpression negateExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
+        {
+            GenerateExpression(negateExpression.Expression, variableDeclarationStatements, body);
+            body.Instructions.Add(CilOpCodes.Neg);
+        }
+
+        void GenerateArrayInitializerExpression(ArrayInitializerExpression arrayInitializerExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
+        {
+            GenerateExpression(arrayInitializerExpression.Initializer.Index, variableDeclarationStatements, body);
+            TypeReference arrayType = ResolveType(arrayInitializerExpression.Initializer.Expression, variableDeclarationStatements);
+            body.Instructions.Add(CilOpCodes.Newarr, arrayType);
+
+            for (int i = 0; i < arrayInitializerExpression.Array.Expressions.Count; i++)
+            {
+                body.Instructions.Add(CilOpCodes.Dup);
+                Emitter.EmitLdc_I4(i, body);
+                GenerateExpression(arrayInitializerExpression.Array.Expressions[i], variableDeclarationStatements, body);
+
+                Emitter.EmitStelem(arrayType, body);
+            }
         }
 
         void GenerateLengthExpresssion(LengthExpression lengthExpression, CilMethodBody body , List<VariableDeclarationStatement> variableDeclarationStatements)
@@ -583,9 +719,16 @@ namespace CommonC.CodeGen.DotNet
             body.Instructions.Add(CilOpCodes.Ldstr, stringExpression.Value);
         }
 
-        void GenerateNumberExpression(NumberExpression integerExpression, CilMethodBody body)
+        void GenerateNumberExpression(NumberExpression numberExpression, CilMethodBody body)
         {
-            Emitter.EmitLdc_I4(int.Parse(integerExpression.Value), body);
+            if(numberExpression.IsDouble)
+            {
+                Emitter.EmitLdc_R8(double.Parse(numberExpression.Value, NumberStyles.Any, CultureInfo.InvariantCulture), body);
+            }
+            else
+            {
+                Emitter.EmitLdc_I4(int.Parse(numberExpression.Value), body);
+            }
         }
 
         
@@ -691,13 +834,22 @@ namespace CommonC.CodeGen.DotNet
             {
                 VariableDeclarationStatement variableDeclaration = variableDeclarations.Where(t => t.Name == identifierExpression.Name).First();
 
-                if(variableDeclaration.isParameter)
+                if (variableDeclaration.IsParameter)
                 {
-                    Emitter.EmitLdarg(variableDeclaration.parameterIndex, body);
+                    Emitter.EmitLdarg(variableDeclaration.ParameterIndex, body);
                     return;
                 }
 
-                body.Instructions.Add(CilOpCodes.Ldloc, variableDeclaration.CilLocalVaraible!);
+                body.Instructions.Add(CilOpCodes.Ldloc, variableDeclaration.CilLocalVariable!);
+
+                return;
+            }
+
+            List<FieldDefinition> fieldDefs = Module.TopLevelTypes.First().Fields.Where(t => t.Name == identifierExpression.Name).ToList();
+
+            if (fieldDefs.Any())
+            {
+                body.Instructions.Add(CilOpCodes.Ldsfld, fieldDefs.First());
                 return;
             }
 

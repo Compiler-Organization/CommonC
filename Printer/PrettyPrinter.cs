@@ -36,7 +36,7 @@ namespace CommonC.Printer
 
         void PrintBooleanExpression(BooleanExpression booleanExpression)
         {
-            Builder.Append(booleanExpression.Value.ToString());
+            Builder.Append(booleanExpression.Value.ToString().ToLower());
         }
 
         void PrintIdentifierExpression(IdentifierExpression identifierExpression)
@@ -53,7 +53,15 @@ namespace CommonC.Printer
                     break;
 
                 case Parser.AST.ReservedTypes.String:
-                    Builder.Append("str");
+                    Builder.Append("string");
+                    break;
+
+                case Parser.AST.ReservedTypes.Double:
+                    Builder.Append("double");
+                    break;
+
+                case Parser.AST.ReservedTypes.Long:
+                    Builder.Append("long");
                     break;
 
                 case Parser.AST.ReservedTypes.Bool:
@@ -202,8 +210,54 @@ namespace CommonC.Printer
             PrintExpression(lengthExpression.Expression, indentation);
         }
 
+        void PrintArrayInitializerExpression(ArrayInitializerExpression arrayInitializerExpression, string indentation)
+        {
+            PrintIndexExpression(arrayInitializerExpression.Initializer, indentation);
+            Builder.Append(" ");
+            PrintArrayExpression(arrayInitializerExpression.Array, indentation);
+        }
+
+        void PrintNotExpression(NotExpression notExpression, string indentation)
+        {
+            Builder.Append("!");
+            PrintExpression(notExpression.Expression, indentation);
+        }
+
+        void PrintNegateExpression(NegateExpression negateExpression, string indentation)
+        {
+            Builder.Append("-");
+            PrintExpression(negateExpression.Expression, indentation);
+        }
+
+        void PrintParenthesizedExpression(ParenthesizedExpression parenthesizedExpression, string indentation)
+        {
+            Builder.Append("(");
+            PrintExpression(parenthesizedExpression.Expression, indentation);
+            Builder.Append(")");
+        }
+
         void PrintExpression(Expression expression, string indentation)
         {
+            if(expression is ParenthesizedExpression parenthesizedExpression)
+            {
+                PrintParenthesizedExpression(parenthesizedExpression, indentation);
+            }
+
+            if(expression is NotExpression notExpression)
+            {
+                PrintNotExpression(notExpression, indentation);
+            }
+
+            if(expression is NegateExpression negateExpression)
+            {
+                PrintNegateExpression(negateExpression, indentation);
+            }
+
+            if(expression is ArrayInitializerExpression arrayInitializerExpression)
+            {
+                PrintArrayInitializerExpression(arrayInitializerExpression, indentation);
+            }
+
             if(expression is LengthExpression lengthExpression)
             {
                 PrintLengthExpression(lengthExpression, indentation);
@@ -418,6 +472,7 @@ namespace CommonC.Printer
             PrintExpression(forStatement.Range, indentation);
             Builder.Append(", ");
             Builder.Append(forStatement.Variable.Name);
+            Builder.Append(Settings.NewLine);
 
             PrintClosureStatement(forStatement.Body, indentation, indentation);
         }
@@ -430,15 +485,17 @@ namespace CommonC.Printer
             {
                 Builder.Append(" ");
                 PrintExpression(returnStatement.Expression, indentation);
-                Builder.Append(";");
-                Builder.Append(Settings.NewLine);
             }
+            Builder.Append(";");
+            Builder.Append(Settings.NewLine);
         }
 
         void PrintWhileStatement(WhileStatement whileStatement, string indentation)
         {
             Builder.Append(indentation);
             Builder.Append("while ");
+            PrintExpression(whileStatement.Expression, indentation);
+            Builder.Append(Settings.NewLine);
             PrintClosureStatement(whileStatement.Body, indentation, indentation);
         }
 

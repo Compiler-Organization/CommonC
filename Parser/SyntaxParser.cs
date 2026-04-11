@@ -43,6 +43,11 @@ namespace CommonC.Parser
 
             if (TokenReader.Expect(LexKinds.Number))
             {
+                if(TokenReader.Peek().Value.Contains("."))
+                {
+                    numberExpression.IsDouble = true;
+                }
+
                 numberExpression.Value = TokenReader.Consume().Value;
                 return true;
             }
@@ -88,7 +93,18 @@ namespace CommonC.Parser
 
                 case "integer":
                 case "int":
+                case "i32":
                     typeExpression.Type = ReservedTypes.Int;
+                    break;
+
+                case "double":
+                case "dbl":
+                    typeExpression.Type = ReservedTypes.Double;
+                    break;
+
+                case "long":
+                case "i64":
+                    typeExpression.Type = ReservedTypes.Long;
                     break;
 
                 case "boolean":
@@ -148,6 +164,32 @@ namespace CommonC.Parser
             return false;
         }
 
+        bool ParseParenthesizedExpression(out ParenthesizedExpression parenthesizedExpression)
+        {
+            parenthesizedExpression = new ParenthesizedExpression();
+
+            if(TokenReader.Expect(LexKinds.ParentheseOpen))
+            {
+                TokenReader.Consume();
+                if(ParseExpression(out Expression expression))
+                {
+                    parenthesizedExpression.Expression = expression;
+
+                    if(TokenReader.ExpectFatal(LexKinds.ParentheseClose))
+                    {
+                        TokenReader.Consume();
+                        return true;
+                    }
+                }
+                else
+                {
+                    throw new Exception("Expression expected in parenthesized expression");
+                }
+            }
+
+            return false;
+        }
+
         /// <summary>
         /// Parses expressions without a right hand side
         /// </summary>
@@ -156,6 +198,12 @@ namespace CommonC.Parser
         bool ParseSimpleExpression(out Expression expression)
         {
             expression = new Expression();
+
+            if(ParseParenthesizedExpression(out ParenthesizedExpression parenthesizedExpression))
+            {
+                expression = parenthesizedExpression;
+                return true;
+            }
 
             if(ParseIdentifierExpression(out IdentifierExpression identifierExpression))
             {
@@ -194,6 +242,18 @@ namespace CommonC.Parser
             if(ParseLengthExpression(out LengthExpression lengthExpression))
             {
                 expression = lengthExpression;
+                return true;
+            }
+
+            if (ParseNotExpression(out NotExpression notExpression))
+            {
+                expression = notExpression;
+                return true;
+            }
+
+            if(ParseNegateExpression(out NegateExpression negateExpression))
+            {
+                expression = negateExpression;
                 return true;
             }
 
@@ -456,6 +516,64 @@ namespace CommonC.Parser
             return parameters.Count > 0;
         }
 
+        bool ParseArrayInitializerExpression(IndexExpression indexExpression, out ArrayInitializerExpression arrayInitializerExpression)
+        {
+            arrayInitializerExpression = new ArrayInitializerExpression() 
+            {
+                Initializer = indexExpression
+            };
+
+            if(ParseArrayExpression(out ArrayExpression arrayExpression))
+            {
+                arrayInitializerExpression.Array = arrayExpression;
+                return true;
+            }
+
+            return false;
+        }
+
+        bool ParseNotExpression(out NotExpression notExpression)
+        {
+            notExpression = new NotExpression();
+
+            if(TokenReader.Expect(LexKinds.Exclamation))
+            {
+                TokenReader.Consume();
+                if(ParseExpression(out Expression expression))
+                {
+                    notExpression.Expression = expression;
+                    return true;
+                }
+                else
+                {
+                    throw new Exception("Expression expected when parsing not expression");
+                }
+            }
+
+            return false;
+        }
+
+        bool ParseNegateExpression(out NegateExpression negateExpression)
+        {
+            negateExpression = new NegateExpression();
+
+            if(TokenReader.Expect(LexKinds.Subtraction))
+            {
+                TokenReader.Consume();
+                if (ParseExpression(out Expression expression))
+                {
+                    negateExpression.Expression = expression;
+                    return true;
+                }
+                else
+                {
+                    throw new Exception("Expression expected when parsing negate expression");
+                }
+            }
+
+            return false;
+        }
+
         bool ParseExpression(out Expression expression, bool parseSimple = false)
         {
             expression = new Expression();
@@ -504,7 +622,14 @@ namespace CommonC.Parser
 
                 if (ParseIndexExpression(expression, out IndexExpression indexExpression))
                 {
-                    expression = indexExpression;
+                    if(ParseArrayInitializerExpression(indexExpression, out ArrayInitializerExpression arrayInitializerExpression))
+                    {
+                        expression = arrayInitializerExpression;
+                    }
+                    else
+                    {
+                        expression = indexExpression;
+                    }
                     continue;
                 }
                 if (ParseMemberExpression(expression, out MemberExpression memberExpression))
@@ -852,6 +977,7 @@ namespace CommonC.Parser
                 if(ParseClosureStatement(out ClosureStatement closureStatement))
                 {
                     whileStatement.Body = closureStatement;
+                    return true;
                 }
                 else if (ParseStatement(out Statement bodyStatement))
                 {
