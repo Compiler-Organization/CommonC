@@ -17,6 +17,19 @@ using System.Globalization;
 using System.Text;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
+/*
+TODO:
+    CodeGen:
+    * Change so branching doesnt create a nop instruction
+    * Fix exponential calculation
+    * Support index assignment after array has been initialized
+    * Support arrays without values
+    * Add objects (like structs)
+        * Support using user objects as types
+    
+    * Fix parser precedence so it handles n % i == 0 as (n % i) == 0 properly.
+ */
+
 namespace CommonC.CodeGen.DotNet
 {
     public class DotNetCodeGen
@@ -113,10 +126,16 @@ namespace CommonC.CodeGen.DotNet
             if (expression is IdentifierExpression identifierExpression)
             {
                 List<VariableDeclarationStatement> existingLocals = locals.Where(l => l.Name == identifierExpression.Name).ToList();
-
                 if (existingLocals.Any())
                 {
                     return ResolveType(existingLocals.FirstOrDefault()!.Type, locals);
+                }
+
+                // TODO: Add functionality here
+                List<TypeDefinition> types = Module.TopLevelTypes.Where(t => t.Name == identifierExpression.Name).ToList();
+                if (types.Any())
+                {
+
                 }
 
                 throw new Exception($"Exception occured when resolving type: Local '{identifierExpression.Name}' does not exist in the current scope.");
