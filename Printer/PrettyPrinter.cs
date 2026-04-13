@@ -236,8 +236,31 @@ namespace CommonC.Printer
             Builder.Append(")");
         }
 
+        void PrintObjectInitializerExpression(ObjectInitializerExpression objectInitializerExpression, string indentation)
+        {
+            PrintExpression(objectInitializerExpression.Expression, indentation);
+            Builder.Append(" { ");
+            foreach (AssignmentStatement assignmentStatement in objectInitializerExpression.PropertyAssignments)
+            {
+                PrintExpression(assignmentStatement.Variable, indentation);
+                Builder.Append(" = ");
+                PrintExpression(assignmentStatement.Expression!, indentation);
+                
+                if (objectInitializerExpression.PropertyAssignments.IndexOf(assignmentStatement) != objectInitializerExpression.PropertyAssignments.Count - 1)
+                {
+                    Builder.Append(", ");
+                }
+            }
+            Builder.Append("}");
+        }
+
         void PrintExpression(Expression expression, string indentation)
         {
+            if(expression is ObjectInitializerExpression objectInitializerExpression)
+            {
+                PrintObjectInitializerExpression(objectInitializerExpression, indentation);
+            }
+
             if(expression is ParenthesizedExpression parenthesizedExpression)
             {
                 PrintParenthesizedExpression(parenthesizedExpression, indentation);
@@ -404,12 +427,12 @@ namespace CommonC.Printer
             PrintExpression(functionDeclarationStatement.ReturnType, indentation);
             Builder.Append(" ");
             Builder.Append(functionDeclarationStatement.Name);
-            Builder.Append("(");
-            if(functionDeclarationStatement.Parameters != null)
+            if(functionDeclarationStatement.Parameters != null && functionDeclarationStatement.Parameters.Count > 0)
             {
+                Builder.Append("(");
                 PrintParameterExpressions(functionDeclarationStatement.Parameters, indentation);
+                Builder.Append(")");
             }
-            Builder.Append(")");
 
             if(functionDeclarationStatement.Body != null)
             {
@@ -499,10 +522,43 @@ namespace CommonC.Printer
             PrintClosureStatement(whileStatement.Body, indentation, indentation);
         }
 
+        void PrintStructStatement(StructStatement structStatement, string indentation)
+        {
+            Builder.Append(indentation);
+            Builder.Append("struct ");
+            Builder.Append(structStatement.Name);
+            Builder.Append(Settings.NewLine);
+            Builder.Append("{");
+            Builder.Append(Settings.NewLine);
+            foreach (VariableDeclarationStatement variableDeclarationStatement in structStatement.Fields)
+            {
+                Builder.Append(indentation + Settings.Indentation);
+                PrintExpression(variableDeclarationStatement.Type, indentation);
+                Builder.Append(" ");
+                Builder.Append(variableDeclarationStatement.Name);
+                if (variableDeclarationStatement.Expression != null)
+                {
+                    Builder.Append(" = ");
+                    PrintExpression(variableDeclarationStatement.Expression, indentation);
+                }
+                if(structStatement.Fields.IndexOf(variableDeclarationStatement) != structStatement.Fields.Count - 1)
+                {
+                    Builder.Append(",");
+                }
+                Builder.Append(Settings.NewLine);
+            }
+            Builder.Append("}");
+            Builder.Append(Settings.NewLine);
+        }
+
         void PrintStatements(StatementList statements, string indentation)
         {
             foreach(Statement statement in statements)
             {
+                if(statement is StructStatement structStatement)
+                {
+                    PrintStructStatement(structStatement, indentation);
+                }
                 if(statement is CallStatement callStatement)
                 {
                     PrintCallStatement(callStatement, indentation);

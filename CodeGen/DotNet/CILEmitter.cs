@@ -38,8 +38,17 @@ namespace CommonC.CodeGen.DotNet
                 body.Instructions.Add(CilOpCodes.Ldc_I4, (int)value);
                 return;
             }
+        }
 
+        public void EmitLdloca(int index, CilMethodBody body)
+        {
+            if (index >= sbyte.MinValue && index <= sbyte.MaxValue)
+            {
+                body.Instructions.Add(CilOpCodes.Ldloca_S, (sbyte)index);
+                return;
+            }
 
+            body.Instructions.Add(CilOpCodes.Ldc_I4, (int)index);
         }
         
         public void EmitLdc_R8(double value, CilMethodBody body)

@@ -33,6 +33,8 @@ namespace CommonC.Lexer
             
             "void",
 
+            "struct",
+
             // Control flow
             "if",
             "elseif",

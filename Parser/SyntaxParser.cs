@@ -574,6 +574,54 @@ namespace CommonC.Parser
             return false;
         }
 
+        bool ParseObjectInitializerExpression(Expression expression, out ObjectInitializerExpression objectInitializerExpression)
+        {
+            objectInitializerExpression = new ObjectInitializerExpression()
+            {
+                Expression = expression
+            };
+
+            if(expression is IdentifierExpression
+                || expression is MemberExpression)
+            {
+                if(TokenReader.Expect(LexKinds.BraceOpen))
+                {
+                    TokenReader.Consume();
+                    for(; ; )
+                    {
+                        if(ParseExpression(out Expression assignmentVariableExpression, true))
+                        {
+                            if (ParseAssignmentStatement(assignmentVariableExpression, out AssignmentStatement assignmentStatement))
+                            {
+                                objectInitializerExpression.PropertyAssignments.Add(assignmentStatement);
+                                continue;
+                            }
+                            else
+                            {
+                                throw new Exception($"Line {TokenReader.Peek().Line}: Property assignment in object initializer is invalid.");
+                            }
+                        }
+
+                        if(TokenReader.Expect(LexKinds.Comma))
+                        {
+                            TokenReader.Consume();
+                            continue;
+                        }
+
+                        break;
+                    }
+
+                    if(TokenReader.ExpectFatal(LexKinds.BraceClose))
+                    {
+                        TokenReader.Consume();
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
         bool ParseExpression(out Expression expression, bool parseSimple = false)
         {
             expression = new Expression();
@@ -635,6 +683,12 @@ namespace CommonC.Parser
                 if (ParseMemberExpression(expression, out MemberExpression memberExpression))
                 {
                     expression = memberExpression;
+                    continue;
+                }
+
+                if(ParseObjectInitializerExpression(expression, out ObjectInitializerExpression objectInitializerExpression))
+                {
+                    expression = objectInitializerExpression;
                     continue;
                 }
 
@@ -736,16 +790,13 @@ namespace CommonC.Parser
                 {
                     TokenReader.Consume();
                 }
-
-                if (ParseClosureStatement(out ClosureStatement closureStatement))
-                {
-                    functionDeclarationStatement.Body = closureStatement;
-                    return true;
-                }
-
-                throw new Exception($"Line {TokenReader.Peek().Line}: Invalid function declaration statement, got {TokenReader.Peek().Kind}, {TokenReader.Peek().Value}");
             }
 
+            if (ParseClosureStatement(out ClosureStatement closureStatement))
+            {
+                functionDeclarationStatement.Body = closureStatement;
+                return true;
+            }
 
             return false;
         }
@@ -767,7 +818,8 @@ namespace CommonC.Parser
                 }
                 throw new Exception($"Line {TokenReader.Peek().Line}: Invalid variable declaration statement");
             }
-            return false;
+
+            return true;
         }
 
         bool ParseIfStatement(out IfStatement ifStatement)
@@ -800,14 +852,13 @@ namespace CommonC.Parser
                     ifStatement.Body.Statements.Add(statement);
                 }
 
-                // Check if single statement, if no closure
-
-
-                // Parse elseif
+                // Parse elseifs
                 for (; ; )
                 {
+                    Console.WriteLine("Parsing elseif...");
                     if(TokenReader.Expect(LexKinds.Keyword, "elseif"))
                     {
+                        Console.WriteLine("Started parsing of elseif...");
                         IfStatement elseIfStatement = new IfStatement();
 
                         TokenReader.Skip(1);
@@ -825,14 +876,24 @@ namespace CommonC.Parser
                             if (ParseClosureStatement(out ClosureStatement elseIfClosureStatement))
                             {
                                 elseIfStatement.Body = elseIfClosureStatement;
+                                ifStatement.ElseIfs.Add(elseIfStatement);
                             }
+                            else
+                            {
+                                throw new Exception($"Line {TokenReader.Peek().Line}: Invalid elseif statement, expected a complete closure");
+                            }
+
+                            continue;
                         }
                         else if (ParseStatement(out Statement elseIfStatementBody))
                         {
                             elseIfStatement.Body.Statements.Add(elseIfStatementBody);
+                            ifStatement.ElseIfs.Add(elseIfStatement);
+                            continue;
                         }
 
-                        ifStatement.Condition = elseIfConditionExpression;
+
+                        throw new Exception($"Line {TokenReader.Peek().Line}: Invalid elseif statement, could not parse elseif");
                     }
 
                     break;
@@ -989,9 +1050,75 @@ namespace CommonC.Parser
             return false;
         }
 
+        bool ParseStructStatement(out StructStatement structStatement)
+        {
+            structStatement = new StructStatement();
+
+            if(TokenReader.Expect(LexKinds.Keyword, "struct"))
+            {
+                TokenReader.Consume();
+                if(TokenReader.ExpectFatal(LexKinds.Identifier))
+                {
+                    structStatement.Name = TokenReader.Consume().Value;
+                }
+
+                if (TokenReader.ExpectFatal(LexKinds.BraceOpen))
+                {
+                    TokenReader.Consume();
+                }
+
+                for(; ; )
+                {
+                    if(ParseExpression(out Expression expression, true))
+                    {
+                        if (expression is TypeExpression
+                            || expression is IdentifierExpression
+                            || expression is MemberExpression)
+                        {
+
+                            if (ParseIdentifierExpression(out IdentifierExpression nameExpression))
+                            {
+                                if (ParseVariableDeclarationStatement(expression, nameExpression, out VariableDeclarationStatement variableDeclarationStatement))
+                                {
+                                    structStatement.Fields.Add(variableDeclarationStatement);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            throw new Exception($"Line {TokenReader.Peek().Line}: Type / identifier / member expected when parsing field in struct declaration.");
+                        }
+                    }
+
+                    if(TokenReader.Expect(LexKinds.Comma))
+                    {
+                        TokenReader.Consume();
+                        continue;
+                    }
+
+                    break;
+                }
+
+                if(TokenReader.ExpectFatal(LexKinds.BraceClose))
+                {
+                    TokenReader.Consume();
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
         bool ParseStatement(out Statement statement)
         {
             statement = new Statement();
+
+            if(ParseStructStatement(out StructStatement structStatement))
+            {
+                statement = structStatement;
+                return true;
+            }
 
             if(ParseIfStatement(out IfStatement ifStatement))
             {
@@ -1025,12 +1152,6 @@ namespace CommonC.Parser
                     return true;
                 }
 
-                if(ParseAssignmentStatement(expression, out AssignmentStatement assignmentStatement))
-                {
-                    statement = assignmentStatement;
-                    return true;
-                }
-
                 if(expression is TypeExpression 
                     || expression is IdentifierExpression
                     || expression is MemberExpression)
@@ -1038,19 +1159,27 @@ namespace CommonC.Parser
 
                     if(ParseIdentifierExpression(out IdentifierExpression nameExpression))
                     {
-                        if (ParseVariableDeclarationStatement(expression, nameExpression, out VariableDeclarationStatement variableDeclarationStatement))
-                        {
-                            statement = variableDeclarationStatement;
-                            return true;
-                        }
 
                         if (ParseFunctionDeclarationStatement(expression, nameExpression, out FunctionDeclarationStatement functionDeclarationStatement))
                         {
                             statement = functionDeclarationStatement;
                             return true;
                         }
+
+                        if (ParseVariableDeclarationStatement(expression, nameExpression, out VariableDeclarationStatement variableDeclarationStatement))
+                        {
+                            statement = variableDeclarationStatement;
+                            return true;
+                        }
+
                     }
-                    
+
+                }
+
+                if (ParseAssignmentStatement(expression, out AssignmentStatement assignmentStatement))
+                {
+                    statement = assignmentStatement;
+                    return true;
                 }
             }
 
