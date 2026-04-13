@@ -91,7 +91,7 @@ namespace CommonC.CodeGen.DotNet
                 List<TypeDefinition> types = Module.TopLevelTypes.First().NestedTypes.Where(t => t.Name == identifierExpression.Name).ToList();
                 if (types.Any())
                 {
-                    return types.First().ToTypeSignature();
+                    return types.First().ToTypeSignature(types.First().Attributes.HasFlag(TypeAttributes.BeforeFieldInit));
                 }
             }
 
@@ -235,6 +235,15 @@ namespace CommonC.CodeGen.DotNet
             GenerateFunctionReferences(statements);
             GenerateFunctionDeclarations(statements);
 
+            
+
+            ManagedPEImageBuilder builder = new ManagedPEImageBuilder();
+            PEImage peImage = Module.ToPEImage(builder);
+
+            PEFile peFile = peImage.ToPEFile(new ManagedPEFileBuilder());
+
+
+
             foreach (var item in Module.AssemblyReferences)
             {
                 Console.WriteLine(item);
@@ -265,11 +274,6 @@ namespace CommonC.CodeGen.DotNet
                 }
                 Console.WriteLine();
             }
-
-            ManagedPEImageBuilder builder = new ManagedPEImageBuilder();
-            PEImage peImage = Module.ToPEImage(builder);
-
-            PEFile peFile = peImage.ToPEFile(new ManagedPEFileBuilder());
 
 
             return peFile;
@@ -450,7 +454,14 @@ namespace CommonC.CodeGen.DotNet
             CilLocalVariable localVariable = new CilLocalVariable(ResolveCorLibType(variableDeclarationStatement.Type));
             body.LocalVariables.Add(localVariable);
 
-            if(variableDeclarationStatement.Expression != null)
+            // TODO: Expand functionality on array stuff
+            if (variableDeclarationStatement.Type is IdentifierExpression typeIdentifierExpression
+                && variableDeclarationStatement.Expression is ArrayInitializerExpression)
+            {
+                localVariable.VariableType = ResolveType(typeIdentifierExpression, variableDeclarationStatements).ToTypeSignature(Module.TopLevelTypes.First().NestedTypes.Any(n => n.Name == typeIdentifierExpression.Name && n.Attributes.HasFlag(TypeAttributes.BeforeFieldInit))).MakeSzArrayType();
+            }
+
+            if (variableDeclarationStatement.Expression != null)
             {
                 GenerateExpression(variableDeclarationStatement.Expression, variableDeclarationStatements, body);
                 body.Instructions.Add(CilOpCodes.Stloc, localVariable);
@@ -621,7 +632,7 @@ namespace CommonC.CodeGen.DotNet
                     case "logbool":
                         body.Instructions.Add(CilOpCodes.Call, WriteLineBool!);
                         return;
-                    case "lobobj":
+                    case "logobj":
                         body.Instructions.Add(CilOpCodes.Call, WriteLineObj!);
                         return;
                 }
@@ -760,7 +771,6 @@ namespace CommonC.CodeGen.DotNet
         {
             Expression? typeExpression = null;
 
-            // 1. Last "target" (objektet vi aksesserer et medlem på)
             if (memberExpression.Parent is IdentifierExpression parentIdentifier)
             {
                 var parent = GenerateLoadVariable(parentIdentifier, variableDeclarationStatements, body)
@@ -770,7 +780,6 @@ namespace CommonC.CodeGen.DotNet
             }
             else if (memberExpression.Parent is IndexExpression indexExpression)
             {
-                // Antar at denne metoden returnerer typen til elementet i arrayen/listen
                 GenerateIndexExpression(indexExpression, variableDeclarationStatements, body);
 
                 if (indexExpression.Expression is IdentifierExpression indexIdentifier)
@@ -853,7 +862,6 @@ namespace CommonC.CodeGen.DotNet
                     body.LocalVariables.Add(temp);
 
                     Emitter.EmitLdloca(temp, body);
-
                     body.Instructions.Add(CilOpCodes.Initobj, type);
 
 
