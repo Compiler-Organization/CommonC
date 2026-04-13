@@ -38,6 +38,8 @@ namespace CommonC.CodeGen.DotNet
 
         ModuleDefinition Module { get; set; } = null!;
 
+        RuntimeContext Runtime { get; set; } = null!;
+
         CILEmitter Emitter { get; set; }
 
         public DotNetCodeGen(DotNetCodeGenSettings settings)
@@ -96,7 +98,7 @@ namespace CommonC.CodeGen.DotNet
             throw new Exception($"Unknown type expression '{expression}' could not be resolved.");
         }
 
-        TypeReference ResolveType(Expression expression, List<VariableDeclarationStatement> locals)
+        ITypeDefOrRef ResolveType(Expression expression, List<VariableDeclarationStatement> locals)
         {
             if (expression is TypeExpression typeExpression)
             {
@@ -144,7 +146,7 @@ namespace CommonC.CodeGen.DotNet
                 List<TypeDefinition> types = Module.TopLevelTypes.First().NestedTypes.Where(t => t.Name == identifierExpression.Name).ToList();
                 if (types.Any())
                 {
-                    return types.First().ToTypeReference();
+                    return types.First();
                 }
 
                 throw new Exception($"Exception occured when resolving type: Local '{identifierExpression.Name}' does not exist in the current scope.");
@@ -170,10 +172,13 @@ namespace CommonC.CodeGen.DotNet
 
         public PEFile Generate(StatementList statements)
         {
-            Module = new ModuleDefinition(Settings.Name); // , DotNetRuntimeInfo.NetCoreApp(10, 0)
+            Module = new ModuleDefinition(Settings.Name, DotNetRuntimeInfo.NetFramework(4, 0));
 
             AssemblyDefinition assembly = new AssemblyDefinition(Settings.Name, Settings.Version);
             assembly.Modules.Add(Module);
+
+            Runtime = new RuntimeContext(DotNetRuntimeInfo.NetFramework(4, 0));
+            Runtime.AddAssembly(assembly);
 
             WriteLineInt = Module.CorLibTypeFactory.CorLibScope
             .CreateTypeReference("System", "Console")
@@ -230,31 +235,42 @@ namespace CommonC.CodeGen.DotNet
             GenerateFunctionReferences(statements);
             GenerateFunctionDeclarations(statements);
 
-            ManagedPEImageBuilder builder = new ManagedPEImageBuilder();
-            PEImage peImage = Module.ToPEImage(builder);
-
-            PEFile peFile = peImage.ToPEFile(new ManagedPEFileBuilder());
-
             foreach (var item in Module.AssemblyReferences)
             {
                 Console.WriteLine(item);
             }
 
 
-            foreach(MethodDefinition method in Module.TopLevelTypes.First().Methods)
+            foreach (TypeDefinition type in Module.TopLevelTypes.First().NestedTypes)
             {
-                if(method.CilMethodBody == null)
+                Console.WriteLine("Type " + type.FullName);
+                foreach (FieldDefinition field in type.Fields)
+                {
+                    Console.WriteLine("\t" + field.FullName);
+                }
+                Console.WriteLine();
+            }
+
+            foreach (MethodDefinition method in Module.TopLevelTypes.First().Methods)
+            {
+                if (method.CilMethodBody == null)
                 {
                     continue;
                 }
 
-                Console.WriteLine(method.Name);
+                Console.WriteLine(method.FullName);
                 foreach (CilInstruction instruction in method.CilMethodBody.Instructions)
                 {
                     Console.WriteLine(instruction);
                 }
                 Console.WriteLine();
             }
+
+            ManagedPEImageBuilder builder = new ManagedPEImageBuilder();
+            PEImage peImage = Module.ToPEImage(builder);
+
+            PEFile peFile = peImage.ToPEFile(new ManagedPEFileBuilder());
+
 
             return peFile;
         }
@@ -366,9 +382,7 @@ namespace CommonC.CodeGen.DotNet
         {
             foreach(StructStatement structStatement in statements.OfType<StructStatement>())
             {
-                TypeDefinition structDef = new TypeDefinition(Settings.Name, structStatement.Name, TypeAttributes.NestedPrivate | TypeAttributes.SequentialLayout, ValueTypeReference);
-
-                Console.WriteLine("--------- isvaluetype: " + structDef.IsValueType);
+                TypeDefinition structDef = new TypeDefinition(Settings.Name, structStatement.Name, TypeAttributes.Sealed | TypeAttributes.BeforeFieldInit | TypeAttributes.SequentialLayout | TypeAttributes.AnsiClass | TypeAttributes.NestedPublic, ValueTypeReference);
 
                 foreach (VariableDeclarationStatement field in structStatement.Fields)
                 {
@@ -744,52 +758,131 @@ namespace CommonC.CodeGen.DotNet
 
         void GenerateMemberExpression(MemberExpression memberExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
         {
-            throw new Exception("Member expressions are not supported");
-        }
+            Expression? typeExpression = null;
 
-        void GenerateObjectInitializerExpression(ObjectInitializerExpression objectInitializerExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
-        {
-            TypeReference type = ResolveType(objectInitializerExpression.Expression, variableDeclarationStatements);
-
-            CilLocalVariable temp = new CilLocalVariable(type.ToTypeSignature(Module.RuntimeContext));
-            body.LocalVariables.Add(temp);
-
-            Emitter.EmitLdloca(temp.Index, body);
-            body.Instructions.Add(CilOpCodes.Initobj, type);
-            
-            foreach(AssignmentStatement propertyAssignments in objectInitializerExpression.PropertyAssignments)
+            // 1. Last "target" (objektet vi aksesserer et medlem på)
+            if (memberExpression.Parent is IdentifierExpression parentIdentifier)
             {
-                Emitter.EmitLdloca(temp.Index, body);
-                GenerateExpression(propertyAssignments.Expression, variableDeclarationStatements, body);
+                var parent = GenerateLoadVariable(parentIdentifier, variableDeclarationStatements, body)
+                    ?? throw new Exception($"Klarte ikke laste variabel '{parentIdentifier.Name}'.");
 
-                if(propertyAssignments.Variable is IdentifierExpression property
-                    && objectInitializerExpression.Expression is IdentifierExpression initializer)
+                typeExpression = parent.Type;
+            }
+            else if (memberExpression.Parent is IndexExpression indexExpression)
+            {
+                // Antar at denne metoden returnerer typen til elementet i arrayen/listen
+                GenerateIndexExpression(indexExpression, variableDeclarationStatements, body);
+
+                if (indexExpression.Expression is IdentifierExpression indexIdentifier)
                 {
-                    List<TypeDefinition> types = Module.TopLevelTypes.First().NestedTypes.Where(t => t.Name == initializer.Name).ToList();
-                    if (types.Any())
+                    List<VariableDeclarationStatement> variableDeclarations = variableDeclarationStatements.Where(t => t.Name == indexIdentifier.Name).ToList();
+                    if (variableDeclarations.Any())
                     {
-                        List<FieldDefinition> fieldDefinitions = types.First().Fields.Where(f => f.Name == property.Name).ToList();
-                        if(fieldDefinitions.Any())
-                        {
-                            body.Instructions.Add(CilOpCodes.Stfld, fieldDefinitions.First());
-                        }
-                        else
-                        {
-                            throw new Exception($"Field '{property.Name}' of type '{initializer.Name}' does not exist");
-                        }
+                        typeExpression = variableDeclarations.First().Type;
                     }
                     else
                     {
-                        throw new Exception($"Type '{initializer.Name}' does not exist");
+                        throw new Exception($"Local {indexIdentifier.Name} does not exist, or is a field or parameter");
                     }
                 }
                 else
                 {
-                    throw new Exception($"Type expression {objectInitializerExpression.Expression.GetType().FullName} or field expression {propertyAssignments.Variable} is not supported");
+                    throw new Exception($"Index expression of type {indexExpression.Expression.GetType().FullName} is not supported in a member-parent expression");
                 }
             }
-            
-            body.Instructions.Add(CilOpCodes.Ldloc, temp.Index);
+            else if (memberExpression.Member is MemberExpression nestedMember)
+            {
+                throw new NotSupportedException("Nested member expressions is not supported");
+                // GenerateMemberExpression(nestedMember, body, variableDeclarationStatements);
+            }
+
+            if (typeExpression == null)
+            {
+                throw new Exception($"Parent expressions of type {memberExpression.Parent.GetType().Name} is not supported.");
+            }
+
+            if (typeExpression is IdentifierExpression typeIdentifier)
+            {
+                var memberType = Module.TopLevelTypes.SelectMany(t => t.NestedTypes)
+                    .FirstOrDefault(t => t.Name == typeIdentifier.Name)
+                    ?? throw new Exception($"Type '{typeIdentifier.Name}' was not found.");
+
+                if (memberExpression.Member is IdentifierExpression memberIdentifier)
+                {
+                    var field = memberType.Fields.First(f => f.Name == memberIdentifier.Name);
+
+                    if (field != null)
+                    {
+                        var opCode = field.IsStatic ? CilOpCodes.Ldsfld : CilOpCodes.Ldfld;
+                        body.Instructions.Add(opCode, field);
+                    }
+                    else
+                    {
+                        var property = memberType.Properties.FirstOrDefault(p => p.Name == memberIdentifier.Name);
+                        if (property?.GetMethod != null)
+                        {
+                            body.Instructions.Add(CilOpCodes.Call, property.GetMethod);
+                        }
+                        else
+                        {
+                            throw new Exception($"Field or property '{memberIdentifier.Name}' does not exist in type '{typeIdentifier.Name}'.");
+                        }
+                    }
+                }
+            }
+            else
+            {
+                throw new Exception($"Member access at '{typeExpression.GetType().Name}' is not yet supported.");
+            }
+        }
+
+        void GenerateObjectInitializerExpression(ObjectInitializerExpression objectInitializerExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
+        {
+            if(objectInitializerExpression.Expression is IdentifierExpression objectInitializerIdentifier)
+            {
+                List<TypeDefinition> types = Module.TopLevelTypes.First().NestedTypes.Where(t => t.Name == objectInitializerIdentifier.Name).ToList();
+                if (types.Any())
+                {
+                    TypeDefinition type = types.First();
+                    if (Runtime == null)
+                    {
+                        throw new Exception("Runtime context is not set");
+                    }
+
+                    CilLocalVariable temp = new CilLocalVariable(type.ToTypeSignature(Runtime));
+                    body.LocalVariables.Add(temp);
+
+                    Emitter.EmitLdloca(temp, body);
+
+                    body.Instructions.Add(CilOpCodes.Initobj, type);
+
+
+                    foreach (AssignmentStatement propertyAssignments in objectInitializerExpression.PropertyAssignments)
+                    {
+                        Emitter.EmitLdloca(temp, body);
+                        GenerateExpression(propertyAssignments.Expression, variableDeclarationStatements, body);
+
+                        if (propertyAssignments.Variable is IdentifierExpression property)
+                        {
+                            List<FieldDefinition> fieldDefinitions = type.Fields.Where(f => f.Name == property.Name).ToList();
+                            if (fieldDefinitions.Any())
+                            {
+                                body.Instructions.Add(CilOpCodes.Stfld, fieldDefinitions.First());
+                            }
+                            else
+                            {
+                                throw new Exception($"Field '{property.Name}' of type '{objectInitializerIdentifier.Name}' does not exist");
+                            }
+                        }
+                        else
+                        {
+                            throw new Exception($"Type expression {objectInitializerExpression.Expression.GetType().FullName} or field expression {propertyAssignments.Variable} is not supported");
+                        }
+                    }
+
+                    body.Instructions.Add(CilOpCodes.Ldloc, temp);
+                }
+            }
         }
 
         void GenerateParenthesizedExpression(ParenthesizedExpression parenthesizedExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
@@ -813,7 +906,7 @@ namespace CommonC.CodeGen.DotNet
         void GenerateArrayInitializerExpression(ArrayInitializerExpression arrayInitializerExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
         {
             GenerateExpression(arrayInitializerExpression.Initializer.Index, variableDeclarationStatements, body);
-            TypeReference arrayType = ResolveType(arrayInitializerExpression.Initializer.Expression, variableDeclarationStatements);
+            ITypeDefOrRef arrayType = ResolveType(arrayInitializerExpression.Initializer.Expression, variableDeclarationStatements);
             body.Instructions.Add(CilOpCodes.Newarr, arrayType);
 
             for (int i = 0; i < arrayInitializerExpression.Array.Expressions.Count; i++)
@@ -947,7 +1040,7 @@ namespace CommonC.CodeGen.DotNet
             }
         }
 
-        void GenerateLoadVariable(IdentifierExpression identifierExpression, List<VariableDeclarationStatement> variableDeclarations, CilMethodBody body)
+        VariableDeclarationStatement? GenerateLoadVariable(IdentifierExpression identifierExpression, List<VariableDeclarationStatement> variableDeclarations, CilMethodBody body)
         {
             if (variableDeclarations.Where(t => t.Name == identifierExpression.Name).Count() > 0)
             {
@@ -956,22 +1049,32 @@ namespace CommonC.CodeGen.DotNet
                 if (variableDeclaration.IsParameter)
                 {
                     Emitter.EmitLdarg(variableDeclaration.ParameterIndex, body);
-                    return;
+                    return null;
                 }
 
                 body.Instructions.Add(CilOpCodes.Ldloc, variableDeclaration.CilLocalVariable!);
 
-                return;
+                return variableDeclaration;
             }
 
             List<FieldDefinition> fieldDefs = Module.TopLevelTypes.First().Fields.Where(t => t.Name == identifierExpression.Name).ToList();
             if (fieldDefs.Any())
             {
                 body.Instructions.Add(CilOpCodes.Ldsfld, fieldDefs.First());
-                return;
+                return null;
             }
 
             throw new Exception($"Variable '{identifierExpression.Name}' is not declared in the current scope.");
+        }
+
+        void GenerateLoadField(IdentifierExpression identifierExpression, CilMethodBody body)
+        {
+            List<FieldDefinition> fieldDefs = Module.TopLevelTypes.First().Fields.Where(t => t.Name == identifierExpression.Name).ToList();
+            if (fieldDefs.Any())
+            {
+                body.Instructions.Add(CilOpCodes.Ldsfld, fieldDefs.First());
+                return;
+            }
         }
 
         
@@ -992,7 +1095,7 @@ namespace CommonC.CodeGen.DotNet
             }
 
             Emitter.EmitLdc_I4(arrayExpression.Expressions.Count, body);
-            TypeReference arrayType = ResolveType(arrayExpression.Expressions[0], variableDeclarations);
+            ITypeDefOrRef arrayType = ResolveType(arrayExpression.Expressions[0], variableDeclarations);
             body.Instructions.Add(CilOpCodes.Newarr, arrayType); // Temporary workaround until proper type checking is implemented
 
             for(int i = 0; i < arrayExpression.Expressions.Count; i++)

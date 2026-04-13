@@ -40,15 +40,16 @@ namespace CommonC.CodeGen.DotNet
             }
         }
 
-        public void EmitLdloca(int index, CilMethodBody body)
+        public void EmitLdloca(CilLocalVariable variable, CilMethodBody body)
         {
-            if (index >= sbyte.MinValue && index <= sbyte.MaxValue)
+            
+            if (variable.Index >= sbyte.MinValue && variable.Index <= sbyte.MaxValue)
             {
-                body.Instructions.Add(CilOpCodes.Ldloca_S, (sbyte)index);
+                body.Instructions.Add(CilOpCodes.Ldloca_S, variable);
                 return;
             }
 
-            body.Instructions.Add(CilOpCodes.Ldc_I4, (int)index);
+            body.Instructions.Add(CilOpCodes.Ldloca, variable);
         }
         
         public void EmitLdc_R8(double value, CilMethodBody body)
@@ -102,7 +103,7 @@ namespace CommonC.CodeGen.DotNet
             throw new Exception($"Argument at {index} is too big, max amount of arguments is {ushort.MaxValue}");
         }
 
-        public void EmitStelem(ITypeDescriptor type, CilMethodBody body)
+        public void EmitStelem(ITypeDefOrRef type, CilMethodBody body)
         {
             switch (type.FullName)
             {
@@ -134,12 +135,12 @@ namespace CommonC.CodeGen.DotNet
                     body.Instructions.Add(CilOpCodes.Stelem_I);
                     return;
                 default:
-                    body.Instructions.Add(CilOpCodes.Stelem_Ref);
+                    body.Instructions.Add(CilOpCodes.Stelem, type);
                     return;
             }
         }
 
-        public void EmitLdelem(TypeReference type, CilMethodBody body)
+        public void EmitLdelem(ITypeDefOrRef type, CilMethodBody body)
         {
             switch (type.FullName)
             {
@@ -171,7 +172,7 @@ namespace CommonC.CodeGen.DotNet
                     body.Instructions.Add(CilOpCodes.Ldelem_I);
                     return;
                 default:
-                    body.Instructions.Add(CilOpCodes.Ldelem_Ref);
+                    body.Instructions.Add(CilOpCodes.Ldelema, type);
                     return;
             }
         }
