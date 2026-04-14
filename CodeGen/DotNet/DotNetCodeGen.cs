@@ -163,6 +163,14 @@ namespace CommonC.CodeGen.DotNet
                     return types.First();
                 }
 
+                //List<FieldDefinition> fields = Module.TopLevelTypes.First().Fields.Where(f => f.Name == identifierExpression.Name).ToList();
+                //if (fields.Any())
+                //{
+                //    return fields.First().Signature.FieldType;
+                //}
+
+                Console.WriteLine(string.Join(", ", Module.TopLevelTypes.First().Fields.Select(n => n.Name)) + " --- " + identifierExpression.Name);
+
                 throw new Exception($"Exception occured when resolving type: Local '{identifierExpression.Name}' does not exist in the current scope.");
             }
 
@@ -297,10 +305,12 @@ namespace CommonC.CodeGen.DotNet
         {
             foreach (VariableDeclarationStatement variableDeclarationStatement in statements.OfType<VariableDeclarationStatement>())
             {
-                FieldDefinition fieldDefinition = new FieldDefinition(variableDeclarationStatement.Name, FieldAttributes.Public | FieldAttributes.Static, new FieldSignature(ResolveCorLibType(variableDeclarationStatement.Type)));
+                FieldDefinition fieldDefinition = new FieldDefinition(variableDeclarationStatement.Name, FieldAttributes.Public | FieldAttributes.Static, new FieldSignature(ResolveTypeSignature(variableDeclarationStatement.Type, variableDeclarationStatement.Expression, new List<VariableDeclarationStatement>())));
 
                 variableDeclarationStatement.IsField = true;
                 variableDeclarationStatement.Field = fieldDefinition;
+
+                Console.WriteLine("Adding reference to field " + variableDeclarationStatement.Name);
 
                 Module.TopLevelTypes.First().Fields.Add(fieldDefinition);
             }
