@@ -98,6 +98,20 @@ namespace CommonC.CodeGen.DotNet
             throw new Exception($"Unknown type expression '{expression}' could not be resolved.");
         }
 
+        TypeSignature ResolveTypeSignature(Expression typeExpression, Expression valueExpression, List<VariableDeclarationStatement> locals)
+        {
+            bool isValueType = Module.TopLevelTypes.First().NestedTypes.Any(t => typeExpression is IdentifierExpression id && t.Name == id.Name && t.Attributes.HasFlag(TypeAttributes.BeforeFieldInit));
+
+            ITypeDefOrRef? resolvedType = ResolveType(typeExpression, locals);
+
+            if(valueExpression is ArrayInitializerExpression arrayInitializerExpression)
+            {
+                return resolvedType.ToTypeSignature(isValueType).MakeSzArrayType();
+            }
+
+            return resolvedType.ToTypeSignature(isValueType);
+        }
+
         ITypeDefOrRef ResolveType(Expression expression, List<VariableDeclarationStatement> locals)
         {
             if (expression is TypeExpression typeExpression)
@@ -167,7 +181,7 @@ namespace CommonC.CodeGen.DotNet
                 return ResolveType(arrayExpression.Expressions.FirstOrDefault()!, locals);
             }
 
-            throw new Exception($"Unknown type expression '{expression}' could not be resolved.");
+            throw new Exception($"Type {expression.GetType().FullName} cannot be resolved.");
         }
 
         public PEFile Generate(StatementList statements)
@@ -451,15 +465,8 @@ namespace CommonC.CodeGen.DotNet
 
         void GenerateVariableDeclarationStatement(CilMethodBody body, VariableDeclarationStatement variableDeclarationStatement, List<VariableDeclarationStatement> variableDeclarationStatements)
         {
-            CilLocalVariable localVariable = new CilLocalVariable(ResolveCorLibType(variableDeclarationStatement.Type));
+            CilLocalVariable localVariable = new CilLocalVariable(ResolveTypeSignature(variableDeclarationStatement.Type, variableDeclarationStatement.Expression, variableDeclarationStatements));
             body.LocalVariables.Add(localVariable);
-
-            // TODO: Expand functionality on array stuff
-            if (variableDeclarationStatement.Type is IdentifierExpression typeIdentifierExpression
-                && variableDeclarationStatement.Expression is ArrayInitializerExpression)
-            {
-                localVariable.VariableType = ResolveType(typeIdentifierExpression, variableDeclarationStatements).ToTypeSignature(Module.TopLevelTypes.First().NestedTypes.Any(n => n.Name == typeIdentifierExpression.Name && n.Attributes.HasFlag(TypeAttributes.BeforeFieldInit))).MakeSzArrayType();
-            }
 
             if (variableDeclarationStatement.Expression != null)
             {
