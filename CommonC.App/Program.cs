@@ -17,8 +17,6 @@ namespace CommonC.App
         {
             Console.Clear();
 
-            string input = File.ReadAllText("Samples\\test.coc");
-
             CommonCCompilerSettings settings = new CommonCCompilerSettings
             {
                 FilePath = Environment.CurrentDirectory + "\\Samples\\test.coc",
@@ -26,7 +24,6 @@ namespace CommonC.App
                 DotNetCodeGenSettings = new DotNetCodeGenSettings
                 {
                     Name = "test",
-                    Version = new Version(1, 0, 0, 0)
                 }
             };
 

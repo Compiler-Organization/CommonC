@@ -12,8 +12,13 @@ namespace CommonC.CodeGen.DotNet
         public required string Name { get; set; }
 
         /// <summary>
-        /// Version of the assembly
+        /// Version of the assembly.
         /// </summary>
-        public required Version Version { get; set; }
+        public Version Version { get; set; } = new Version(1, 0, 0, 0);
+
+        /// <summary>
+        /// Determines the entry point of the application.
+        /// </summary>
+        public string EntryPoint { get; set; } = "main";
     }
 }

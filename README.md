@@ -1,5 +1,4 @@
-<p align="center" style="font-size: 64px; font-weight: 500">Common C</p>
-<h3 align="center">The official Common C language compiler</h3>
+<h1 align="center">The official Common C language compiler</h1>
 <p align="center">
   <img src="https://github.com/Draugr-official/Skully/actions/workflows/dotnet.yml/badge.svg">
   <img src="https://img.shields.io/badge/version-0.0.2-blue">

@@ -415,7 +415,7 @@ namespace CommonC.CodeGen.DotNet
                 functionDeclaration.Method = function;
                 Module.TopLevelTypes.First().Methods.Add(function);
 
-                if (functionDeclaration.Name == "main")
+                if (functionDeclaration.Name == Settings.EntryPoint)
                 {
                     Module.ManagedEntryPointMethod = function;
                 }
