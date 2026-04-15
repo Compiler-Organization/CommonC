@@ -7,6 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="CommonC.App\**" />
+    <EmbeddedResource Remove="CommonC.App\**" />
+    <None Remove="CommonC.App\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="AsmResolver" Version="6.0.0-rc.1" />
     <PackageReference Include="AsmResolver.DotNet" Version="6.0.0-rc.1" />
   </ItemGroup>

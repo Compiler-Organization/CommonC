@@ -1,0 +1,23 @@
+use math
+
+struct Person {
+	string name,
+	i32 age
+}
+
+fn test(Person p) {
+	log(p.name)
+}
+
+i32 main() {
+	Person p1 = Person[1] {
+		Person {
+			name: "Jin",
+			age: 40
+		}
+	}
+
+	p1[0].name = "Bear"
+
+	log(p1[0].name)
+}

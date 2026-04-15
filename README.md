@@ -106,6 +106,8 @@ There really is no point in using `var` or equal in a modern, statically typed l
         * Conditional loop.
     * [If](#If)
         * Conditional control flow.
+    * [Use](#Use)
+        * Imports file, parses it into an AST and merges it with the main file.
 
 ## Expressions
 

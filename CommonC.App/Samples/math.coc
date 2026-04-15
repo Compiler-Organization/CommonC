@@ -1,0 +1,5 @@
+struct Vector3 {
+	i64 x,
+	i64 y,
+	i64 z
+}
