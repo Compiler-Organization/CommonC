@@ -112,8 +112,13 @@ namespace CommonC.CodeGen.DotNet
             return resolvedType.ToTypeSignature(isValueType);
         }
 
-        ITypeDefOrRef ResolveType(Expression expression, List<VariableDeclarationStatement> locals)
+        ITypeDefOrRef ResolveType(Expression expression, List<VariableDeclarationStatement> locals, TypeDefinition? parentType = null)
         {
+            if(parentType == null)
+            {
+                parentType = Module.TopLevelTypes.First();
+            }
+
             if (expression is TypeExpression typeExpression)
             {
                 switch (typeExpression.Type)
@@ -156,22 +161,22 @@ namespace CommonC.CodeGen.DotNet
                     return ResolveType(existingLocals.FirstOrDefault()!.Type, locals);
                 }
 
-                // TODO: Add functionality here
-                List<TypeDefinition> types = Module.TopLevelTypes.First().NestedTypes.Where(t => t.Name == identifierExpression.Name).ToList();
+                List<TypeDefinition> types = parentType.NestedTypes.Where(t => t.Name == identifierExpression.Name).ToList();
                 if (types.Any())
                 {
                     return types.First();
                 }
 
-                //List<FieldDefinition> fields = Module.TopLevelTypes.First().Fields.Where(f => f.Name == identifierExpression.Name).ToList();
-                //if (fields.Any())
-                //{
-                //    return fields.First().Signature.FieldType;
-                //}
+                List<FieldDefinition> fields = parentType.Fields.Where(f => f.Name == identifierExpression.Name).ToList();
+                if (fields.Any())
+                {
+                    return fields.First().Signature!.FieldType.ToTypeDefOrRef();
+                }
 
-                Console.WriteLine(string.Join(", ", Module.TopLevelTypes.First().Fields.Select(n => n.Name)) + " --- " + identifierExpression.Name);
+                Console.WriteLine(string.Join(", ", parentType.Fields.Select(n => n.Name)) + " --- " + identifierExpression.Name);
+                Console.WriteLine("Parent: " + parentType.Name);
 
-                throw new Exception($"Exception occured when resolving type: Local '{identifierExpression.Name}' does not exist in the current scope.");
+                throw new Exception($"Exception occured when resolving type: Local, type or field '{identifierExpression.Name}' does not exist in the current scope.");
             }
 
             if(expression is IndexExpression indexExpression)
@@ -187,6 +192,17 @@ namespace CommonC.CodeGen.DotNet
                 }
 
                 return ResolveType(arrayExpression.Expressions.FirstOrDefault()!, locals);
+            }
+            if(expression is MemberExpression memberExpression)
+            {
+                if(memberExpression.Member is MemberExpression)
+                {
+                    throw new NotSupportedException("Cannot resolve nested member expressions");
+                }
+
+                ResolveType(memberExpression.Parent, locals).Resolve(Runtime, out TypeDefinition parentTypeDef);
+
+                return ResolveType(memberExpression.Member, locals, parentTypeDef);
             }
 
             throw new Exception($"Type {expression.GetType().FullName} cannot be resolved.");
@@ -257,15 +273,6 @@ namespace CommonC.CodeGen.DotNet
             GenerateFunctionReferences(statements);
             GenerateFunctionDeclarations(statements);
 
-            
-
-            ManagedPEImageBuilder builder = new ManagedPEImageBuilder();
-            PEImage peImage = Module.ToPEImage(builder);
-
-            PEFile peFile = peImage.ToPEFile(new ManagedPEFileBuilder());
-
-
-
             foreach (var item in Module.AssemblyReferences)
             {
                 Console.WriteLine(item);
@@ -296,6 +303,15 @@ namespace CommonC.CodeGen.DotNet
                 }
                 Console.WriteLine();
             }
+
+            ManagedPEImageBuilder builder = new ManagedPEImageBuilder();
+            PEImage peImage = Module.ToPEImage(builder);
+
+            PEFile peFile = peImage.ToPEFile(new ManagedPEFileBuilder());
+
+
+
+            
 
 
             return peFile;
@@ -631,27 +647,49 @@ namespace CommonC.CodeGen.DotNet
             {
                 GenerateExpressions(callStatement.Arguments, variableDeclarationStatements, body);
 
-                // Temporary solution until typechecking has been added
-                switch(identifierExpression.Name)
+                if(identifierExpression.Name == "log" && callStatement.Arguments.Any())
                 {
-                    case "logint":
-                        body.Instructions.Add(CilOpCodes.Call, WriteLineInt!);
-                        return;
-                    case "logdbl":
-                        body.Instructions.Add(CilOpCodes.Call, WriteLineDouble!);
-                        return;
-                    case "loglong":
-                        body.Instructions.Add(CilOpCodes.Call, WriteLineLong!);
-                        return;
-                    case "logstr":
-                        body.Instructions.Add(CilOpCodes.Call, WriteLineStr!);
-                        return;
-                    case "logbool":
-                        body.Instructions.Add(CilOpCodes.Call, WriteLineBool!);
-                        return;
-                    case "logobj":
-                        body.Instructions.Add(CilOpCodes.Call, WriteLineObj!);
-                        return;
+                    Expression argumentExpression = callStatement.Arguments.First();
+                    ITypeDefOrRef argumentType = ResolveType(argumentExpression, variableDeclarationStatements);
+
+                    if(argumentType.Namespace == "System")
+                    {
+                        switch(argumentType.Name)
+                        {
+                            case "String":
+                            case "String[]":
+                                body.Instructions.Add(CilOpCodes.Call, WriteLineStr!);
+                                return;
+                            case "Int32":
+                            case "Int32[]":
+                                body.Instructions.Add(CilOpCodes.Call, WriteLineInt!);
+                                return;
+                            case "Double":
+                            case "Double[]":
+                                body.Instructions.Add(CilOpCodes.Call, WriteLineDouble!);
+                                return;
+                            case "Long":
+                            case "Long[]":
+                                body.Instructions.Add(CilOpCodes.Call, WriteLineLong!);
+                                return;
+                            case "Bool":
+                            case "Bool[]":
+                                body.Instructions.Add(CilOpCodes.Call, WriteLineBool!);
+                                return;
+                            case "Object":
+                            case "Object[]":
+                                body.Instructions.Add(CilOpCodes.Call, WriteLineObj!);
+                                return;
+                        }
+                    }
+
+                    body.Instructions.Add(CilOpCodes.Call, Module.CorLibTypeFactory.CorLibScope
+                    .CreateTypeReference("System", "Console")
+                    .CreateMemberReference("WriteLine", MethodSignature.CreateStatic(
+                        returnType: Module.CorLibTypeFactory.Void,
+                        parameterTypes: [argumentType.ToTypeSignature(argumentType.GetIsValueType(Runtime))]
+                    )));
+                    return;
                 }
 
                 if (Module.TopLevelTypes.First().Methods.Where(m => m.Name == identifierExpression.Name).FirstOrDefault() is MethodDefinition method)
@@ -786,12 +824,41 @@ namespace CommonC.CodeGen.DotNet
 
         void GenerateMemberExpression(MemberExpression memberExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
         {
+            Console.WriteLine("----------- " + ResolveType(memberExpression.Parent, variableDeclarationStatements).GetType().FullName);
+            GenerateExpression(memberExpression.Parent, variableDeclarationStatements, body);
+
+            ResolveType(memberExpression.Parent, variableDeclarationStatements).Resolve(Runtime, out TypeDefinition parentType);
+            if(parentType == null)
+            {
+                throw new Exception($"Could not convert parent to typedefinition");
+            }
+
+            string memberName = "";
+
+            if(memberExpression.Member is IdentifierExpression identifier)
+            {
+                memberName = identifier.Name;
+            }
+            else
+            {
+                throw new Exception($"{memberExpression.Member.GetType().FullName} is not supported in member expression member.");
+            }
+
+            var memberField = parentType.Fields.First(f => f.Name == memberName);
+
+            if (memberField != null)
+            {
+                var opCode = memberField.IsStatic ? CilOpCodes.Ldsfld : CilOpCodes.Ldfld;
+                body.Instructions.Add(opCode, memberField);
+            }
+
+            return;
             Expression? typeExpression = null;
 
             if (memberExpression.Parent is IdentifierExpression parentIdentifier)
             {
                 var parent = GenerateLoadVariable(parentIdentifier, variableDeclarationStatements, body)
-                    ?? throw new Exception($"Klarte ikke laste variabel '{parentIdentifier.Name}'.");
+                    ?? throw new Exception($"Could not generate variable '{parentIdentifier.Name}'.");
 
                 typeExpression = parent.Type;
             }
@@ -799,6 +866,7 @@ namespace CommonC.CodeGen.DotNet
             {
                 GenerateIndexExpression(indexExpression, variableDeclarationStatements, body);
 
+                // TODO: Make this dynamic and not hard-coded
                 if (indexExpression.Expression is IdentifierExpression indexIdentifier)
                 {
                     List<VariableDeclarationStatement> variableDeclarations = variableDeclarationStatements.Where(t => t.Name == indexIdentifier.Name).ToList();
@@ -1108,6 +1176,13 @@ namespace CommonC.CodeGen.DotNet
         {
             GenerateExpression(indexExpression.Expression, variableDeclarations, body);
             GenerateExpression(indexExpression.Index, variableDeclarations, body);
+
+            ResolveType(indexExpression.Expression, variableDeclarations).Resolve(Runtime, out TypeDefinition? expressionType);
+
+            if(expressionType == null)
+            {
+                throw new Exception($"Could not resolve type of index expression {indexExpression.Expression}");
+            }
 
             Emitter.EmitLdelem(ResolveType(indexExpression.Expression, variableDeclarations), body);
         }

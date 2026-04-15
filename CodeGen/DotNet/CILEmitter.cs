@@ -145,30 +145,49 @@ namespace CommonC.CodeGen.DotNet
             switch (type.FullName)
             {
                 case "System.Boolean":
+                case "System.Boolean[]":
                 case "System.SByte":
-                case "System.Byte":
+                case "System.SByte[]":
                     body.Instructions.Add(CilOpCodes.Ldelem_I1);
                     return;
+                case "System.Byte":
+                case "System.Byte[]":
+                    body.Instructions.Add(CilOpCodes.Ldelem_U1);
+                    return;
                 case "System.Int16":
-                case "System.UInt16":
+                case "System.Int16[]":
                     body.Instructions.Add(CilOpCodes.Ldelem_I2);
                     return;
+                case "System.UInt16":
+                case "System.UInt16[]":
+                    body.Instructions.Add(CilOpCodes.Ldelem_U2);
+                    return;
                 case "System.Int32":
-                case "System.UInt32":
+                case "System.Int32[]":
                     body.Instructions.Add(CilOpCodes.Ldelem_I4);
                     return;
+                case "System.UInt32":
+                case "System.UInt32[]":
+                    body.Instructions.Add(CilOpCodes.Ldelem_U4);
+                    return;
                 case "System.Int64":
-                case "System.UInt64":
+                case "System.Int64[]":
+                case "System.UInt64": // TODO: Find a way to support unsigned int64
+                case "System.UInt64[]":
                     body.Instructions.Add(CilOpCodes.Ldelem_I8);
                     return;
                 case "System.Single":
+                case "System.Single[]":
                     body.Instructions.Add(CilOpCodes.Ldelem_R4);
                     return;
                 case "System.Double":
+                case "System.Double[]":
                     body.Instructions.Add(CilOpCodes.Ldelem_R8);
                     return;
                 case "System.IntPtr":
+                case "System.IntPtr[]":
                 case "System.UIntPtr":
+                case "System.UIntPtr[]":
                     body.Instructions.Add(CilOpCodes.Ldelem_I);
                     return;
                 default:
