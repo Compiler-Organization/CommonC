@@ -27,48 +27,90 @@ log(array->3..5)
 ```
 Here we are unpacking the array from index 3 to index 5 and logging it to the console.
 ___
-## Current capabilities
-Common C can currently run code like fibonacci and factorial functions as shown below:
-```c
-int fibonacci(int n) {
-	int a = 0
-	int b = 1
-	for 0..n, i {
-		int temp = a
-		a = b
-		b = temp + a
-	}
 
-	return a
-}
+# Language design
+Common C uses top-level, global and public declarations for functions, structs and globals - meaning everything can be accessed from anywhere. Given CommonC's ergonomic style, it has been decided that having access to everything anywhere is the "free-est" way of programming. You do not have to declare the visibility of user-types like functions and globals. The only exception is uninitialized user-types like struct declarations.
 
-int factorial(int n)
-{
-	if n <= 1 {
-		return 1
-	}
-	else {
-		return n * factorial(n - 1)
-	}
-}
+There really is no point in using `var` or equal in a modern, statically typed language apart from extra syntax clutter - hence the type is directly stated instead.
 
-int main() {
-	int var = 10
-
-	logstr("Fibonacci: ")
-	logint(fibonacci(var))
-	
-	logstr("Factorial: ")
-	logint(factorial(var))
-}
-```
-
-# Syntax
-Simple Expression = Expressions without a right hand side (E.g identifiers, indexes, etc).
+**Table of contents**
+* Expressions
+    * [String](#String)
+        * Primitive type **string**.
+    * [Boolean](#Boolean)
+        * Primitive type **boolean**.
+    * [Number](#Number)
+        * Primitive type **number**.
+    * [Identifier](#Identifier)
+        * Generic identifiers.
+    * [Array](#Array)
+        * Unbound, typeless array.
+    * [Array initializer](#Array-initializer)
+        * Bound, typed array initializer.
+    * [Index](#Index)
+        * Index of array.
+    * [Length](#Length)
+        * Length of array.
+    * [Range](#Range)
+        * Range between two expressions.
+    * [Call](#Call)
+        * Function call.
+    * [Member](#Member)
+        * Parent / member relationship.
+    * [Relational](#Relational)
+        * Equals.
+        * Not equals.
+        * Greater than.
+        * Greater than or equals.
+        * Less than.
+        * Less than or equals.
+    * [Arithmetic](#Arithmetic)
+        * Addition.
+        * Subtraction.
+        * Multiplication.
+        * Division.
+        * Modulus.
+        * Power.
+    * [Negate](#Negate)
+        * Negate expression from positive to negative.
+    * [Not](#Not)
+        * Reverse boolean.
+    * [Object initializer](#Object-initializer)
+        * Bound, typed object initializer.
+    * [Parameter](#Parameter)
+        * Function declaration parameter.
+    * [Parenthesized](#Parenthesized)
+        * Parenthesized expression for control flow.
+    * [Type](#Type)
+        * Native, reserved types.
+    * [Unpack](#Unpack)
+        * Unpacking arrays.
+* Statements
+    * [Assignment](#Assignment)
+        * Variable assignments.
+    * [Function call](#Function-call)
+        * Declared function call.
+    * [Closure](#Closure)
+        * Closure to determine control flow.
+    * [For loop](#For-loop)
+        * Conditional, numeric loop.
+    * [Function declaration](#function-declaration)
+        * Top-level function declaration.
+    * [Return](#Return)
+        * Returns a function.
+    * [Struct](#Struct)
+        * Structural user-type.
+    * [Variable declaration](#Variable-declaration)
+        * Local and global declaration.
+    * [While](#While)
+        * Conditional loop.
+    * [If](#If)
+        * Conditional control flow.
 
 ## Expressions
 
 ## Statements
+
 ### Call
 Syntax
 ```

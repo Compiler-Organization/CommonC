@@ -63,15 +63,15 @@ namespace CommonC.CodeGen.DotNet
             {
                 case ReservedTypes.String:
                     return Module.CorLibTypeFactory.String;
-                case ReservedTypes.Int:
+                case ReservedTypes.I32:
                     return Module.CorLibTypeFactory.Int32;
-                case ReservedTypes.Double:
+                case ReservedTypes.F64:
                     return Module.CorLibTypeFactory.Double;
-                case ReservedTypes.Long:
+                case ReservedTypes.I64:
                     return Module.CorLibTypeFactory.Int64;
                 case ReservedTypes.Bool:
                     return Module.CorLibTypeFactory.Boolean;
-                case ReservedTypes.Void:
+                case ReservedTypes.Fn:
                     return Module.CorLibTypeFactory.Void;
 
                 default:
@@ -92,6 +92,10 @@ namespace CommonC.CodeGen.DotNet
                 if (types.Any())
                 {
                     return types.First().ToTypeSignature(types.First().Attributes.HasFlag(TypeAttributes.BeforeFieldInit));
+                }
+                else
+                {
+                    throw new Exception($"Unknown type expression '{identifierExpression.Name}' could not be resolved.");
                 }
             }
 
@@ -125,12 +129,44 @@ namespace CommonC.CodeGen.DotNet
                 {
                     case ReservedTypes.String:
                         return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "String");
-                    case ReservedTypes.Int:
+
+                    // Byte
+                    case ReservedTypes.I8:
+                        return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "SByte");
+                    case ReservedTypes.U8:
+                        return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Byte");
+
+                    // Short
+                    case ReservedTypes.I16:
+                        return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Int16");
+                    case ReservedTypes.U16:
+                        return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "UInt16");
+
+                    // integer
+                    case ReservedTypes.I32:
                         return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Int32");
-                    case ReservedTypes.Long:
+                    case ReservedTypes.U32:
+                        return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "UInt32");
+
+                    // long
+                    case ReservedTypes.I64:
                         return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Int64");
-                    case ReservedTypes.Double:
+                    case ReservedTypes.U64:
+                        return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "UInt64");
+
+                    case ReservedTypes.I128:
+                        return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Int128");
+                    case ReservedTypes.U128:
+                        return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "UInt128");
+
+                    // float
+                    case ReservedTypes.F32:
+                        return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Single");
+
+                    // double
+                    case ReservedTypes.F64:
                         return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Double");
+
                     case ReservedTypes.Bool:
                         return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Boolean");
                     default:
@@ -173,8 +209,11 @@ namespace CommonC.CodeGen.DotNet
                     return fields.First().Signature!.FieldType.ToTypeDefOrRef();
                 }
 
-                Console.WriteLine(string.Join(", ", parentType.Fields.Select(n => n.Name)) + " --- " + identifierExpression.Name);
-                Console.WriteLine("Parent: " + parentType.Name);
+                List<MethodDefinition> methods = parentType.Methods.Where(f => f.Name == identifierExpression.Name).ToList();
+                if (methods.Any())
+                {
+                    return methods.First().Signature!.ReturnType.ToTypeDefOrRef();
+                }
 
                 throw new Exception($"Exception occured when resolving type: Local, type or field '{identifierExpression.Name}' does not exist in the current scope.");
             }
@@ -203,6 +242,10 @@ namespace CommonC.CodeGen.DotNet
                 ResolveType(memberExpression.Parent, locals).Resolve(Runtime, out TypeDefinition parentTypeDef);
 
                 return ResolveType(memberExpression.Member, locals, parentTypeDef);
+            }
+            if(expression is CallExpression callExpression)
+            {
+                return ResolveType(callExpression.Expression, locals);
             }
 
             throw new Exception($"Type {expression.GetType().FullName} cannot be resolved.");
@@ -394,13 +437,13 @@ namespace CommonC.CodeGen.DotNet
                         {
                             switch (typeExpression.Type)
                             {
-                                case ReservedTypes.Int:
+                                case ReservedTypes.I32:
                                     functionDeclaration.Method.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_I4_0);
                                     break;
-                                case ReservedTypes.Double:
+                                case ReservedTypes.F64:
                                     functionDeclaration.Method.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_R8, 0);
                                     break;
-                                case ReservedTypes.Long:
+                                case ReservedTypes.I64:
                                     functionDeclaration.Method.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_I8, 0);
                                     break;
                                 case ReservedTypes.Bool:
@@ -409,7 +452,7 @@ namespace CommonC.CodeGen.DotNet
                                 case ReservedTypes.String:
                                     functionDeclaration.Method.CilMethodBody.Instructions.Add(CilOpCodes.Ldnull);
                                     break;
-                                case ReservedTypes.Void:
+                                case ReservedTypes.Fn:
                                     break;
                                 default:
                                     throw new Exception($"Return type '{typeExpression.Type}' is not supported in code generation.");
@@ -430,7 +473,7 @@ namespace CommonC.CodeGen.DotNet
 
                 foreach (VariableDeclarationStatement field in structStatement.Fields)
                 {
-                    FieldDefinition fieldDefinition = new FieldDefinition(field.Name, FieldAttributes.Public, new FieldSignature(ResolveCorLibType(field.Type)));
+                    FieldDefinition fieldDefinition = new FieldDefinition(field.Name, FieldAttributes.Public, new FieldSignature(ResolveType(field.Type, new List<VariableDeclarationStatement>()).ToTypeSignature(false))); // NOTE: isValueType is always false, change this to be dynamic in the future.
                     structDef.Fields.Add(fieldDefinition);
                 }
 
@@ -514,7 +557,7 @@ namespace CommonC.CodeGen.DotNet
 
                 if(fieldDefs.Any())
                 {
-                    body.Instructions.Add(CilOpCodes.Stsfld, fieldDefs.First());
+                    body.Instructions.Add(fieldDefs.First().IsStatic ? CilOpCodes.Stsfld : CilOpCodes.Stfld, fieldDefs.First());
                 }
                 else
                 {
@@ -533,8 +576,55 @@ namespace CommonC.CodeGen.DotNet
                 Emitter.EmitStelem(ResolveType(indexExpression.Expression, variableDeclarationStatements), body);
                 return;
             }
+            if(assignmentStatement.Variable is MemberExpression memberExpression)
+            {
+                GenerateExpression(memberExpression.Parent, variableDeclarationStatements, body);
+                GenerateExpression(assignmentStatement.Expression, variableDeclarationStatements, body);
+
+                GenerateGetOrSetMember(memberExpression, false, variableDeclarationStatements, body);
+                return;
+            }
 
             throw new Exception($"Assignment to expression of type '{assignmentStatement.Variable.GetType().Name}' is not supported in code generation.");
+        }
+
+        void GenerateGetOrSetMember(MemberExpression memberExpression, bool getMember, List<VariableDeclarationStatement> variableDeclarationStatements, CilMethodBody body)
+        {
+            ResolveType(memberExpression.Parent, variableDeclarationStatements).Resolve(Runtime, out TypeDefinition? parentType);
+            if (parentType == null)
+            {
+                throw new Exception($"Could not convert parent to typedefinition");
+            }
+
+            string memberName = "";
+
+            if (memberExpression.Member is IdentifierExpression identifier)
+            {
+                memberName = identifier.Name;
+            }
+            else
+            {
+                throw new Exception($"{memberExpression.Member.GetType().FullName} is not supported in member expression member.");
+            }
+
+            FieldDefinition memberField = parentType.Fields.First(f => f.Name == memberName);
+
+            if (memberField != null)
+            {
+                if(getMember)
+                {
+                    body.Instructions.Add(memberField.IsStatic ? CilOpCodes.Ldsfld : CilOpCodes.Ldfld, memberField);
+                }
+                else
+                {
+
+                    body.Instructions.Add(memberField.IsStatic ? CilOpCodes.Stsfld : CilOpCodes.Stfld, memberField);
+                }
+            }
+            else
+            {
+                throw new Exception($"Field {memberName} does not exist in type {parentType.Name}");
+            }
         }
 
         void GenerateForStatement(CilMethodBody body, ForStatement forStatement)
@@ -824,110 +914,9 @@ namespace CommonC.CodeGen.DotNet
 
         void GenerateMemberExpression(MemberExpression memberExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
         {
-            Console.WriteLine("----------- " + ResolveType(memberExpression.Parent, variableDeclarationStatements).GetType().FullName);
             GenerateExpression(memberExpression.Parent, variableDeclarationStatements, body);
 
-            ResolveType(memberExpression.Parent, variableDeclarationStatements).Resolve(Runtime, out TypeDefinition parentType);
-            if(parentType == null)
-            {
-                throw new Exception($"Could not convert parent to typedefinition");
-            }
-
-            string memberName = "";
-
-            if(memberExpression.Member is IdentifierExpression identifier)
-            {
-                memberName = identifier.Name;
-            }
-            else
-            {
-                throw new Exception($"{memberExpression.Member.GetType().FullName} is not supported in member expression member.");
-            }
-
-            var memberField = parentType.Fields.First(f => f.Name == memberName);
-
-            if (memberField != null)
-            {
-                var opCode = memberField.IsStatic ? CilOpCodes.Ldsfld : CilOpCodes.Ldfld;
-                body.Instructions.Add(opCode, memberField);
-            }
-
-            return;
-            Expression? typeExpression = null;
-
-            if (memberExpression.Parent is IdentifierExpression parentIdentifier)
-            {
-                var parent = GenerateLoadVariable(parentIdentifier, variableDeclarationStatements, body)
-                    ?? throw new Exception($"Could not generate variable '{parentIdentifier.Name}'.");
-
-                typeExpression = parent.Type;
-            }
-            else if (memberExpression.Parent is IndexExpression indexExpression)
-            {
-                GenerateIndexExpression(indexExpression, variableDeclarationStatements, body);
-
-                // TODO: Make this dynamic and not hard-coded
-                if (indexExpression.Expression is IdentifierExpression indexIdentifier)
-                {
-                    List<VariableDeclarationStatement> variableDeclarations = variableDeclarationStatements.Where(t => t.Name == indexIdentifier.Name).ToList();
-                    if (variableDeclarations.Any())
-                    {
-                        typeExpression = variableDeclarations.First().Type;
-                    }
-                    else
-                    {
-                        throw new Exception($"Local {indexIdentifier.Name} does not exist, or is a field or parameter");
-                    }
-                }
-                else
-                {
-                    throw new Exception($"Index expression of type {indexExpression.Expression.GetType().FullName} is not supported in a member-parent expression");
-                }
-            }
-            else if (memberExpression.Member is MemberExpression nestedMember)
-            {
-                throw new NotSupportedException("Nested member expressions is not supported");
-                // GenerateMemberExpression(nestedMember, body, variableDeclarationStatements);
-            }
-
-            if (typeExpression == null)
-            {
-                throw new Exception($"Parent expressions of type {memberExpression.Parent.GetType().Name} is not supported.");
-            }
-
-            if (typeExpression is IdentifierExpression typeIdentifier)
-            {
-                var memberType = Module.TopLevelTypes.SelectMany(t => t.NestedTypes)
-                    .FirstOrDefault(t => t.Name == typeIdentifier.Name)
-                    ?? throw new Exception($"Type '{typeIdentifier.Name}' was not found.");
-
-                if (memberExpression.Member is IdentifierExpression memberIdentifier)
-                {
-                    var field = memberType.Fields.First(f => f.Name == memberIdentifier.Name);
-
-                    if (field != null)
-                    {
-                        var opCode = field.IsStatic ? CilOpCodes.Ldsfld : CilOpCodes.Ldfld;
-                        body.Instructions.Add(opCode, field);
-                    }
-                    else
-                    {
-                        var property = memberType.Properties.FirstOrDefault(p => p.Name == memberIdentifier.Name);
-                        if (property?.GetMethod != null)
-                        {
-                            body.Instructions.Add(CilOpCodes.Call, property.GetMethod);
-                        }
-                        else
-                        {
-                            throw new Exception($"Field or property '{memberIdentifier.Name}' does not exist in type '{typeIdentifier.Name}'.");
-                        }
-                    }
-                }
-            }
-            else
-            {
-                throw new Exception($"Member access at '{typeExpression.GetType().Name}' is not yet supported.");
-            }
+            GenerateGetOrSetMember(memberExpression, true, variableDeclarationStatements, body);
         }
 
         void GenerateObjectInitializerExpression(ObjectInitializerExpression objectInitializerExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
@@ -1145,6 +1134,8 @@ namespace CommonC.CodeGen.DotNet
                     return null;
                 }
 
+
+                // TODO: This breaks array accessing and fixes other stuff, but when changing to ...VariableType is SzArrayTypeSignature - does the opposite.
                 body.Instructions.Add(CilOpCodes.Ldloc, variableDeclaration.CilLocalVariable!);
 
                 return variableDeclaration;
@@ -1153,7 +1144,7 @@ namespace CommonC.CodeGen.DotNet
             List<FieldDefinition> fieldDefs = Module.TopLevelTypes.First().Fields.Where(t => t.Name == identifierExpression.Name).ToList();
             if (fieldDefs.Any())
             {
-                body.Instructions.Add(CilOpCodes.Ldsfld, fieldDefs.First());
+                body.Instructions.Add(fieldDefs.First().IsStatic ? CilOpCodes.Ldsfld : CilOpCodes.Ldfld, fieldDefs.First());
                 return null;
             }
 
@@ -1184,7 +1175,7 @@ namespace CommonC.CodeGen.DotNet
                 throw new Exception($"Could not resolve type of index expression {indexExpression.Expression}");
             }
 
-            Emitter.EmitLdelem(ResolveType(indexExpression.Expression, variableDeclarations), body);
+            Emitter.EmitLdelem(expressionType, body);
         }
 
         void GenerateArrayExpression(ArrayExpression arrayExpression, List<VariableDeclarationStatement> variableDeclarations, CilMethodBody body)

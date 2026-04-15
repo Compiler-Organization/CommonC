@@ -18,20 +18,27 @@ namespace CommonC.Lexer
             "string",
             "str",
 
-            "integer",
-            "int",
-            "i32",
-            
-            "double",
-            "dbl",
+            "i8", // sbyte
+            "u8", // byte
 
-            "long",
-            "i64",
+            "i16", // short
+            "u16", // ushort
+
+            "i32", // int
+            "u32", // uint
+
+            "i64", // long
+            "u64", // ulong
+
+            "i128",
+            "u128",
+
+            "f32", // float
+            "f64", // double
             
-            "boolean",
             "bool",
             
-            "void",
+            "fn",
 
             "struct",
 
@@ -45,7 +52,9 @@ namespace CommonC.Lexer
             "for",
 
             "return",
-            "ret"
+            "ret",
+
+            "use"
         };
 
         string Input { get; set; }

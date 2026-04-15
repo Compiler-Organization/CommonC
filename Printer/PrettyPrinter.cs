@@ -48,7 +48,7 @@ namespace CommonC.Printer
         {
             switch(typeExpression.Type)
             {
-                case Parser.AST.ReservedTypes.Int:
+                case Parser.AST.ReservedTypes.I32:
                     Builder.Append("int");
                     break;
 
@@ -56,11 +56,11 @@ namespace CommonC.Printer
                     Builder.Append("string");
                     break;
 
-                case Parser.AST.ReservedTypes.Double:
+                case Parser.AST.ReservedTypes.F64:
                     Builder.Append("double");
                     break;
 
-                case Parser.AST.ReservedTypes.Long:
+                case Parser.AST.ReservedTypes.I64:
                     Builder.Append("long");
                     break;
 
@@ -239,18 +239,22 @@ namespace CommonC.Printer
         void PrintObjectInitializerExpression(ObjectInitializerExpression objectInitializerExpression, string indentation)
         {
             PrintExpression(objectInitializerExpression.Expression, indentation);
-            Builder.Append(" { ");
+            Builder.Append(" {");
+            Builder.Append(Settings.NewLine);
             foreach (AssignmentStatement assignmentStatement in objectInitializerExpression.PropertyAssignments)
             {
+                Builder.Append(indentation + Settings.Indentation);
                 PrintExpression(assignmentStatement.Variable, indentation);
-                Builder.Append(" = ");
+                Builder.Append(": ");
                 PrintExpression(assignmentStatement.Expression!, indentation);
                 
                 if (objectInitializerExpression.PropertyAssignments.IndexOf(assignmentStatement) != objectInitializerExpression.PropertyAssignments.Count - 1)
                 {
-                    Builder.Append(", ");
+                    Builder.Append("," + Settings.NewLine);
                 }
             }
+            Builder.Append(Settings.NewLine);
+            Builder.Append(indentation);
             Builder.Append("}");
         }
 
@@ -527,8 +531,7 @@ namespace CommonC.Printer
             Builder.Append(indentation);
             Builder.Append("struct ");
             Builder.Append(structStatement.Name);
-            Builder.Append(Settings.NewLine);
-            Builder.Append("{");
+            Builder.Append(" {");
             Builder.Append(Settings.NewLine);
             foreach (VariableDeclarationStatement variableDeclarationStatement in structStatement.Fields)
             {

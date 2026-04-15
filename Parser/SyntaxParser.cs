@@ -91,29 +91,44 @@ namespace CommonC.Parser
                     typeExpression.Type = ReservedTypes.String;
                     break;
 
-                case "integer":
-                case "int":
+                case "i8":
+                    typeExpression.Type = ReservedTypes.I8;
+                    break;
+
+                case "u8":
+                    typeExpression.Type = ReservedTypes.U8;
+                    break;
+
                 case "i32":
-                    typeExpression.Type = ReservedTypes.Int;
+                    typeExpression.Type = ReservedTypes.I32;
                     break;
 
-                case "double":
-                case "dbl":
-                    typeExpression.Type = ReservedTypes.Double;
+                case "u32":
+                    typeExpression.Type = ReservedTypes.U32;
                     break;
 
-                case "long":
+                case "f32":
+                    typeExpression.Type = ReservedTypes.F32;
+                    break;
+
+                case "f64":
+                    typeExpression.Type = ReservedTypes.F64;
+                    break;
+
                 case "i64":
-                    typeExpression.Type = ReservedTypes.Long;
+                    typeExpression.Type = ReservedTypes.I64;
                     break;
 
-                case "boolean":
+                case "u64":
+                    typeExpression.Type = ReservedTypes.U64;
+                    break;
+
                 case "bool":
                     typeExpression.Type = ReservedTypes.Bool;
                     break;
 
-                case "void":
-                    typeExpression.Type = ReservedTypes.Void;
+                case "fn":
+                    typeExpression.Type = ReservedTypes.Fn;
                     break;
 
                 default:
@@ -591,14 +606,22 @@ namespace CommonC.Parser
                     {
                         if(ParseExpression(out Expression assignmentVariableExpression, true))
                         {
-                            if (ParseAssignmentStatement(assignmentVariableExpression, out AssignmentStatement assignmentStatement))
+                            if (TokenReader.ExpectFatal(LexKinds.Colon))
                             {
-                                objectInitializerExpression.PropertyAssignments.Add(assignmentStatement);
-                                continue;
-                            }
-                            else
-                            {
-                                throw new Exception($"Line {TokenReader.Peek().Line}: Property assignment in object initializer is invalid.");
+                                TokenReader.Consume();
+                                if (ParseExpression(out Expression valueExpression))
+                                {
+                                    objectInitializerExpression.PropertyAssignments.Add(new AssignmentStatement
+                                    {
+                                        Variable = assignmentVariableExpression,
+                                        Expression = valueExpression
+                                    });
+                                    continue;
+                                }
+                                else
+                                {
+                                    throw new Exception("Failed to read property assignment expression in object initializer");
+                                }
                             }
                         }
 
@@ -977,7 +1000,7 @@ namespace CommonC.Parser
                     {
                         Name = identifierExpression.Name,
                         Expression = new NumberExpression { Value = "0" },
-                        Type = new TypeExpression { Type = ReservedTypes.Int }
+                        Type = new TypeExpression { Type = ReservedTypes.I32 }
                     };
                 }
                 else
@@ -1110,6 +1133,21 @@ namespace CommonC.Parser
             return false;
         }
 
+        bool ParseUseStatement(out UseStatement useStatement)
+        {
+            useStatement = new UseStatement();
+            if (TokenReader.Expect(LexKinds.Keyword, "use"))
+            {
+                TokenReader.Skip(1);
+                if (ParseIdentifierExpression(out IdentifierExpression identifierExpression))
+                {
+                    useStatement.Identifier = identifierExpression;
+                }
+                return true;
+            }
+            return false;
+        }
+
         bool ParseStatement(out Statement statement)
         {
             statement = new Statement();
@@ -1141,6 +1179,12 @@ namespace CommonC.Parser
             if(ParseWhileStatement(out WhileStatement whileStatement))
             {
                 statement = whileStatement;
+                return true;
+            }
+
+            if(ParseUseStatement(out UseStatement useStatement))
+            {
+                statement = useStatement;
                 return true;
             }
 
