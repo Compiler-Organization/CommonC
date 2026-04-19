@@ -16,6 +16,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Samples\godspeaks.coc">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="Samples\math.coc">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

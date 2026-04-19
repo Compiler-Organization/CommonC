@@ -7,6 +7,7 @@ using CommonC.Printer;
 using CommonC.Semantic;
 using GeneralTK.Extensions.Console;
 using GeneralTK.Extensions.Logging;
+using System.Buffers;
 using System.Diagnostics;
 
 namespace CommonC.App
@@ -39,10 +40,13 @@ namespace CommonC.App
             process.StartInfo.RedirectStandardOutput = true;
             process.StartInfo.RedirectStandardError = true;
 
+            Stopwatch stopwatch = new Stopwatch();
             process.Start();
+            stopwatch.Start();
             string output = process.StandardOutput.ReadToEnd();
             string error = process.StandardError.ReadToEnd();
             process.WaitForExit();
+            stopwatch.Stop();
 
             ConsoleColor.White.Write(output);
             if(!string.IsNullOrEmpty(error))
@@ -50,7 +54,7 @@ namespace CommonC.App
                 ConsoleColor.Red.Write(error);
             }
 
-            ConsoleColor.Green.Write("Execution completed!");
+            ConsoleColor.Green.WriteLine($"\nExecution completed in {(stopwatch.ElapsedMilliseconds) / (double)1000}s!");
         }
 
     }

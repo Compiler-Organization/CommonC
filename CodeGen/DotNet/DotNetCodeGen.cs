@@ -21,11 +21,8 @@ using static System.Runtime.InteropServices.JavaScript.JSType;
 TODO:
     CodeGen:
     * Change so branching doesnt create a nop instruction
-    * Fix exponential calculation
-    * Support index assignment after array has been initialized
     * Support arrays without values
-    * Add objects (like structs)
-        * Support using user objects as types
+    * Use ArrayPool instead of standard arrays.
     
     * Fix parser precedence so it handles n % i == 0 as (n % i) == 0 properly.
  */
@@ -47,13 +44,6 @@ namespace CommonC.CodeGen.DotNet
             Settings = settings;
             Emitter = new CILEmitter();
         }
-
-        IMethodDescriptor? WriteLineInt { get; set; }
-        IMethodDescriptor? WriteLineDouble { get; set; }
-        IMethodDescriptor? WriteLineLong { get; set; }
-        IMethodDescriptor? WriteLineStr { get; set; }
-        IMethodDescriptor? WriteLineBool { get; set; }
-        IMethodDescriptor? WriteLineObj { get; set; }
 
         ITypeDefOrRef ValueTypeReference { get; set; }
 
@@ -167,6 +157,9 @@ namespace CommonC.CodeGen.DotNet
                     case ReservedTypes.F64:
                         return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Double");
 
+                    case ReservedTypes.Char:
+                        return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Char");
+
                     case ReservedTypes.Bool:
                         return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Boolean");
                     default:
@@ -191,6 +184,12 @@ namespace CommonC.CodeGen.DotNet
 
             if (expression is IdentifierExpression identifierExpression)
             {
+                // TODO: 
+                if(identifierExpression.Name == "rand") 
+                {
+                    return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Int32");
+                }
+
                 List<VariableDeclarationStatement> existingLocals = locals.Where(l => l.Name == identifierExpression.Name).ToList();
                 if (existingLocals.Any())
                 {
@@ -247,11 +246,15 @@ namespace CommonC.CodeGen.DotNet
             {
                 return ResolveType(callExpression.Expression, locals);
             }
+            if(expression is ArithmeticExpression arithmeticExpression)
+            {
+                return ResolveType(arithmeticExpression.Left, locals);
+            }
 
             throw new Exception($"Type {expression.GetType().FullName} cannot be resolved.");
         }
 
-        public PEFile Generate(StatementList statements)
+        public ModuleDefinition GenerateModule(StatementList statements)
         {
             Module = new ModuleDefinition(Settings.Name, DotNetRuntimeInfo.NetFramework(4, 0));
 
@@ -261,52 +264,20 @@ namespace CommonC.CodeGen.DotNet
             Runtime = new RuntimeContext(DotNetRuntimeInfo.NetFramework(4, 0));
             Runtime.AddAssembly(assembly);
 
-            WriteLineInt = Module.CorLibTypeFactory.CorLibScope
-            .CreateTypeReference("System", "Console")
-            .CreateMemberReference("WriteLine", MethodSignature.CreateStatic(
-                returnType: Module.CorLibTypeFactory.Void,
-                parameterTypes: [Module.CorLibTypeFactory.Int32]
-            ));
-
-            WriteLineStr = Module.CorLibTypeFactory.CorLibScope
-            .CreateTypeReference("System", "Console")
-            .CreateMemberReference("WriteLine", MethodSignature.CreateStatic(
-                returnType: Module.CorLibTypeFactory.Void,
-                parameterTypes: [Module.CorLibTypeFactory.String]
-            ));
-
-            WriteLineDouble = Module.CorLibTypeFactory.CorLibScope
-            .CreateTypeReference("System", "Console")
-            .CreateMemberReference("WriteLine", MethodSignature.CreateStatic(
-                returnType: Module.CorLibTypeFactory.Void,
-                parameterTypes: [Module.CorLibTypeFactory.Double]
-            ));
-
-            WriteLineLong = Module.CorLibTypeFactory.CorLibScope
-            .CreateTypeReference("System", "Console")
-            .CreateMemberReference("WriteLine", MethodSignature.CreateStatic(
-                returnType: Module.CorLibTypeFactory.Void,
-                parameterTypes: [Module.CorLibTypeFactory.Int64]
-            ));
-
-            WriteLineBool = Module.CorLibTypeFactory.CorLibScope
-            .CreateTypeReference("System", "Console")
-            .CreateMemberReference("WriteLine", MethodSignature.CreateStatic(
-                returnType: Module.CorLibTypeFactory.Void,
-                parameterTypes: [Module.CorLibTypeFactory.Boolean]
-            ));
-
-            WriteLineObj = Module.CorLibTypeFactory.CorLibScope
-            .CreateTypeReference("System", "Console")
-            .CreateMemberReference("WriteLine", MethodSignature.CreateStatic(
-                returnType: Module.CorLibTypeFactory.Void,
-                parameterTypes: [Module.CorLibTypeFactory.Object]
-            ));
-
             ValueTypeReference = Module.CorLibTypeFactory.CorLibScope
                 .CreateTypeReference("System", "ValueType");
 
             Console.WriteLine(string.Join(", ", statements));
+
+            // Prepare constructor
+            MethodDefinition constructor = Module.TopLevelTypes.First().GetOrCreateStaticConstructor();
+
+            if (constructor.CilMethodBody!.Instructions.First().OpCode == CilOpCodes.Ret)
+            {
+                constructor.CilMethodBody.Instructions.RemoveAt(0);
+            }
+
+            GenerateRandFunction();
 
             GenerateStructStatements(statements);
 
@@ -316,11 +287,13 @@ namespace CommonC.CodeGen.DotNet
             GenerateFunctionReferences(statements);
             GenerateFunctionDeclarations(statements);
 
+            // Close constructor
+            constructor.CilMethodBody.Instructions.Add(CilOpCodes.Ret);
+
             foreach (var item in Module.AssemblyReferences)
             {
                 Console.WriteLine(item);
             }
-
 
             foreach (TypeDefinition type in Module.TopLevelTypes.First().NestedTypes)
             {
@@ -340,6 +313,12 @@ namespace CommonC.CodeGen.DotNet
                 }
 
                 Console.WriteLine(method.FullName);
+
+                foreach (CilLocalVariable local in method.CilMethodBody.LocalVariables)
+                {
+                    Console.WriteLine("\t" + local.Index + ": " + local.VariableType.FullName);
+                }
+
                 foreach (CilInstruction instruction in method.CilMethodBody.Instructions)
                 {
                     Console.WriteLine(instruction);
@@ -347,17 +326,17 @@ namespace CommonC.CodeGen.DotNet
                 Console.WriteLine();
             }
 
+            return Module;
+        }
+
+        public PEFile GeneratePEFile(StatementList statements)
+        {
+            ModuleDefinition module = GenerateModule(statements);
+
             ManagedPEImageBuilder builder = new ManagedPEImageBuilder();
-            PEImage peImage = Module.ToPEImage(builder);
 
-            PEFile peFile = peImage.ToPEFile(new ManagedPEFileBuilder());
-
-
-
-            
-
-
-            return peFile;
+            return module.ToPEImage(builder)
+                .ToPEFile(new ManagedPEFileBuilder());
         }
 
         void GenerateFieldReferences(StatementList statements)
@@ -379,11 +358,6 @@ namespace CommonC.CodeGen.DotNet
         {
             MethodDefinition constructor = Module.TopLevelTypes.First().GetOrCreateStaticConstructor();
 
-            if(constructor.CilMethodBody!.Instructions.First().OpCode == CilOpCodes.Ret)
-            {
-                constructor.CilMethodBody.Instructions.RemoveAt(0);
-            }
-
             foreach (VariableDeclarationStatement variableDeclarationStatement in statements.OfType<VariableDeclarationStatement>())
             {
                 if(variableDeclarationStatement.Expression != null)
@@ -392,8 +366,54 @@ namespace CommonC.CodeGen.DotNet
                     constructor.CilMethodBody.Instructions.Add(CilOpCodes.Stsfld, variableDeclarationStatement.Field);
                 }
             }
+        }
 
-            constructor.CilMethodBody.Instructions.Add(CilOpCodes.Ret);
+        void GenerateRandFunction()
+        {
+            MethodDefinition randFunction = new MethodDefinition("rand", MethodAttributes.Public | MethodAttributes.Static, MethodSignature.CreateStatic(Module.CorLibTypeFactory.Int32,
+                [
+                    Module.CorLibTypeFactory.Int32,
+                    Module.CorLibTypeFactory.Int32
+                ]))
+            {
+                CilMethodBody = new CilMethodBody()
+            };
+
+            var randomTypeRef = Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Random");
+
+            var ctorRef = randomTypeRef.CreateMemberReference(
+                ".ctor",
+                MethodSignature.CreateInstance(Module.CorLibTypeFactory.Void)
+            );
+
+            MethodDefinition appConstructor = Module.TopLevelTypes.First().GetOrCreateStaticConstructor();
+
+            appConstructor.CilMethodBody.Instructions.Add(CilOpCodes.Newobj, ctorRef);
+
+            FieldDefinition randomInstanceField = new FieldDefinition("randomInstance", FieldAttributes.Public | FieldAttributes.Static, randomTypeRef.ToTypeSignature(false));
+            Module.TopLevelTypes.First().Fields.Add(randomInstanceField);
+
+            appConstructor.CilMethodBody.Instructions.Add(CilOpCodes.Stsfld, randomInstanceField);
+
+
+
+            randFunction.CilMethodBody.Instructions.Add(CilOpCodes.Ldsfld, randomInstanceField);
+
+            randFunction.CilMethodBody.Instructions.Add(CilOpCodes.Ldarg_0);
+            randFunction.CilMethodBody.Instructions.Add(CilOpCodes.Ldarg_1);
+
+            var nextMethod = randomTypeRef.CreateMemberReference(
+                "Next",
+                MethodSignature.CreateInstance(
+                    Module.CorLibTypeFactory.Int32,
+                    new TypeSignature[] { Module.CorLibTypeFactory.Int32, Module.CorLibTypeFactory.Int32 }
+                )
+            );
+
+            randFunction.CilMethodBody.Instructions.Add(CilOpCodes.Callvirt, nextMethod);
+            randFunction.CilMethodBody.Instructions.Add(CilOpCodes.Ret);
+
+            Module.TopLevelTypes.First().Methods.Add(randFunction);
         }
 
         void GenerateFunctionReferences(StatementList statements)
@@ -473,7 +493,9 @@ namespace CommonC.CodeGen.DotNet
 
                 foreach (VariableDeclarationStatement field in structStatement.Fields)
                 {
-                    FieldDefinition fieldDefinition = new FieldDefinition(field.Name, FieldAttributes.Public, new FieldSignature(ResolveType(field.Type, new List<VariableDeclarationStatement>()).ToTypeSignature(false))); // NOTE: isValueType is always false, change this to be dynamic in the future.
+                    ITypeDefOrRef fieldType = ResolveType(field.Type, new List<VariableDeclarationStatement>());
+
+                    FieldDefinition fieldDefinition = new FieldDefinition(field.Name, FieldAttributes.Public, new FieldSignature(fieldType.ToTypeSignature(fieldType.GetIsValueType(Runtime))));
                     structDef.Fields.Add(fieldDefinition);
                 }
 
@@ -481,7 +503,6 @@ namespace CommonC.CodeGen.DotNet
             }
         }
 
-        // TODO: Add support for else if
         void GenerateIfStatement(CilMethodBody body, IfStatement ifStatement)
         {
             bool multipleBranches = ifStatement.ElseIfs.Count > 0 || ifStatement.Else.Statements.Count > 0;
@@ -503,7 +524,6 @@ namespace CommonC.CodeGen.DotNet
 
             body.Instructions.Add(ifFalseBranch);
 
-
             foreach (IfStatement elseIfStatement in ifStatement.ElseIfs)
             {
                 GenerateExpression(elseIfStatement.Condition, elseIfStatement.Body.Locals, body);
@@ -516,10 +536,6 @@ namespace CommonC.CodeGen.DotNet
                 body.Instructions.Add(CilOpCodes.Br, endBranchLabel);
                 body.Instructions.Add(elseIfFalseBranch);
             }
-
-            // ...
-
-
 
             if (ifStatement.Else.Statements.Count > 0)
             {
@@ -548,7 +564,6 @@ namespace CommonC.CodeGen.DotNet
 
         void GenerateAssignmentStatement(CilMethodBody body, AssignmentStatement assignmentStatement, List<VariableDeclarationStatement> variableDeclarationStatements)
         {
-
             if (assignmentStatement.Variable is IdentifierExpression identifierExpression)
             {
                 GenerateExpression(assignmentStatement.Expression, variableDeclarationStatements, body);
@@ -735,55 +750,44 @@ namespace CommonC.CodeGen.DotNet
         {
             if (callStatement.Expression is IdentifierExpression identifierExpression)
             {
-                GenerateExpressions(callStatement.Arguments, variableDeclarationStatements, body);
-
-                if(identifierExpression.Name == "log" && callStatement.Arguments.Any())
+                if(identifierExpression.Name == "logline" && callStatement.Arguments.Any())
                 {
+                    GenerateExpressions(callStatement.Arguments, variableDeclarationStatements, body);
+
                     Expression argumentExpression = callStatement.Arguments.First();
                     ITypeDefOrRef argumentType = ResolveType(argumentExpression, variableDeclarationStatements);
 
-                    if(argumentType.Namespace == "System")
-                    {
-                        switch(argumentType.Name)
-                        {
-                            case "String":
-                            case "String[]":
-                                body.Instructions.Add(CilOpCodes.Call, WriteLineStr!);
-                                return;
-                            case "Int32":
-                            case "Int32[]":
-                                body.Instructions.Add(CilOpCodes.Call, WriteLineInt!);
-                                return;
-                            case "Double":
-                            case "Double[]":
-                                body.Instructions.Add(CilOpCodes.Call, WriteLineDouble!);
-                                return;
-                            case "Long":
-                            case "Long[]":
-                                body.Instructions.Add(CilOpCodes.Call, WriteLineLong!);
-                                return;
-                            case "Bool":
-                            case "Bool[]":
-                                body.Instructions.Add(CilOpCodes.Call, WriteLineBool!);
-                                return;
-                            case "Object":
-                            case "Object[]":
-                                body.Instructions.Add(CilOpCodes.Call, WriteLineObj!);
-                                return;
-                        }
-                    }
-
                     body.Instructions.Add(CilOpCodes.Call, Module.CorLibTypeFactory.CorLibScope
-                    .CreateTypeReference("System", "Console")
-                    .CreateMemberReference("WriteLine", MethodSignature.CreateStatic(
+                        .CreateTypeReference("System", "Console")
+                        .CreateMemberReference("WriteLine", MethodSignature.CreateStatic(
                         returnType: Module.CorLibTypeFactory.Void,
                         parameterTypes: [argumentType.ToTypeSignature(argumentType.GetIsValueType(Runtime))]
-                    )));
+                        )));
+
+                    return;
+                }
+
+                if (identifierExpression.Name == "log" && callStatement.Arguments.Any())
+                {
+                    GenerateExpressions(callStatement.Arguments, variableDeclarationStatements, body);
+
+                    Expression argumentExpression = callStatement.Arguments.First();
+                    ITypeDefOrRef argumentType = ResolveType(argumentExpression, variableDeclarationStatements);
+
+                    body.Instructions.Add(CilOpCodes.Call, Module.CorLibTypeFactory.CorLibScope
+                        .CreateTypeReference("System", "Console")
+                        .CreateMemberReference("Write", MethodSignature.CreateStatic(
+                        returnType: Module.CorLibTypeFactory.Void,
+                        parameterTypes: [argumentType.ToTypeSignature(argumentType.GetIsValueType(Runtime))]
+                        )));
+
                     return;
                 }
 
                 if (Module.TopLevelTypes.First().Methods.Where(m => m.Name == identifierExpression.Name).FirstOrDefault() is MethodDefinition method)
                 {
+                    GenerateExpressions(callStatement.Arguments, variableDeclarationStatements, body);
+
                     body.Instructions.Add(CilOpCodes.Call, method);
                     return;
                 }
@@ -1037,9 +1041,28 @@ namespace CommonC.CodeGen.DotNet
             switch (arithmeticExpression.Operator)
             {
                 case ArithmeticOperator.Addition:
+                    ITypeDefOrRef leftExpressionType = ResolveType(arithmeticExpression.Left, variableDeclarationStatements).Resolve(Runtime);
+
                     GenerateExpression(arithmeticExpression.Left, variableDeclarationStatements, body);
                     GenerateExpression(arithmeticExpression.Right, variableDeclarationStatements, body);
-                    body.Instructions.Add(CilOpCodes.Add);
+
+                    if (leftExpressionType.Namespace == "System" && leftExpressionType.Name == "String")
+                    {
+                        body.Instructions.Add(CilOpCodes.Call, Module.CorLibTypeFactory.CorLibScope
+                        .CreateTypeReference("System", "String")
+                        .CreateMemberReference("Concat", MethodSignature.CreateStatic(
+                        returnType: Module.CorLibTypeFactory.String,
+                        parameterTypes: [
+                                Module.CorLibTypeFactory.String,
+                                Module.CorLibTypeFactory.String
+                            ]
+                        )));
+                    }
+                    else
+                    {
+                        body.Instructions.Add(CilOpCodes.Add);
+                    }
+
                     break;
 
                 case ArithmeticOperator.Subtraction:
@@ -1067,9 +1090,18 @@ namespace CommonC.CodeGen.DotNet
                     break;
 
                 case ArithmeticOperator.Exponential:
+                    throw new Exception("Exponential operations is not yet implemented");
+
+                case ArithmeticOperator.LeftShift:
                     GenerateExpression(arithmeticExpression.Left, variableDeclarationStatements, body);
                     GenerateExpression(arithmeticExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Shl);
+                    break;
+
+                case ArithmeticOperator.RightShift:
+                    GenerateExpression(arithmeticExpression.Left, variableDeclarationStatements, body);
+                    GenerateExpression(arithmeticExpression.Right, variableDeclarationStatements, body);
+                    body.Instructions.Add(CilOpCodes.Shr);
                     break;
             }
         }
@@ -1151,31 +1183,37 @@ namespace CommonC.CodeGen.DotNet
             throw new Exception($"Variable '{identifierExpression.Name}' is not declared in the current scope.");
         }
 
-        void GenerateLoadField(IdentifierExpression identifierExpression, CilMethodBody body)
-        {
-            List<FieldDefinition> fieldDefs = Module.TopLevelTypes.First().Fields.Where(t => t.Name == identifierExpression.Name).ToList();
-            if (fieldDefs.Any())
-            {
-                body.Instructions.Add(CilOpCodes.Ldsfld, fieldDefs.First());
-                return;
-            }
-        }
-
-        
-
         void GenerateIndexExpression(IndexExpression indexExpression, List<VariableDeclarationStatement> variableDeclarations, CilMethodBody body)
         {
-            GenerateExpression(indexExpression.Expression, variableDeclarations, body);
-            GenerateExpression(indexExpression.Index, variableDeclarations, body);
-
             ResolveType(indexExpression.Expression, variableDeclarations).Resolve(Runtime, out TypeDefinition? expressionType);
 
-            if(expressionType == null)
+            if (expressionType == null)
             {
                 throw new Exception($"Could not resolve type of index expression {indexExpression.Expression}");
             }
 
-            Emitter.EmitLdelem(expressionType, body);
+            GenerateExpression(indexExpression.Expression, variableDeclarations, body);
+            GenerateExpression(indexExpression.Index, variableDeclarations, body);
+
+            if (expressionType.Namespace == "System" && expressionType.Name == "String")
+            {
+                MethodSignature getCharsSignature = MethodSignature.CreateStatic(
+                        returnType: Module.CorLibTypeFactory.Char,
+                        parameterTypes: [
+                                Module.CorLibTypeFactory.Int32,
+                            ]
+                        );
+
+                getCharsSignature.HasThis = true;
+
+                body.Instructions.Add(CilOpCodes.Callvirt, Module.CorLibTypeFactory.CorLibScope
+                        .CreateTypeReference("System", "String")
+                        .CreateMemberReference("get_Chars", getCharsSignature));
+            }
+            else
+            {
+                Emitter.EmitLdelem(expressionType, body);
+            }
         }
 
         void GenerateArrayExpression(ArrayExpression arrayExpression, List<VariableDeclarationStatement> variableDeclarations, CilMethodBody body)

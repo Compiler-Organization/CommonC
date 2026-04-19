@@ -35,6 +35,8 @@ namespace CommonC.Lexer
 
             "f32", // float
             "f64", // double
+
+            "char",
             
             "bool",
             
@@ -107,6 +109,11 @@ namespace CommonC.Lexer
                                 kind = LexKinds.SmallerOrEqual;
                                 i++;
                             }
+                            else if (Input[i + 1] == '<')
+                            {
+                                kind = LexKinds.LeftShift;
+                                i++;
+                            }
                             else
                             {
                                 kind = LexKinds.ChevronOpen;
@@ -118,6 +125,11 @@ namespace CommonC.Lexer
                             if (Input[i + 1] == '=')
                             {
                                 kind = LexKinds.BiggerOrEqual;
+                                i++;
+                            }
+                            else if (Input[i + 1] == '>')
+                            {
+                                kind = LexKinds.RightShift;
                                 i++;
                             }
                             else
@@ -284,6 +296,7 @@ namespace CommonC.Lexer
                             }
                             else if (Input[i + 1] == '/')
                             {
+                                kind = LexKinds.Comment;
                                 i += 2;
                                 while (Input.Length > i)
                                 {
@@ -369,7 +382,7 @@ namespace CommonC.Lexer
                 }
 
 
-                if (kind != LexKinds.Terminal)
+                if (kind != LexKinds.Terminal && kind != LexKinds.Comment)
                 {
                     LexTokens.Add(new LexToken()
                     {

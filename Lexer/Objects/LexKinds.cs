@@ -192,6 +192,16 @@ namespace CommonC.Lexer.Objects
         Exponential,
 
         /// <summary>
+        /// E.g '<<'
+        /// </summary>
+        LeftShift,
+
+        /// <summary>
+        /// E.g '>>'
+        /// </summary>
+        RightShift,
+
+        /// <summary>
         /// E.g '..'
         /// </summary>
         Range,

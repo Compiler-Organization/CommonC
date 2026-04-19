@@ -80,6 +80,8 @@ Semicolon after statements is optional simply because some people prefer it, tho
         * Division.
         * Modulus.
         * Power.
+        * Left shift.
+        * Right shift.
     * [Negate](#Negate)
         * Negate expression from positive to negative.
     * [Not](#Not)

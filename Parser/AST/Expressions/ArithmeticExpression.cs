@@ -22,5 +22,7 @@ namespace CommonC.Parser.AST.Expressions
         Division = LexKinds.Division,
         Modulus = LexKinds.Modulus,
         Exponential = LexKinds.Exponential,
+        LeftShift = LexKinds.LeftShift,
+        RightShift = LexKinds.RightShift,
     }
 }

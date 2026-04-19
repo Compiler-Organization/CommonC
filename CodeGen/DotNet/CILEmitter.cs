@@ -190,6 +190,9 @@ namespace CommonC.CodeGen.DotNet
                 case "System.UIntPtr[]":
                     body.Instructions.Add(CilOpCodes.Ldelem_I);
                     return;
+                case "System.String":
+                    body.Instructions.Add(CilOpCodes.Ldelem, type);
+                    return;
                 default:
                     body.Instructions.Add(CilOpCodes.Ldelema, type);
                     return;

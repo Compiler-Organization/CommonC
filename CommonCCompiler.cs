@@ -35,7 +35,7 @@ namespace CommonC
 
                 DotNetCodeGen dotNetCodeGen = new DotNetCodeGen(Settings.DotNetCodeGenSettings);
 
-                dotNetCodeGen.Generate(statements).Write("test.exe");
+                dotNetCodeGen.GeneratePEFile(statements).Write("test.exe");
             }
             else
             {

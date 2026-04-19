@@ -123,6 +123,10 @@ namespace CommonC.Parser
                     typeExpression.Type = ReservedTypes.U64;
                     break;
 
+                case "char":
+                    typeExpression.Type = ReservedTypes.Char;
+                    break;
+
                 case "bool":
                     typeExpression.Type = ReservedTypes.Bool;
                     break;
@@ -319,6 +323,8 @@ namespace CommonC.Parser
                 case LexKinds.Division:
                 case LexKinds.Modulus:
                 case LexKinds.Exponential:
+                case LexKinds.LeftShift:
+                case LexKinds.RightShift:
                     arithmeticExpression.Operator = (ArithmeticOperator)arithmeticKind;
                     break;
 

@@ -25,6 +25,7 @@ namespace CommonC.Parser.AST
         F64,
 
         String,
+        Char,
         Bool,
         Fn,
     }
