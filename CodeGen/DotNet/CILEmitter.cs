@@ -191,6 +191,7 @@ namespace CommonC.CodeGen.DotNet
                     body.Instructions.Add(CilOpCodes.Ldelem_I);
                     return;
                 case "System.String":
+                case "System.String[]":
                     body.Instructions.Add(CilOpCodes.Ldelem, type);
                     return;
                 default:

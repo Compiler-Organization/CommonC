@@ -1,3 +1,5 @@
+use godspeaks
+
 i32 main() {
-	log("Hello, world!")
+	log(speak())
 }

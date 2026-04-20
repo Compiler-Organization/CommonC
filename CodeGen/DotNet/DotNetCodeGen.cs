@@ -1185,7 +1185,7 @@ namespace CommonC.CodeGen.DotNet
 
         void GenerateIndexExpression(IndexExpression indexExpression, List<VariableDeclarationStatement> variableDeclarations, CilMethodBody body)
         {
-            ResolveType(indexExpression.Expression, variableDeclarations).Resolve(Runtime, out TypeDefinition? expressionType);
+            ITypeDefOrRef expressionType = ResolveType(indexExpression.Expression, variableDeclarations);
 
             if (expressionType == null)
             {
@@ -1195,7 +1195,9 @@ namespace CommonC.CodeGen.DotNet
             GenerateExpression(indexExpression.Expression, variableDeclarations, body);
             GenerateExpression(indexExpression.Index, variableDeclarations, body);
 
-            if (expressionType.Namespace == "System" && expressionType.Name == "String")
+            if (expressionType.Namespace == "System" 
+                && expressionType.Name == "String"
+                && expressionType.ToTypeSignature(expressionType.GetIsValueType(Runtime)) is not SzArrayTypeSignature)
             {
                 MethodSignature getCharsSignature = MethodSignature.CreateStatic(
                         returnType: Module.CorLibTypeFactory.Char,
