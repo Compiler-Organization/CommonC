@@ -1,4 +1,6 @@
-﻿using CommonC.CodeGen.DotNet;
+﻿using AsmResolver.DotNet;
+using CommonC.DotNet;
+using CommonC.DotNet.CodeGen;
 using CommonC.Lexer;
 using CommonC.Lexer.Objects;
 using CommonC.Parser;
@@ -18,18 +20,21 @@ namespace CommonC.App
         {
             Console.Clear();
 
-            CommonCCompilerSettings settings = new CommonCCompilerSettings
+            DotNetCommonCCompilerSettings settings = new DotNetCommonCCompilerSettings
             {
-                FilePath = Environment.CurrentDirectory + "\\Samples\\test.coc",
+                MainFilePath = Environment.CurrentDirectory + "\\Samples\\test.coc",
                 WorkingDirectory = Environment.CurrentDirectory + "\\Samples",
                 DotNetCodeGenSettings = new DotNetCodeGenSettings
                 {
                     Name = "test",
+                    Version = new Version(1, 0, 0, 0),
+                    DotNetRuntimeInfo = DotNetRuntimeInfo.NetCoreApp(10, 0, 0)
                 }
             };
 
-            CommonCCompiler compiler = new CommonCCompiler(settings);
-            compiler.Compile();
+            DotNetCommonCCompiler compiler = new DotNetCommonCCompiler(settings);
+            compiler.Compile().Write("test.dll");
+            compiler.CreateAppHost();
 
             ConsoleColor.Green.WriteLine("Starting application...");
 
@@ -49,12 +54,16 @@ namespace CommonC.App
             stopwatch.Stop();
 
             ConsoleColor.White.Write(output);
-            if(!string.IsNullOrEmpty(error))
+            if (!string.IsNullOrEmpty(error))
             {
                 ConsoleColor.Red.Write(error);
             }
 
-            ConsoleColor.Green.WriteLine($"\nExecution completed in {(stopwatch.ElapsedMilliseconds) / (double)1000}s!");
+            ConsoleColor.Green.WriteLine($"\nExecution completed in;");
+            ConsoleColor.Green.WriteLine($"Seconds; {(stopwatch.ElapsedMilliseconds) / (double)1000}s");
+            ConsoleColor.Green.WriteLine($"Milliseconds; {stopwatch.ElapsedMilliseconds}ms");
+
+            process.Kill();
         }
 
     }

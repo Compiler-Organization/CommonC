@@ -6,7 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace CommonC.CodeGen.DotNet
+namespace CommonC.DotNet.CodeGen
 {
     public class CILEmitter
     {

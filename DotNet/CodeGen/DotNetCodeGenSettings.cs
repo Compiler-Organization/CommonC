@@ -1,8 +1,9 @@
-﻿using System;
+﻿using AsmResolver.DotNet;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace CommonC.CodeGen.DotNet
+namespace CommonC.DotNet.CodeGen
 {
     public class DotNetCodeGenSettings
     {
@@ -20,5 +21,10 @@ namespace CommonC.CodeGen.DotNet
         /// Determines the entry point of the application.
         /// </summary>
         public string EntryPoint { get; set; } = "main";
+
+        /// <summary>
+        /// The target .NET runtime
+        /// </summary>
+        public required DotNetRuntimeInfo DotNetRuntimeInfo { get; set; }
     }
 }

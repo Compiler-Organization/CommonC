@@ -27,7 +27,7 @@ TODO:
     * Fix parser precedence so it handles n % i == 0 as (n % i) == 0 properly.
  */
 
-namespace CommonC.CodeGen.DotNet
+namespace CommonC.DotNet.CodeGen
 {
     public class DotNetCodeGen
     {
@@ -44,6 +44,8 @@ namespace CommonC.CodeGen.DotNet
             Settings = settings;
             Emitter = new CILEmitter();
         }
+
+        ModuleDefinition SystemConsoleModule = ModuleDefinition.FromFile("bin\\System.Console.dll");
 
         ITypeDefOrRef ValueTypeReference { get; set; }
 
@@ -250,24 +252,26 @@ namespace CommonC.CodeGen.DotNet
             {
                 return ResolveType(arithmeticExpression.Left, locals);
             }
+            if(expression is LengthExpression lengthExpression)
+            {
+                return Module.CorLibTypeFactory.Int32.ToTypeDefOrRef();
+            }
 
             throw new Exception($"Type {expression.GetType().FullName} cannot be resolved.");
         }
 
         public ModuleDefinition GenerateModule(StatementList statements)
         {
-            Module = new ModuleDefinition(Settings.Name, DotNetRuntimeInfo.NetFramework(4, 0));
+            Module = new ModuleDefinition(Settings.Name, Settings.DotNetRuntimeInfo);
 
             AssemblyDefinition assembly = new AssemblyDefinition(Settings.Name, Settings.Version);
             assembly.Modules.Add(Module);
 
-            Runtime = new RuntimeContext(DotNetRuntimeInfo.NetFramework(4, 0));
+            Runtime = new RuntimeContext(Settings.DotNetRuntimeInfo);
             Runtime.AddAssembly(assembly);
 
             ValueTypeReference = Module.CorLibTypeFactory.CorLibScope
                 .CreateTypeReference("System", "ValueType");
-
-            Console.WriteLine(string.Join(", ", statements));
 
             // Prepare constructor
             MethodDefinition constructor = Module.TopLevelTypes.First().GetOrCreateStaticConstructor();
@@ -292,7 +296,7 @@ namespace CommonC.CodeGen.DotNet
 
             foreach (var item in Module.AssemblyReferences)
             {
-                Console.WriteLine(item);
+                Console.WriteLine("Assembly reference; " + item.FullName);
             }
 
             foreach (TypeDefinition type in Module.TopLevelTypes.First().NestedTypes)
@@ -347,8 +351,6 @@ namespace CommonC.CodeGen.DotNet
 
                 variableDeclarationStatement.IsField = true;
                 variableDeclarationStatement.Field = fieldDefinition;
-
-                Console.WriteLine("Adding reference to field " + variableDeclarationStatement.Name);
 
                 Module.TopLevelTypes.First().Fields.Add(fieldDefinition);
             }
@@ -779,14 +781,14 @@ namespace CommonC.CodeGen.DotNet
         {
             if (callStatement.Expression is IdentifierExpression identifierExpression)
             {
-                if(identifierExpression.Name == "logline" && callStatement.Arguments.Any())
+                if (identifierExpression.Name == "logline" && callStatement.Arguments.Any())
                 {
                     GenerateExpressions(callStatement.Arguments, variableDeclarationStatements, body);
 
                     Expression argumentExpression = callStatement.Arguments.First();
                     ITypeDefOrRef argumentType = ResolveType(argumentExpression, variableDeclarationStatements);
 
-                    body.Instructions.Add(CilOpCodes.Call, Module.CorLibTypeFactory.CorLibScope
+                    body.Instructions.Add(CilOpCodes.Call, SystemConsoleModule
                         .CreateTypeReference("System", "Console")
                         .CreateMemberReference("WriteLine", MethodSignature.CreateStatic(
                         returnType: Module.CorLibTypeFactory.Void,
@@ -803,7 +805,7 @@ namespace CommonC.CodeGen.DotNet
                     Expression argumentExpression = callStatement.Arguments.First();
                     ITypeDefOrRef argumentType = ResolveType(argumentExpression, variableDeclarationStatements);
 
-                    body.Instructions.Add(CilOpCodes.Call, Module.CorLibTypeFactory.CorLibScope
+                    body.Instructions.Add(CilOpCodes.Call, SystemConsoleModule
                         .CreateTypeReference("System", "Console")
                         .CreateMemberReference("Write", MethodSignature.CreateStatic(
                         returnType: Module.CorLibTypeFactory.Void,

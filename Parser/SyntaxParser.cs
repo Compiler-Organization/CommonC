@@ -884,10 +884,8 @@ namespace CommonC.Parser
                 // Parse elseifs
                 for (; ; )
                 {
-                    Console.WriteLine("Parsing elseif...");
                     if(TokenReader.Expect(LexKinds.Keyword, "elseif"))
                     {
-                        Console.WriteLine("Started parsing of elseif...");
                         IfStatement elseIfStatement = new IfStatement();
 
                         TokenReader.Skip(1);
@@ -978,7 +976,6 @@ namespace CommonC.Parser
             {
                 TokenReader.Skip(1);
 
-                Console.WriteLine($"------ {TokenReader.Peek().Kind}, {TokenReader.Peek().Value}");
                 if (ParseExpression(out Expression expression))
                 {
                     if (expression is RangeExpression rangeExpression)

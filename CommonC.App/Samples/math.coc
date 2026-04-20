@@ -1,0 +1,23 @@
+fn Sieve(i64 n) {
+	bool flags = bool[n] {}
+	i64 count = 0
+
+	for 2..n, i 
+	{
+		if (!flags[i]) 
+		{
+			count = count + 1
+
+			i64 j = i << 1
+			while (j < n) {
+				flags[j] = true
+				j = j + i
+			}
+		}
+	}
+
+	log("Primes up to ")
+	log(n)
+	log(" ")
+	logline(count)
+}

@@ -1,21 +1,9 @@
-struct NestedTesting {
-	str Hello
-}
-
-struct Testing {
-	NestedTesting nestedTesting
-}
-
-
+use math
 
 i32 main() {
-	Testing testing = Testing[1] {
-		Testing {
-			nestedTesting: NestedTesting {
-				Hello: "Hello"
-			}
-		}
+	i64 n = 4
+
+	for 0..3, i {
+		Sieve(10000 << (n - i))
 	}
-	
-	log(testing[0].nestedTesting.Hello)
 }

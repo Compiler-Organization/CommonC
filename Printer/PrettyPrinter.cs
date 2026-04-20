@@ -108,6 +108,12 @@ namespace CommonC.Printer
                 case ArithmeticOperator.Exponential:
                     Builder.Append(" ^ ");
                     break;
+                case ArithmeticOperator.LeftShift:
+                    Builder.Append(" << ");
+                    break;
+                case ArithmeticOperator.RightShift:
+                    Builder.Append(" >> ");
+                    break;
             }
 
             PrintExpression(arithmeticExpression.Right, indentation);
@@ -541,7 +547,7 @@ namespace CommonC.Printer
                 Builder.Append(variableDeclarationStatement.Name);
                 if (variableDeclarationStatement.Expression != null)
                 {
-                    Builder.Append(" = ");
+                    Builder.Append(": ");
                     PrintExpression(variableDeclarationStatement.Expression, indentation);
                 }
                 if(structStatement.Fields.IndexOf(variableDeclarationStatement) != structStatement.Fields.Count - 1)
@@ -550,6 +556,7 @@ namespace CommonC.Printer
                 }
                 Builder.Append(Settings.NewLine);
             }
+            Builder.Append(indentation);
             Builder.Append("}");
             Builder.Append(Settings.NewLine);
         }
