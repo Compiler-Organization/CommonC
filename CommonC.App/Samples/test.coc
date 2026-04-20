@@ -1,5 +1,21 @@
-use godspeaks
+struct NestedTesting {
+	str Hello
+}
+
+struct Testing {
+	NestedTesting nestedTesting
+}
+
+
 
 i32 main() {
-	log(speak())
+	Testing testing = Testing[1] {
+		Testing {
+			nestedTesting: NestedTesting {
+				Hello: "Hello"
+			}
+		}
+	}
+	
+	log(testing[0].nestedTesting.Hello)
 }

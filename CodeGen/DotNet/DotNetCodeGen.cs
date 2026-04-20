@@ -106,7 +106,7 @@ namespace CommonC.CodeGen.DotNet
             return resolvedType.ToTypeSignature(isValueType);
         }
 
-        ITypeDefOrRef ResolveType(Expression expression, List<VariableDeclarationStatement> locals, TypeDefinition? parentType = null)
+        ITypeDefOrRef ResolveType(Expression expression, List<VariableDeclarationStatement> locals, TypeDefinition parentType = null)
         {
             if(parentType == null)
             {
@@ -214,7 +214,7 @@ namespace CommonC.CodeGen.DotNet
                     return methods.First().Signature!.ReturnType.ToTypeDefOrRef();
                 }
 
-                throw new Exception($"Exception occured when resolving type: Local, type or field '{identifierExpression.Name}' does not exist in the current scope.");
+                throw new Exception($"Exception occured when resolving type: Local, type or field '{identifierExpression.Name}' does not exist in type {parentType.FullName}.");
             }
 
             if(expression is IndexExpression indexExpression)
@@ -233,12 +233,12 @@ namespace CommonC.CodeGen.DotNet
             }
             if(expression is MemberExpression memberExpression)
             {
-                if(memberExpression.Member is MemberExpression)
-                {
-                    throw new NotSupportedException("Cannot resolve nested member expressions");
-                }
+                TypeDefinition parentTypeDef = ResolveType(memberExpression.Parent, locals, parentType) as TypeDefinition;
 
-                ResolveType(memberExpression.Parent, locals).Resolve(Runtime, out TypeDefinition parentTypeDef);
+                if(parentTypeDef == null)
+                {
+                    throw new Exception("Could not resolve parent type of member expression");
+                }
 
                 return ResolveType(memberExpression.Member, locals, parentTypeDef);
             }
@@ -556,7 +556,7 @@ namespace CommonC.CodeGen.DotNet
             if (variableDeclarationStatement.Expression != null)
             {
                 GenerateExpression(variableDeclarationStatement.Expression, variableDeclarationStatements, body);
-                body.Instructions.Add(CilOpCodes.Stloc, localVariable);
+                Emitter.EmitStloc(localVariable, body);
             }
 
             variableDeclarationStatement.CilLocalVariable = localVariable;
@@ -578,7 +578,7 @@ namespace CommonC.CodeGen.DotNet
                 {
                     VariableDeclarationStatement variableDeclaration = variableDeclarationStatements.Where(t => t.Name == identifierExpression.Name).FirstOrDefault() ?? throw new Exception($"Variable '{identifierExpression.Name}' is not declared in the current scope.");
 
-                    body.Instructions.Add(CilOpCodes.Stloc, variableDeclaration.CilLocalVariable!);
+                    Emitter.EmitStloc(variableDeclaration.CilLocalVariable!, body);
                 }
                 return;
             }
@@ -594,21 +594,19 @@ namespace CommonC.CodeGen.DotNet
             if(assignmentStatement.Variable is MemberExpression memberExpression)
             {
                 GenerateExpression(memberExpression.Parent, variableDeclarationStatements, body);
-                GenerateExpression(assignmentStatement.Expression, variableDeclarationStatements, body);
 
-                GenerateGetOrSetMember(memberExpression, false, variableDeclarationStatements, body);
+                GenerateGetOrSetMember(memberExpression, false, variableDeclarationStatements, body, null, assignmentStatement.Expression);
                 return;
             }
 
             throw new Exception($"Assignment to expression of type '{assignmentStatement.Variable.GetType().Name}' is not supported in code generation.");
         }
 
-        void GenerateGetOrSetMember(MemberExpression memberExpression, bool getMember, List<VariableDeclarationStatement> variableDeclarationStatements, CilMethodBody body)
+        void GenerateGetOrSetMember(MemberExpression memberExpression, bool getMember, List<VariableDeclarationStatement> variableDeclarationStatements, CilMethodBody body, TypeDefinition? parentType = null, Expression? setExpression = null)
         {
-            ResolveType(memberExpression.Parent, variableDeclarationStatements).Resolve(Runtime, out TypeDefinition? parentType);
-            if (parentType == null)
+            if(parentType == null)
             {
-                throw new Exception($"Could not convert parent to typedefinition");
+                parentType = ResolveType(memberExpression.Parent, variableDeclarationStatements).Resolve(Runtime);
             }
 
             string memberName = "";
@@ -616,6 +614,17 @@ namespace CommonC.CodeGen.DotNet
             if (memberExpression.Member is IdentifierExpression identifier)
             {
                 memberName = identifier.Name;
+            }
+            else if(memberExpression.Member is MemberExpression nestedMemberExpression)
+            {
+                if(nestedMemberExpression.Parent is IdentifierExpression nestedParentIdentifierExpression)
+                {
+                    memberName = nestedParentIdentifierExpression.Name;
+                }
+                else
+                {
+                    throw new Exception($"{memberExpression.Member.GetType().FullName} is not supported in nested member expression member.");
+                }
             }
             else
             {
@@ -628,18 +637,38 @@ namespace CommonC.CodeGen.DotNet
             {
                 if(getMember)
                 {
-                    body.Instructions.Add(memberField.IsStatic ? CilOpCodes.Ldsfld : CilOpCodes.Ldfld, memberField);
+                    if (memberExpression.Member is MemberExpression)
+                    {
+                        body.Instructions.Add(memberField.IsStatic ? CilOpCodes.Ldsflda : CilOpCodes.Ldflda, memberField);
+                    }
+                    else
+                    {
+                        body.Instructions.Add(memberField.IsStatic ? CilOpCodes.Ldsfld : CilOpCodes.Ldfld, memberField);
+                    }
                 }
                 else
                 {
-
-                    body.Instructions.Add(memberField.IsStatic ? CilOpCodes.Stsfld : CilOpCodes.Stfld, memberField);
+                    if(memberExpression.Member is MemberExpression)
+                    {
+                        body.Instructions.Add(memberField.IsStatic ? CilOpCodes.Ldsflda : CilOpCodes.Ldflda, memberField);
+                    }
+                    else
+                    {
+                        GenerateExpression(setExpression, variableDeclarationStatements, body);
+                        body.Instructions.Add(memberField.IsStatic ? CilOpCodes.Stsfld : CilOpCodes.Stfld, memberField);
+                    }
                 }
             }
             else
             {
                 throw new Exception($"Field {memberName} does not exist in type {parentType.Name}");
             }
+
+            if(memberExpression.Member is MemberExpression nestedMember)
+            {
+                GenerateGetOrSetMember(nestedMember, getMember, variableDeclarationStatements, body, memberField.Signature.FieldType.ToTypeDefOrRef() as TypeDefinition, setExpression);
+            }
+
         }
 
         void GenerateForStatement(CilMethodBody body, ForStatement forStatement)
@@ -655,13 +684,13 @@ namespace CommonC.CodeGen.DotNet
             GenerateStatements(body, forStatement.Body.Statements, forStatement.Body.Locals);
 
             Emitter.EmitLdc_I4(1, body);
-            body.Instructions.Add(CilOpCodes.Ldloc, forStatement.Variable.CilLocalVariable!);
+            Emitter.EmitLdloc(forStatement.Variable.CilLocalVariable!, body);
             body.Instructions.Add(CilOpCodes.Add);
-            body.Instructions.Add(CilOpCodes.Stloc, forStatement.Variable.CilLocalVariable!);
+            Emitter.EmitStloc(forStatement.Variable.CilLocalVariable!, body);
 
             body.Instructions.Add(conditionStart);
             GenerateExpression(forStatement.Range.End, forStatement.Body.Locals, body);
-            body.Instructions.Add(CilOpCodes.Ldloc, forStatement.Variable.CilLocalVariable!);
+            Emitter.EmitLdloc(forStatement.Variable.CilLocalVariable!, body);
             body.Instructions.Add(CilOpCodes.Cgt);
             //body.Instructions.Add(CilOpCodes.Ldc_I4_0);
             //body.Instructions.Add(CilOpCodes.Ceq);
@@ -916,7 +945,7 @@ namespace CommonC.CodeGen.DotNet
             throw new Exception($"Expression of type '{expression.GetType().Name}' is not supported in code generation.");
         }
 
-        void GenerateMemberExpression(MemberExpression memberExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
+        void GenerateMemberExpression(MemberExpression memberExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements, TypeDefinition? parentType = null)
         {
             GenerateExpression(memberExpression.Parent, variableDeclarationStatements, body);
 
@@ -966,7 +995,7 @@ namespace CommonC.CodeGen.DotNet
                         }
                     }
 
-                    body.Instructions.Add(CilOpCodes.Ldloc, temp);
+                    Emitter.EmitLdloc(temp, body);
                 }
             }
         }
@@ -1156,7 +1185,7 @@ namespace CommonC.CodeGen.DotNet
 
         VariableDeclarationStatement? GenerateLoadVariable(IdentifierExpression identifierExpression, List<VariableDeclarationStatement> variableDeclarations, CilMethodBody body)
         {
-            if (variableDeclarations.Where(t => t.Name == identifierExpression.Name).Count() > 0)
+            if (variableDeclarations.Count(t => t.Name == identifierExpression.Name) > 0)
             {
                 VariableDeclarationStatement variableDeclaration = variableDeclarations.Where(t => t.Name == identifierExpression.Name).First();
 
@@ -1168,7 +1197,14 @@ namespace CommonC.CodeGen.DotNet
 
 
                 // TODO: This breaks array accessing and fixes other stuff, but when changing to ...VariableType is SzArrayTypeSignature - does the opposite.
-                body.Instructions.Add(CilOpCodes.Ldloc, variableDeclaration.CilLocalVariable!);
+                //if(variableDeclaration.CilLocalVariable.VariableType.IsValueType)
+                //{
+                //    Emitter.EmitLdloca(variableDeclaration.CilLocalVariable, body);
+                //}
+                //else
+                //{
+                    Emitter.EmitLdloc(variableDeclaration.CilLocalVariable, body);
+                //}
 
                 return variableDeclaration;
             }
@@ -1195,27 +1231,27 @@ namespace CommonC.CodeGen.DotNet
             GenerateExpression(indexExpression.Expression, variableDeclarations, body);
             GenerateExpression(indexExpression.Index, variableDeclarations, body);
 
-            if (expressionType.Namespace == "System" 
-                && expressionType.Name == "String"
-                && expressionType.ToTypeSignature(expressionType.GetIsValueType(Runtime)) is not SzArrayTypeSignature)
-            {
-                MethodSignature getCharsSignature = MethodSignature.CreateStatic(
-                        returnType: Module.CorLibTypeFactory.Char,
-                        parameterTypes: [
-                                Module.CorLibTypeFactory.Int32,
-                            ]
-                        );
+            //if (expressionType.Namespace == "System" 
+            //    && expressionType.Name == "String"
+            //    && expressionType.ToTypeSignature(expressionType.GetIsValueType(Runtime)) is not SzArrayTypeSignature)
+            //{
+            //    MethodSignature getCharsSignature = MethodSignature.CreateStatic(
+            //            returnType: Module.CorLibTypeFactory.Char,
+            //            parameterTypes: [
+            //                    Module.CorLibTypeFactory.Int32,
+            //                ]
+            //            );
 
-                getCharsSignature.HasThis = true;
+            //    getCharsSignature.HasThis = true;
 
-                body.Instructions.Add(CilOpCodes.Callvirt, Module.CorLibTypeFactory.CorLibScope
-                        .CreateTypeReference("System", "String")
-                        .CreateMemberReference("get_Chars", getCharsSignature));
-            }
-            else
-            {
+            //    body.Instructions.Add(CilOpCodes.Callvirt, Module.CorLibTypeFactory.CorLibScope
+            //            .CreateTypeReference("System", "String")
+            //            .CreateMemberReference("get_Chars", getCharsSignature));
+            //}
+            //else
+            //{
                 Emitter.EmitLdelem(expressionType, body);
-            }
+            //}
         }
 
         void GenerateArrayExpression(ArrayExpression arrayExpression, List<VariableDeclarationStatement> variableDeclarations, CilMethodBody body)

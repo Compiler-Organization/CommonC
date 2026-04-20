@@ -40,6 +40,60 @@ namespace CommonC.CodeGen.DotNet
             }
         }
 
+        public void EmitStloc(CilLocalVariable variable, CilMethodBody body)
+        {
+            switch (variable.Index)
+            {
+                case 0:
+                    body.Instructions.Add(CilOpCodes.Stloc_0);
+                    return;
+                case 1:
+                    body.Instructions.Add(CilOpCodes.Stloc_1);
+                    return;
+                case 2:
+                    body.Instructions.Add(CilOpCodes.Stloc_2);
+                    return;
+                case 3:
+                    body.Instructions.Add(CilOpCodes.Stloc_3);
+                    return;
+            }
+
+            if (variable.Index >= sbyte.MinValue && variable.Index <= sbyte.MaxValue)
+            {
+                body.Instructions.Add(CilOpCodes.Stloc_S, variable);
+                return;
+            }
+
+            body.Instructions.Add(CilOpCodes.Stloc, variable);
+        }
+
+        public void EmitLdloc(CilLocalVariable variable, CilMethodBody body)
+        {
+            switch (variable.Index)
+            {
+                case 0:
+                    body.Instructions.Add(CilOpCodes.Ldloc_0);
+                    return;
+                case 1:
+                    body.Instructions.Add(CilOpCodes.Ldloc_1);
+                    return;
+                case 2:
+                    body.Instructions.Add(CilOpCodes.Ldloc_2);
+                    return;
+                case 3:
+                    body.Instructions.Add(CilOpCodes.Ldloc_3);
+                    return;
+            }
+
+            if (variable.Index >= sbyte.MinValue && variable.Index <= sbyte.MaxValue)
+            {
+                body.Instructions.Add(CilOpCodes.Ldloc_S, variable);
+                return;
+            }
+
+            body.Instructions.Add(CilOpCodes.Ldloc, variable);
+        }
+
         public void EmitLdloca(CilLocalVariable variable, CilMethodBody body)
         {
             
