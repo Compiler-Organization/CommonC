@@ -6,7 +6,7 @@
 
 ___
 
-The common C langugage is developed to deliver the performance of natively compiled languages whilst maintaining the ease of memory management without workarounds like garbage collection and borrow checkers.
+The common C language is developed to deliver the performance of natively compiled languages whilst maintaining the ease of memory management without workarounds like garbage collection and borrow checkers.
 Common C is object oriented and statically typed.
 
 Common C will be targeting both x86_64 for Intel and AMD aswell as .NET (CIL).
@@ -21,6 +21,8 @@ Other languages are either easy to write, but perform poorly (E.g Python, JavaSc
 The philosophy behind the syntax is to be easily readable and writable. Syntax is developed so that the shortest combination of keystrokes produces functionality. We keep in mind that not every developed posesses giant hands that reach across the keyboard.
 
 An example of this is using `log` as the standard output function. C# uses Console.WriteLine and Rust uses println!. Both of these are long to write and require more keystrokes than simply `log`.
+
+The grand wish of Common C is to be a language where JavaScript, C#, Lua and developers of other garbage-collected languages can write low-level code without needing to relearn an entirely new language and their principles. The late-stage of Common C will be a heterogeneous compiler with, for example, an integrated array language interopable and indifferent to the "main" language.
 
 ___
 ## "New" functionality

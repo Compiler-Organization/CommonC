@@ -20,27 +20,29 @@ namespace CommonC.App
         {
             Console.Clear();
 
+            string appName = "godspeaks";
+
             DotNetCommonCCompilerSettings settings = new DotNetCommonCCompilerSettings
             {
                 MainFilePath = Environment.CurrentDirectory + "\\Samples\\test.coc",
                 WorkingDirectory = Environment.CurrentDirectory + "\\Samples",
                 DotNetCodeGenSettings = new DotNetCodeGenSettings
                 {
-                    Name = "test",
+                    Name = appName,
                     Version = new Version(1, 0, 0, 0),
                     DotNetRuntimeInfo = DotNetRuntimeInfo.NetCoreApp(10, 0, 0)
                 }
             };
 
             DotNetCommonCCompiler compiler = new DotNetCommonCCompiler(settings);
-            compiler.Compile().Write("test.dll");
+            compiler.Compile().Write($"{appName}.dll");
             compiler.CreateAppHost();
 
             ConsoleColor.Green.WriteLine("Starting application...");
 
             var process = new Process();
 
-            process.StartInfo.FileName = "test.exe";
+            process.StartInfo.FileName = $"{appName}.exe";
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.RedirectStandardOutput = true;
             process.StartInfo.RedirectStandardError = true;

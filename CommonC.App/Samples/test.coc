@@ -1,9 +1,5 @@
-use math
+use godspeaks
 
 i32 main() {
-	i64 n = 4
-
-	for 0..3, i {
-		Sieve(10000 << (n - i))
-	}
+	log(speak())
 }
