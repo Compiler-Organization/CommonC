@@ -38,6 +38,7 @@ namespace CommonC.Semantic
                     }
 
                     PassVariablesToInnerScope(functionDeclarationStatement.Body.Statements, functionDeclarationStatement.Body.Locals);
+                    continue;
                 }
 
                 if (statement is IfStatement ifStatement)
@@ -69,6 +70,7 @@ namespace CommonC.Semantic
                         ifStatement.Else.Locals.AddRange(variableDeclarationStatements);
                         PassVariablesToInnerScope(ifStatement.Else.Statements, ifStatement.Else.Locals);
                     }
+                    continue;
                 }
 
                 if(statement is ForStatement forStatement)
@@ -82,6 +84,7 @@ namespace CommonC.Semantic
 
                     forStatement.Body.Locals.AddRange(variableDeclarationStatements);
                     PassVariablesToInnerScope(forStatement.Body.Statements, forStatement.Body.Locals);
+                    continue;
                 }
 
                 if (statement is WhileStatement whileStatement)
@@ -93,6 +96,7 @@ namespace CommonC.Semantic
 
                     whileStatement.Body.Locals.AddRange(variableDeclarationStatements);
                     PassVariablesToInnerScope(whileStatement.Body.Statements, whileStatement.Body.Locals);
+                    continue;
                 }
 
                 if (statement is ClosureStatement closureStatement)
@@ -104,13 +108,9 @@ namespace CommonC.Semantic
 
                     closureStatement.Locals.AddRange(variableDeclarationStatements);
                     PassVariablesToInnerScope(closureStatement.Statements, closureStatement.Locals);
+                    continue;
                 }
             }
-        }
-
-        void AnnotateTypes()
-        {
-            
         }
     }
 }

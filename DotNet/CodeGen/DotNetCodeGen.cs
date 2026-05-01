@@ -53,16 +53,39 @@ namespace CommonC.DotNet.CodeGen
         {
             switch (type)
             {
-                case ReservedTypes.String:
-                    return Module.CorLibTypeFactory.String;
+                case ReservedTypes.I8:
+                    return Module.CorLibTypeFactory.SByte;
+                case ReservedTypes.U8:
+                    return Module.CorLibTypeFactory.Byte;
+
+                case ReservedTypes.I16:
+                    return Module.CorLibTypeFactory.Int16;
+                case ReservedTypes.U16:
+                    return Module.CorLibTypeFactory.UInt16;
+
                 case ReservedTypes.I32:
                     return Module.CorLibTypeFactory.Int32;
-                case ReservedTypes.F64:
-                    return Module.CorLibTypeFactory.Double;
+                case ReservedTypes.U32:
+                    return Module.CorLibTypeFactory.UInt32;
+
                 case ReservedTypes.I64:
                     return Module.CorLibTypeFactory.Int64;
+                case ReservedTypes.U64:
+                    return Module.CorLibTypeFactory.UInt64;
+
+                case ReservedTypes.I128:
+                case ReservedTypes.U128:
+                    throw new Exception("I128 and U128 is not yet supported.");
+
+                case ReservedTypes.F64:
+                    return Module.CorLibTypeFactory.Double;
+
+                case ReservedTypes.String:
+                    return Module.CorLibTypeFactory.String;
                 case ReservedTypes.Bool:
                     return Module.CorLibTypeFactory.Boolean;
+                case ReservedTypes.Char:
+                    return Module.CorLibTypeFactory.Char;
                 case ReservedTypes.Fn:
                     return Module.CorLibTypeFactory.Void;
 
@@ -83,7 +106,7 @@ namespace CommonC.DotNet.CodeGen
                 List<TypeDefinition> types = Module.TopLevelTypes.First().NestedTypes.Where(t => t.Name == identifierExpression.Name).ToList();
                 if (types.Any())
                 {
-                    return types.First().ToTypeSignature(types.First().Attributes.HasFlag(TypeAttributes.BeforeFieldInit));
+                    return types.First().ToTypeSignature(types.First().IsValueType);
                 }
                 else
                 {
