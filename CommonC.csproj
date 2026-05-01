@@ -4,7 +4,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+	<RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</RuntimeIdentifier>
   </PropertyGroup>
+
 
   <ItemGroup>
     <Compile Remove="CommonC.App\**" />
@@ -15,6 +17,8 @@
   <ItemGroup>
     <PackageReference Include="AsmResolver" Version="6.0.0-rc.1" />
     <PackageReference Include="AsmResolver.DotNet" Version="6.0.0-rc.1" />
+    <PackageReference Include="LLVMSharp" Version="20.1.2" />
+	  <PackageReference Include="libLLVM" Version="20.1.2" />
     <PackageReference Include="Microsoft.NET.HostModel" Version="3.1.16" />
   </ItemGroup>
 

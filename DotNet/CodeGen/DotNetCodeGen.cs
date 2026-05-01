@@ -434,7 +434,7 @@ namespace CommonC.DotNet.CodeGen
                 }
 
                 MethodDefinition function = new MethodDefinition(functionDeclaration.Name, MethodAttributes.Public | MethodAttributes.Static, MethodSignature.CreateStatic(returnType, parameters));
-                functionDeclaration.Method = function;
+                functionDeclaration.DotNetMethod = function;
                 Module.TopLevelTypes.First().Methods.Add(function);
 
                 if (functionDeclaration.Name == Settings.EntryPoint)
@@ -450,29 +450,29 @@ namespace CommonC.DotNet.CodeGen
             {
                 if (functionDeclaration.Body != null && functionDeclaration.Body.Statements != null && functionDeclaration.Body.Statements.Count > 0)
                 {
-                    functionDeclaration.Method!.CilMethodBody = new CilMethodBody();
-                    GenerateStatements(functionDeclaration.Method.CilMethodBody, functionDeclaration.Body.Statements, functionDeclaration.Body.Locals);
+                    functionDeclaration.DotNetMethod!.CilMethodBody = new CilMethodBody();
+                    GenerateStatements(functionDeclaration.DotNetMethod.CilMethodBody, functionDeclaration.Body.Statements, functionDeclaration.Body.Locals);
 
-                    if (functionDeclaration.Method.CilMethodBody.Instructions.Last().OpCode != CilOpCodes.Ret)
+                    if (functionDeclaration.DotNetMethod.CilMethodBody.Instructions.Last().OpCode != CilOpCodes.Ret)
                     {
                         if (functionDeclaration.ReturnType is TypeExpression typeExpression)
                         {
                             switch (typeExpression.Type)
                             {
                                 case ReservedTypes.I32:
-                                    functionDeclaration.Method.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_I4_0);
+                                    functionDeclaration.DotNetMethod.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_I4_0);
                                     break;
                                 case ReservedTypes.F64:
-                                    functionDeclaration.Method.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_R8, 0);
+                                    functionDeclaration.DotNetMethod.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_R8, 0);
                                     break;
                                 case ReservedTypes.I64:
-                                    functionDeclaration.Method.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_I8, 0);
+                                    functionDeclaration.DotNetMethod.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_I8, 0);
                                     break;
                                 case ReservedTypes.Bool:
-                                    functionDeclaration.Method.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_I4_0);
+                                    functionDeclaration.DotNetMethod.CilMethodBody.Instructions.Add(CilOpCodes.Ldc_I4_0);
                                     break;
                                 case ReservedTypes.String:
-                                    functionDeclaration.Method.CilMethodBody.Instructions.Add(CilOpCodes.Ldnull);
+                                    functionDeclaration.DotNetMethod.CilMethodBody.Instructions.Add(CilOpCodes.Ldnull);
                                     break;
                                 case ReservedTypes.Fn:
                                     break;
@@ -480,7 +480,7 @@ namespace CommonC.DotNet.CodeGen
                                     throw new Exception($"Return type '{typeExpression.Type}' is not supported in code generation.");
                             }
                         }
-                        functionDeclaration.Method.CilMethodBody.Instructions.Add(CilOpCodes.Ret);
+                        functionDeclaration.DotNetMethod.CilMethodBody.Instructions.Add(CilOpCodes.Ret);
                     }
                 }
             }

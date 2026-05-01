@@ -3,6 +3,8 @@ using CommonC.DotNet;
 using CommonC.DotNet.CodeGen;
 using CommonC.Lexer;
 using CommonC.Lexer.Objects;
+using CommonC.LLVMIR;
+using CommonC.LLVMIR.CodeGen;
 using CommonC.Parser;
 using CommonC.Parser.AST.Statements;
 using CommonC.Printer;
@@ -20,6 +22,34 @@ namespace CommonC.App
         {
             Console.Clear();
 
+            // CreateDotNet();
+            CreateLLVM();
+        }
+
+        static void CreateLLVM()
+        {
+            string appName = "test";
+
+            LLVMIRCommonCCompilerSettings settings = new LLVMIRCommonCCompilerSettings
+            {
+                MainFilePath = Environment.CurrentDirectory + "\\Samples\\test.coc",
+                WorkingDirectory = Environment.CurrentDirectory + "\\Samples",
+                LLVMIRCodeGenSettings = new LLVMIRCodeGenSettings
+                {
+                    Name = appName,
+                    EntryPoint = "main",
+                    Version = new Version(1, 0, 0, 0)
+                }
+            };
+            
+            LLVMIRCommonCCompiler compiler = new LLVMIRCommonCCompiler(settings);
+            var module = compiler.Compile();
+
+            Console.WriteLine($"LLVM IR\n=========\n{module}");
+        }
+
+        static void CreateDotNet()
+        {
             string appName = "godspeaks";
 
             DotNetCommonCCompilerSettings settings = new DotNetCommonCCompilerSettings
@@ -67,6 +97,5 @@ namespace CommonC.App
 
             process.Kill();
         }
-
     }
 }

@@ -1,5 +1,6 @@
 ﻿using AsmResolver.DotNet;
 using CommonC.Parser.AST.Expressions;
+using LLVMSharp.Interop;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -16,6 +17,8 @@ namespace CommonC.Parser.AST.Statements
 
         public ClosureStatement? Body { get; set; }
 
-        internal MethodDefinition? Method { get; set; }
+        internal MethodDefinition? DotNetMethod { get; set; }
+
+        internal LLVMValueRef? LLVMFunction { get; set; }
     }
 }

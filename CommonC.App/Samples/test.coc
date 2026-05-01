@@ -1,5 +1,7 @@
-use godspeaks
+fn test(i32 a) {
 
-i32 main() {
-	log(speak())
+}
+
+fn main() {
+	test(5 + 5)
 }
