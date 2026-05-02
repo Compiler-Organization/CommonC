@@ -442,12 +442,12 @@ namespace CommonC.Parser
                     {
                         switch (TokenReader.Peek().Kind)
                         {
-                            case LexKinds.Equals: relationalExpression.Operator = RelationalOperators.EqualTo; break;
-                            case LexKinds.NotEqualTo: relationalExpression.Operator = RelationalOperators.NotEqualTo; break;
-                            case LexKinds.BiggerOrEqual: relationalExpression.Operator = RelationalOperators.BiggerOrEqual; break;
-                            case LexKinds.SmallerOrEqual: relationalExpression.Operator = RelationalOperators.SmallerOrEqual; break;
-                            case LexKinds.ChevronOpen: relationalExpression.Operator = RelationalOperators.SmallerThan; break;
-                            case LexKinds.ChevronClose: relationalExpression.Operator = RelationalOperators.BiggerThan; break;
+                            case LexKinds.Equals: relationalExpression.Operator = RelationalOperators.Equal; break;
+                            case LexKinds.NotEqualTo: relationalExpression.Operator = RelationalOperators.NotEqual; break;
+                            case LexKinds.BiggerOrEqual: relationalExpression.Operator = RelationalOperators.GreaterThanOrEqual; break;
+                            case LexKinds.SmallerOrEqual: relationalExpression.Operator = RelationalOperators.LessThanOrEqual; break;
+                            case LexKinds.ChevronOpen: relationalExpression.Operator = RelationalOperators.LessThan; break;
+                            case LexKinds.ChevronClose: relationalExpression.Operator = RelationalOperators.GreaterThan; break;
                         }
 
                         TokenReader.Skip(1);

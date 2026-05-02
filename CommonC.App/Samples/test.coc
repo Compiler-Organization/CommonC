@@ -1,7 +1,7 @@
-fn test(i32 a) {
-
-}
-
 fn main() {
-	test(5 + 5)
+	if 3 == 4 {
+		puts("3 is equal to 4");
+	} else {
+		puts("3 is not equal to 4");
+	}
 }

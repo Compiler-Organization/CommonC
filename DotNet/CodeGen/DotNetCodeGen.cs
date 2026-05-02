@@ -1164,13 +1164,13 @@ namespace CommonC.DotNet.CodeGen
         {
             switch (relationalExpression.Operator)
             {
-                case RelationalOperators.EqualTo:
+                case RelationalOperators.Equal:
                     GenerateExpression(relationalExpression.Left, variableDeclarationStatements, body);
                     GenerateExpression(relationalExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Ceq);
                     break;
 
-                case RelationalOperators.NotEqualTo:
+                case RelationalOperators.NotEqual:
                     GenerateExpression(relationalExpression.Left, variableDeclarationStatements, body);
                     GenerateExpression(relationalExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Ceq);
@@ -1178,13 +1178,13 @@ namespace CommonC.DotNet.CodeGen
                     body.Instructions.Add(CilOpCodes.Ceq);
                     break;
 
-                case RelationalOperators.BiggerThan:
+                case RelationalOperators.GreaterThan:
                     GenerateExpression(relationalExpression.Left, variableDeclarationStatements, body);
                     GenerateExpression(relationalExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Cgt);
                     break;
 
-                case RelationalOperators.BiggerOrEqual:
+                case RelationalOperators.GreaterThanOrEqual:
                     GenerateExpression(relationalExpression.Left, variableDeclarationStatements, body);
                     GenerateExpression(relationalExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Clt);
@@ -1192,13 +1192,13 @@ namespace CommonC.DotNet.CodeGen
                     body.Instructions.Add(CilOpCodes.Ceq);
                     break;
 
-                case RelationalOperators.SmallerThan:
+                case RelationalOperators.LessThan:
                     GenerateExpression(relationalExpression.Left, variableDeclarationStatements, body);
                     GenerateExpression(relationalExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Clt);
                     break;
 
-                case RelationalOperators.SmallerOrEqual:
+                case RelationalOperators.LessThanOrEqual:
                     GenerateExpression(relationalExpression.Left, variableDeclarationStatements, body);
                     GenerateExpression(relationalExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Cgt);

@@ -163,22 +163,22 @@ namespace CommonC.Printer
             PrintExpression(relationalExpression.Left, indentation);
             switch(relationalExpression.Operator)
             {
-                case RelationalOperators.EqualTo:
+                case RelationalOperators.Equal:
                     Builder.Append(" == ");
                     break;
-                case RelationalOperators.NotEqualTo:
+                case RelationalOperators.NotEqual:
                     Builder.Append(" != ");
                     break;
-                case RelationalOperators.BiggerThan:
+                case RelationalOperators.GreaterThan:
                     Builder.Append(" > ");
                     break;
-                case RelationalOperators.SmallerThan:
+                case RelationalOperators.LessThan:
                     Builder.Append(" < ");
                     break;
-                case RelationalOperators.BiggerOrEqual:
+                case RelationalOperators.GreaterThanOrEqual:
                     Builder.Append(" >= ");
                     break;
-                case RelationalOperators.SmallerOrEqual:
+                case RelationalOperators.LessThanOrEqual:
                     Builder.Append(" <= ");
                     break;
             }

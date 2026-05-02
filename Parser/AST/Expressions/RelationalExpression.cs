@@ -18,31 +18,31 @@ namespace CommonC.Parser.AST.Expressions
         /// <summary>
         /// ==
         /// </summary>
-        EqualTo,
+        Equal,
 
         /// <summary>
         /// ~=
         /// </summary>
-        NotEqualTo,
+        NotEqual,
 
         /// <summary>
         /// >
         /// </summary>
-        BiggerThan,
+        GreaterThan,
 
         /// <summary>
         /// >=
         /// </summary>
-        BiggerOrEqual,
+        GreaterThanOrEqual,
 
         /// <summary>
         /// <
         /// </summary>
-        SmallerThan,
+        LessThan,
 
         /// <summary>
         /// <=
         /// </summary>
-        SmallerOrEqual
+        LessThanOrEqual
     }
 }
