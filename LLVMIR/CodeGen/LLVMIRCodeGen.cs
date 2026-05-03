@@ -26,7 +26,7 @@ namespace CommonC.LLVMIR.CodeGen
 
         LLVMBuilderRef Builder { get; set; }
 
-        LLVMValueRef CurrentFunction { get; set; }
+        FunctionDeclarationStatement CurrentFunction { get; set; }
 
         Dictionary<string, FunctionDeclarationStatement> Functions = new Dictionary<string, FunctionDeclarationStatement>();
 
@@ -35,9 +35,9 @@ namespace CommonC.LLVMIR.CodeGen
             Module = LLVMModuleRef.CreateWithName(Settings.Name);
             Builder = LLVMBuilderRef.Create(Module.Context);
 
-            CreateExtern(name: "puts", returnType: LLVMTypeRef.Int32, parameters: [LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0)]);
+            CreateExtern(name: "printf", returnType: LLVMTypeRef.Int32, parameters: [LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0)], isVarArg: true);
             CreateFunctionReferences();
-            EmitStatements(Statements);
+            EmitStatements(Statements, new List<VariableDeclarationStatement>());
 
             return Module;
         }
@@ -133,7 +133,7 @@ namespace CommonC.LLVMIR.CodeGen
             return externFunction;
         }
 
-        void EmitCallStatement(CallStatement callStatement)
+        void EmitCallStatement(CallStatement callStatement, List<VariableDeclarationStatement> variables)
         {
             if(callStatement.Expression is IdentifierExpression identifierExpression)
             {
@@ -143,7 +143,7 @@ namespace CommonC.LLVMIR.CodeGen
                 }
 
                 FunctionDeclarationStatement function = Functions[identifierExpression.Name];
-                Builder.BuildCall2(function.LLVMFunctionType, function.LLVMFunction, EmitExpressions(callStatement.Arguments), "");
+                Builder.BuildCall2(function.LLVMFunctionType, function.LLVMFunction, EmitExpressions(callStatement.Arguments, variables), "");
                 return;
             }
 
@@ -155,11 +155,11 @@ namespace CommonC.LLVMIR.CodeGen
             LLVMBasicBlockRef entryBlock = functionDeclarationStatement.LLVMFunction.EntryBasicBlock;
             Builder.PositionAtEnd(entryBlock);
 
-            CurrentFunction = functionDeclarationStatement.LLVMFunction;
+            CurrentFunction = functionDeclarationStatement;
 
             if (functionDeclarationStatement.Body != null && functionDeclarationStatement.Body.Statements.Count > 0)
             {
-                EmitStatements(functionDeclarationStatement.Body.Statements);
+                EmitStatements(functionDeclarationStatement.Body.Statements, functionDeclarationStatement.Body.Locals);
 
                 if(functionDeclarationStatement.Body.Statements.Last() is not ReturnStatement)
                 {
@@ -177,16 +177,16 @@ namespace CommonC.LLVMIR.CodeGen
 
         void EmitIfStatement(IfStatement ifStatement)
         {
-                LLVMBasicBlockRef thenBlock = CurrentFunction.AppendBasicBlock("then");
-                LLVMBasicBlockRef elseBlock = CurrentFunction.AppendBasicBlock("else");
-                LLVMBasicBlockRef mergeBlock = CurrentFunction.AppendBasicBlock("ifcont");
+                LLVMBasicBlockRef thenBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("then");
+                LLVMBasicBlockRef elseBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("else");
+                LLVMBasicBlockRef mergeBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("ifcont");
     
-                LLVMValueRef condition = EmitExpression(ifStatement.Condition);
+                LLVMValueRef condition = EmitExpression(ifStatement.Condition, ifStatement.Body.Locals);
                 Builder.BuildCondBr(condition, thenBlock, elseBlock);
     
                 // Then block
                 Builder.PositionAtEnd(thenBlock);
-                EmitStatements(ifStatement.Body.Statements);
+                EmitStatements(ifStatement.Body.Statements, ifStatement.Body.Locals);
                 Builder.BuildBr(mergeBlock);
     
                 // Else block
@@ -200,7 +200,7 @@ namespace CommonC.LLVMIR.CodeGen
                 }
                 if(ifStatement.Else != null)
                 {
-                    EmitStatements(ifStatement.Else.Statements);
+                    EmitStatements(ifStatement.Else.Statements, ifStatement.Else.Locals);
                 }
                 Builder.BuildBr(mergeBlock);
     
@@ -208,21 +208,72 @@ namespace CommonC.LLVMIR.CodeGen
                 Builder.PositionAtEnd(mergeBlock);
         }
 
-        void EmitVariableDeclarationStatement(VariableDeclarationStatement variableDeclarationStatement)
+        void EmitVariableDeclarationStatement(VariableDeclarationStatement variableDeclarationStatement, List<VariableDeclarationStatement> variables)
         {
-            LLVMTypeRef variableType = ResolveLLVMTypeFromExpression(variableDeclarationStatement.Type);
-            LLVMValueRef alloca = Builder.BuildAlloca(variableType, variableDeclarationStatement.Name);
             if(variableDeclarationStatement.Expression != null)
             {
-                LLVMValueRef initializerValue = EmitExpression(variableDeclarationStatement.Expression);
-                Builder.BuildStore(initializerValue, alloca);
+                variableDeclarationStatement.LLVMSingleAssignment = EmitExpression(variableDeclarationStatement.Expression, variables);
             }
         }
 
-        void EmitStatements(StatementList statements)
+        void EmitAssignmentStatement(AssignmentStatement assignmentStatement, List<VariableDeclarationStatement> variables)
+        {
+            if(assignmentStatement.Variable is IdentifierExpression identifierExpression)
+            {
+                List<VariableDeclarationStatement> matchingVariables = variables.Where(v => v.Name == identifierExpression.Name).ToList();
+                if(matchingVariables.Any())
+                {
+                    VariableDeclarationStatement variable = matchingVariables.First();
+                    variable.LLVMSingleAssignment = EmitExpression(assignmentStatement.Expression, variables);
+                    return;
+                }
+
+                throw new Exception($"Variable {identifierExpression.Name} does not exist in the current scope.");
+            }
+
+            throw new Exception($"{assignmentStatement.Variable.GetType().Name} is not supported as an assignment variable.");
+        }
+
+        void EmitReturnStatement(ReturnStatement returnStatement, List<VariableDeclarationStatement> variables)
+        {
+            if(returnStatement.Expression != null)
+            {
+                LLVMValueRef returnValue = EmitExpression(returnStatement.Expression, variables);
+                Builder.BuildRet(returnValue);
+            }
+            else
+            {
+                Builder.BuildRetVoid();
+            }
+        }
+
+        void EmitStatements(StatementList statements, List<VariableDeclarationStatement> variables)
         {
             foreach (Statement statement in statements)
             {
+                if(statement is ReturnStatement returnStatement)
+                {
+                    EmitReturnStatement(returnStatement, variables);
+                    continue;
+                }
+
+                if(statement is AssignmentStatement assignmentStatement)
+                {
+                    EmitAssignmentStatement(assignmentStatement, variables);
+                }
+
+                if (statement is VariableDeclarationStatement variableDeclarationStatement)
+                {
+                    EmitVariableDeclarationStatement(variableDeclarationStatement, variables);
+                    continue;
+                }
+
+                if (statement is IfStatement ifStatement)
+                {
+                    EmitIfStatement(ifStatement);
+                    continue;
+                }
+
                 if (statement is FunctionDeclarationStatement functionDeclarationStatement)
                 {
                     EmitFunctionDeclarationStatement(functionDeclarationStatement);
@@ -231,32 +282,26 @@ namespace CommonC.LLVMIR.CodeGen
 
                 if (statement is CallStatement callStatement)
                 {
-                    EmitCallStatement(callStatement);
+                    EmitCallStatement(callStatement, variables);
                     continue;
                 }
 
-                if(statement is IfStatement ifStatement) 
-                { 
-                    EmitIfStatement(ifStatement);
-                    continue;
-                }
-
-                if(statement is VariableDeclarationStatement variableDeclarationStatement)
-                {
-                    EmitVariableDeclarationStatement(variableDeclarationStatement);
-                    continue;
-                }
 
                 throw new Exception($"Statement {statement.GetType().Name} is not supported in when emitting LLVM statements.");
             }
         }
 
-        LLVMValueRef[] EmitExpressions(ExpressionList expressions)
+        LLVMValueRef[] EmitExpressions(ExpressionList expressions, List<VariableDeclarationStatement> variables)
         {
-            return expressions.Select(EmitExpression).ToArray();
+            if(expressions == null || expressions.Count == 0)
+            {
+                return Array.Empty<LLVMValueRef>();
+            }
+
+            return expressions.Select(n => EmitExpression(n, variables)).ToArray();
         }
 
-        LLVMValueRef EmitExpression(Expression expression)
+        LLVMValueRef EmitExpression(Expression expression, List<VariableDeclarationStatement> variables)
         {
             if(expression is StringExpression stringExpression)
             {
@@ -270,26 +315,74 @@ namespace CommonC.LLVMIR.CodeGen
 
             if(expression is ArithmeticExpression arithmeticExpression)
             {
-                return EmitArithmeticExpression(arithmeticExpression);
+                return EmitArithmeticExpression(arithmeticExpression, variables);
             }
 
             if(expression is RelationalExpression relationalExpression)
             {
-                return EmitRelationalExpression(relationalExpression);
+                return EmitRelationalExpression(relationalExpression, variables);
+            }
+
+            if(expression is IdentifierExpression identifierExpression)
+            {
+                return EmitIdentifierExpression(identifierExpression, variables);
+            }
+
+            if(expression is BooleanExpression booleanExpression)
+            {
+                return EmitBooleanExpression(booleanExpression);
+            }
+
+            if(expression is CallExpression callExpression)
+            {
+                return EmitCallExpression(callExpression, variables);
             }
 
             throw new Exception($"Expression {expression.GetType().Name} is not supported when emitting LLVM expressions.");
         }
 
-        LLVMValueRef EmitIdentifierExpression(IdentifierExpression identifierExpression)
+        LLVMValueRef EmitCallExpression(CallExpression callExpression, List<VariableDeclarationStatement> variables)
         {
-            
+            if(callExpression.Expression is IdentifierExpression identifierExpression)
+            {
+                if(!Functions.ContainsKey(identifierExpression.Name))
+                {
+                    throw new Exception($"Function {identifierExpression.Name} is not defined.");
+                }
+                FunctionDeclarationStatement function = Functions[identifierExpression.Name];
+                return Builder.BuildCall2(function.LLVMFunctionType, function.LLVMFunction, EmitExpressions(callExpression.Arguments, variables), "");
+            }
+            throw new Exception($"Call expression of type {callExpression.Expression.GetType().Name} is not supported when emitting LLVM call expressions.");
         }
 
-        LLVMValueRef EmitRelationalExpression(RelationalExpression relationalExpression)
+        LLVMValueRef EmitBooleanExpression(BooleanExpression booleanExpression)
         {
-            LLVMValueRef left = EmitExpression(relationalExpression.Left);
-            LLVMValueRef right = EmitExpression(relationalExpression.Right);
+            return booleanExpression.Value ? LLVMValueRef.CreateConstInt(LLVMTypeRef.Int1, 1, false) : LLVMValueRef.CreateConstInt(LLVMTypeRef.Int1, 0, false);
+        }
+
+        LLVMValueRef EmitIdentifierExpression(IdentifierExpression identifierExpression, List<VariableDeclarationStatement> variables)
+        {
+            List<VariableDeclarationStatement> matchingVariables = variables.Where(v => v.Name == identifierExpression.Name).ToList();
+            if(matchingVariables.Any())
+            {
+                VariableDeclarationStatement variable = matchingVariables.First();
+                return variable.LLVMSingleAssignment;
+            }
+
+            List<ParameterExpression> matchingParameters = CurrentFunction.Parameters.Where(p => p.Name == identifierExpression.Name).ToList();
+            if(matchingParameters.Any())
+            {
+                ParameterExpression parameter = matchingParameters.First();
+                return CurrentFunction.LLVMFunction.GetParam((uint)CurrentFunction.Parameters.IndexOf(parameter));
+            }
+
+            throw new Exception($"Variable {identifierExpression.Name} does not exist in the current scope.");
+        }
+
+        LLVMValueRef EmitRelationalExpression(RelationalExpression relationalExpression, List<VariableDeclarationStatement> variables)
+        {
+            LLVMValueRef left = EmitExpression(relationalExpression.Left, variables);
+            LLVMValueRef right = EmitExpression(relationalExpression.Right, variables);
             switch(relationalExpression.Operator)
             {
                 case RelationalOperators.Equal:
@@ -310,10 +403,10 @@ namespace CommonC.LLVMIR.CodeGen
         }
 
         // TODO: Support power and right shift operators.
-        LLVMValueRef EmitArithmeticExpression(ArithmeticExpression arithmeticExpression)
+        LLVMValueRef EmitArithmeticExpression(ArithmeticExpression arithmeticExpression, List<VariableDeclarationStatement> variables)
         {
-            LLVMValueRef left = EmitExpression(arithmeticExpression.Left);
-            LLVMValueRef right = EmitExpression(arithmeticExpression.Right);
+            LLVMValueRef left = EmitExpression(arithmeticExpression.Left, variables);
+            LLVMValueRef right = EmitExpression(arithmeticExpression.Right, variables);
             switch(arithmeticExpression.Operator)
             {
                 case ArithmeticOperator.Addition:

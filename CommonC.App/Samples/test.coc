@@ -1,7 +1,20 @@
+fn blab(str s) {
+	printf(s)
+}
+
+bool test() {
+	return true
+}
+
 fn main() {
-	if 3 == 4 {
-		puts("3 is equal to 4");
+	str testing = "okay"
+
+	blab(testing)
+
+	if test() {
+		printf(testing)
 	} else {
-		puts("3 is not equal to 4");
+		printf("test failed")
 	}
+
 }

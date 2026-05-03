@@ -1,6 +1,7 @@
 ﻿using AsmResolver.DotNet;
 using AsmResolver.DotNet.Code.Cil;
 using CommonC.Parser.AST.Expressions;
+using LLVMSharp.Interop;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -24,5 +25,7 @@ namespace CommonC.Parser.AST.Statements
         public bool IsField { get; set; } = false;
 
         public FieldDefinition Field { get; set; } = null!;
+
+        internal LLVMValueRef LLVMSingleAssignment { get; set; }
     }
 }
