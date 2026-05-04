@@ -184,6 +184,40 @@ namespace CommonC.Lexer
                             i++;
                             while (Input[i] != '"')
                             {
+                                if (Input[i] == '\\')
+                                {
+                                    i++;
+
+                                    switch(Input[i])
+                                    {
+                                        case '"':
+                                            sb.Append('"');
+                                            break;
+
+                                        case 'n':
+                                            sb.Append("\n");
+                                            break;
+
+                                        case 'r':
+                                            sb.Append("\r");
+                                            break;
+
+                                        case 't':
+                                            sb.Append("\t");
+                                            break;
+
+                                        default:
+                                            sb.Append(Input[i]);
+                                            i++;
+                                            continue;
+
+                                    }
+                                    i++;
+                                    continue;
+                                }
+                                
+
+
                                 sb.Append(Input[i]);
                                 i++;
                             }

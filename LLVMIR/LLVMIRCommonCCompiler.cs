@@ -1,6 +1,7 @@
 ﻿using CommonC.Lexer;
 using CommonC.Lexer.Objects;
 using CommonC.LLVMIR.CodeGen;
+using CommonC.Optimizer;
 using CommonC.Parser;
 using CommonC.Parser.AST.Statements;
 using CommonC.Printer;
@@ -8,6 +9,7 @@ using CommonC.Semantic;
 using LLVMSharp.Interop;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 
 namespace CommonC.LLVMIR
@@ -39,13 +41,21 @@ namespace CommonC.LLVMIR
 
                 try
                 {
-
                     module.Verify(LLVMVerifierFailureAction.LLVMPrintMessageAction);
                 }
                 catch(Exception ex)
                 {
                     Console.WriteLine($"Module failed verification! {ex.Message}");
                 }
+
+                File.WriteAllText($"{Settings.LLVMIRCodeGenSettings.Name}.ll", module.ToString());
+
+                ProcessStartInfo clang = new ProcessStartInfo()
+                {
+                    FileName = @".\\Llvm\\bin\\clang.exe",
+                    Arguments = $"\"{Environment.CurrentDirectory}\\{Settings.LLVMIRCodeGenSettings.Name}.ll\" -L{Environment.CurrentDirectory}\\libs -llegacy_stdio_definitions -O3 -o \"{Environment.CurrentDirectory}\\{Settings.LLVMIRCodeGenSettings.Name}.exe\"",
+                };
+                Process.Start(clang).WaitForExit();
 
                 return module;
             }

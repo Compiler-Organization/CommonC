@@ -42,7 +42,7 @@ namespace CommonC.LLVMIR.CodeGen
             return Module;
         }
 
-        LLVMTypeRef ResolveLLVMTypeFromExpression(Expression expression)
+        LLVMTypeRef ResolveLLVMTypeFromExpression(Expression expression, List<VariableDeclarationStatement>? variables)
         {
             if(expression is StringExpression)
             {
@@ -94,6 +94,34 @@ namespace CommonC.LLVMIR.CodeGen
                         return LLVMTypeRef.Double;
                 }
             }
+            if(expression is IdentifierExpression identifierExpression)
+            {
+                if(Functions.ContainsKey(identifierExpression.Name))
+                {
+                    return Functions[identifierExpression.Name].LLVMFunctionType;
+                }
+
+                List<VariableDeclarationStatement> matchingVariables = variables?.Where(v => v.Name == identifierExpression.Name).ToList() ?? new List<VariableDeclarationStatement>();
+                if (matchingVariables.Any())
+                {
+                    VariableDeclarationStatement variable = matchingVariables.First();
+                    return ResolveLLVMTypeFromExpression(variable.Type, variables);
+                }
+
+                throw new Exception($"Identifier {identifierExpression.Name} could not be resolved to an LLVM type.");
+            }
+            if(expression is CallExpression callExpression)
+            {
+                if(callExpression.Expression is IdentifierExpression callIdentifierExpression)
+                {
+                    if(Functions.ContainsKey(callIdentifierExpression.Name))
+                    {
+                        return Functions[callIdentifierExpression.Name].LLVMFunctionType;
+                    }
+                }
+
+                throw new Exception($"Call expression of type {callExpression.Expression.GetType().Name} is not supported when resolving LLVM types from expressions.");
+            }
 
             throw new Exception($"Expression {expression.GetType().Name} could not be resolved to an LLVM type.");
         }
@@ -102,8 +130,8 @@ namespace CommonC.LLVMIR.CodeGen
         {
             foreach(FunctionDeclarationStatement functionDeclarationStatement in Statements.OfType<FunctionDeclarationStatement>())
             {
-                LLVMTypeRef returnType = ResolveLLVMTypeFromExpression(functionDeclarationStatement.ReturnType);
-                LLVMTypeRef[] parameterTypes = functionDeclarationStatement.Parameters.Select(p => ResolveLLVMTypeFromExpression(p.Type)).ToArray();
+                LLVMTypeRef returnType = ResolveLLVMTypeFromExpression(functionDeclarationStatement.ReturnType, null); // TODO: Hacky solution by using null here.
+                LLVMTypeRef[] parameterTypes = functionDeclarationStatement.Parameters.Select(p => ResolveLLVMTypeFromExpression(p.Type, null)).ToArray();
                 LLVMTypeRef functionType = LLVMTypeRef.CreateFunction(returnType, parameterTypes, false);
 
                 LLVMValueRef function = Module.AddFunction(functionDeclarationStatement.Name, functionType);
@@ -137,10 +165,27 @@ namespace CommonC.LLVMIR.CodeGen
         {
             if(callStatement.Expression is IdentifierExpression identifierExpression)
             {
-                if(identifierExpression.Name == "log")
+                if(identifierExpression.Name == "logl" || identifierExpression.Name == "log")
                 {
                     FunctionDeclarationStatement printfFunction = Functions["printf"];
-                    Builder.BuildCall2(printfFunction.LLVMFunctionType, printfFunction.LLVMFunction, EmitExpressions(callStatement.Arguments, variables), "");
+
+                    string format = "";
+
+                    foreach(Expression expression in callStatement.Arguments)
+                    {
+                        LLVMTypeRef argumentType = ResolveLLVMTypeFromExpression(expression, variables);
+                        if (argumentType.ToString() == "ptr")
+                        {
+                            format += "%s";
+                        }
+                        else
+                        {
+                            format += "%d"; 
+                        }
+                    }
+
+                    List<LLVMValueRef> argRefs = [Builder.BuildGlobalStringPtr($"{format}{(identifierExpression.Name == "log" ? "" : "\n")}"), .. EmitExpressions(callStatement.Arguments, variables)];
+                    Builder.BuildCall2(printfFunction.LLVMFunctionType, printfFunction.LLVMFunction, argRefs.ToArray(), "");
                     return;
                 }
 
@@ -160,38 +205,53 @@ namespace CommonC.LLVMIR.CodeGen
         void EmitFunctionDeclarationStatement(FunctionDeclarationStatement functionDeclarationStatement)
         {
             LLVMBasicBlockRef startBlock = functionDeclarationStatement.LLVMFunction.EntryBasicBlock;
+
             Builder.PositionAtEnd(startBlock);
+
+            //if(functionDeclarationStatement.ReturnType is TypeExpression returnTypeExpression && returnTypeExpression.Type != ReservedTypes.Fn)
+            //{
+            //    functionDeclarationStatement.ReturnReference = Builder.BuildAlloca(ResolveLLVMTypeFromExpression(functionDeclarationStatement.ReturnType), "retval");
+            //}
+            //functionDeclarationStatement.ReturnBlock = functionDeclarationStatement.LLVMFunction.AppendBasicBlock("return");
 
             CurrentFunction = functionDeclarationStatement;
 
             if (functionDeclarationStatement.Body != null && functionDeclarationStatement.Body.Statements.Count > 0)
             {
-                EmitStatements(functionDeclarationStatement.Body.Statements, functionDeclarationStatement.Body.Locals);
-
-                if(functionDeclarationStatement.Body.Statements.Last() is not ReturnStatement)
+                foreach(VariableDeclarationStatement parameter in functionDeclarationStatement.Body.Locals.Where(local => local.IsParameter))
                 {
-                    if(functionDeclarationStatement.ReturnType is TypeExpression typeExpression && typeExpression.Type == ReservedTypes.Fn)
-                    {
-                        Builder.BuildRetVoid();
-                    }
-                    else
-                    {
-                        throw new Exception($"Function {functionDeclarationStatement.Name} does not have a return statement, but its return type is not void.");
-                    }
+                    LLVMTypeRef parameterType = ResolveLLVMTypeFromExpression(parameter.Type, functionDeclarationStatement.Body.Locals);
+                    parameter.LLVMSingleAssignment = Builder.BuildAlloca(parameterType, $"{parameter.Name}.addr");
+                    Builder.BuildStore(CurrentFunction.LLVMFunction.GetParam((uint)parameter.ParameterIndex), parameter.LLVMSingleAssignment);
+                }
+
+                EmitStatements(functionDeclarationStatement.Body.Statements, functionDeclarationStatement.Body.Locals);
+            }
+
+            //Builder.PositionAtEnd(functionDeclarationStatement.ReturnBlock);
+            if(functionDeclarationStatement.Body != null && functionDeclarationStatement.Body.Statements.Last() is not ReturnStatement)
+            {
+                if (functionDeclarationStatement.ReturnType is TypeExpression returnTypeExpressionEnd && returnTypeExpressionEnd.Type == ReservedTypes.Fn)
+                {
+                    Builder.BuildRetVoid();
+                }
+                else
+                {
+                    LLVMValueRef returnValue = Builder.BuildLoad2(ResolveLLVMTypeFromExpression(functionDeclarationStatement.ReturnType, functionDeclarationStatement.Body.Locals), functionDeclarationStatement.ReturnReference);
+                    Builder.BuildRet(returnValue);
                 }
             }
         }
 
         void EmitIfStatement(IfStatement ifStatement)
         {
-            LLVMBasicBlockRef thenBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("then");
-            LLVMBasicBlockRef elseBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("else");
-            LLVMBasicBlockRef mergeBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("ifcont");
+            LLVMBasicBlockRef thenBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("if.then");
+            LLVMBasicBlockRef elseBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("if.else");
+            LLVMBasicBlockRef mergeBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("if.end");
 
             LLVMValueRef condition = EmitExpression(ifStatement.Condition, ifStatement.Body.Locals);
             Builder.BuildCondBr(condition, thenBlock, elseBlock);
-    
-            // Then block
+
             Builder.PositionAtEnd(thenBlock);
             EmitStatements(ifStatement.Body.Statements, ifStatement.Body.Locals);
             if(ifStatement.Body.Statements.Last() is not ReturnStatement)
@@ -199,7 +259,6 @@ namespace CommonC.LLVMIR.CodeGen
                 Builder.BuildBr(mergeBlock);
             }
     
-            // Else block
             Builder.PositionAtEnd(elseBlock);
             if(ifStatement.ElseIfs != null)
             {
@@ -214,7 +273,6 @@ namespace CommonC.LLVMIR.CodeGen
             }
             Builder.BuildBr(mergeBlock);
     
-            // Merge block
             Builder.PositionAtEnd(mergeBlock);
         }
 
@@ -250,6 +308,8 @@ namespace CommonC.LLVMIR.CodeGen
             {
                 LLVMValueRef returnValue = EmitExpression(returnStatement.Expression, variables);
                 Builder.BuildRet(returnValue);
+                // Builder.BuildStore(returnValue, CurrentFunction.ReturnReference);
+                // Builder.BuildBr(CurrentFunction.ReturnBlock);
             }
             else
             {
@@ -257,10 +317,60 @@ namespace CommonC.LLVMIR.CodeGen
             }
         }
 
+        void EmitForStatement(ForStatement forStatement, List<VariableDeclarationStatement> variables)
+        {
+            LLVMBasicBlockRef loopConditionBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("for.cond");
+            LLVMBasicBlockRef loopBodyBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("for.body");
+            LLVMBasicBlockRef loopIncrementBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("for.inc");
+            LLVMBasicBlockRef loopEndBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("for.end");
+
+
+            LLVMTypeRef loopVarType = ResolveLLVMTypeFromExpression(forStatement.Variable.Type, variables);
+            forStatement.Variable.LLVMSingleAssignment = Builder.BuildAlloca(loopVarType, forStatement.Variable.Name);
+
+            LLVMValueRef startValue = EmitExpression(forStatement.Range.Start, variables);
+            Builder.BuildStore(startValue, forStatement.Variable.LLVMSingleAssignment);
+
+
+            Builder.BuildBr(loopConditionBlock);
+
+
+            Builder.PositionAtEnd(loopConditionBlock);
+            LLVMValueRef loopVar = Builder.BuildLoad2(loopVarType, forStatement.Variable.LLVMSingleAssignment);
+            LLVMValueRef endValue = EmitExpression(forStatement.Range.End, variables);
+            LLVMValueRef condition = Builder.BuildICmp(LLVMIntPredicate.LLVMIntSLT, loopVar, endValue, "");
+            Builder.BuildCondBr(condition, loopBodyBlock, loopEndBlock);
+
+
+            Builder.PositionAtEnd(loopBodyBlock);
+
+            EmitStatements(forStatement.Body.Statements, forStatement.Body.Locals);
+            if(forStatement.Body.Statements.Count == 0 || forStatement.Body.Statements.Last() is not ReturnStatement)
+            {
+                Builder.BuildBr(loopIncrementBlock);
+            }
+
+
+            Builder.PositionAtEnd(loopIncrementBlock);
+            LLVMValueRef incrementVar = Builder.BuildLoad2(loopVarType, forStatement.Variable.LLVMSingleAssignment);
+            LLVMValueRef incrementedValue = Builder.BuildAdd(incrementVar, LLVMValueRef.CreateConstInt(loopVarType, 1, false), "");
+            Builder.BuildStore(incrementedValue, forStatement.Variable.LLVMSingleAssignment);
+            Builder.BuildBr(loopConditionBlock);
+
+
+            Builder.PositionAtEnd(loopEndBlock);
+        }
+
         void EmitStatements(StatementList statements, List<VariableDeclarationStatement> variables)
         {
             foreach (Statement statement in statements)
             {
+                if(statement is ForStatement forStatement)
+                {
+                    EmitForStatement(forStatement, variables);
+                    continue;
+                }
+
                 if(statement is ReturnStatement returnStatement)
                 {
                     EmitReturnStatement(returnStatement, variables);
@@ -364,12 +474,12 @@ namespace CommonC.LLVMIR.CodeGen
                 LLVMValueRef callInstruction = Builder.BuildCall2(function.LLVMFunctionType, function.LLVMFunction, EmitExpressions(callExpression.Arguments, variables), "");
 
                 // TODO: Rewrite this so it supports functions with different overloads
-                if(identifierExpression.Name == CurrentFunction.Name)
-                {
-                    callInstruction.IsTailCall = true;
-                    callInstruction.InstructionCallConv = (uint)LLVMCallConv.LLVMFastCallConv;
-                    CurrentFunction.LLVMFunction.FunctionCallConv = (uint)LLVMCallConv.LLVMFastCallConv;
-                }
+                //if(identifierExpression.Name == CurrentFunction.Name)
+                //{
+                //    callInstruction.IsTailCall = true;
+                //    callInstruction.InstructionCallConv = (uint)LLVMCallConv.LLVMFastCallConv;
+                //    CurrentFunction.LLVMFunction.FunctionCallConv = (uint)LLVMCallConv.LLVMFastCallConv;
+                //}
 
                 return callInstruction;
             }
@@ -387,10 +497,11 @@ namespace CommonC.LLVMIR.CodeGen
             if(matchingVariables.Any())
             {
                 VariableDeclarationStatement variable = matchingVariables.First();
-                
-                if(variable.IsParameter)
+
+                if (variable.IsParameter)
                 {
-                    return CurrentFunction.LLVMFunction.GetParam((uint)variable.ParameterIndex);
+                    // return CurrentFunction.LLVMFunction.GetParam((uint)variable.ParameterIndex);
+                    return Builder.BuildLoad2(ResolveLLVMTypeFromExpression(variable.Type, variables), variable.LLVMSingleAssignment);
                 }
 
                 return variable.LLVMSingleAssignment;

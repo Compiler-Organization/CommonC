@@ -12,20 +12,27 @@
     <PackageReference Include="Tools.GeneralTK" Version="1.0.2" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\CommonC.csproj" />
-  </ItemGroup>
 
-  <ItemGroup>
-    <None Update="Samples\godspeaks.coc">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Samples\math.coc">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Samples\test.coc">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\CommonC.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Update="lib\legacy_stdio_definitions.lib">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Samples\godspeaks.coc">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Samples\math.coc">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Samples\test.coc">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<Content Include="Llvm\**">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+	</ItemGroup>
 
 </Project>

@@ -20,6 +20,11 @@ namespace CommonC.Parser.AST.Statements
         internal MethodDefinition? DotNetMethod { get; set; }
 
         internal LLVMValueRef LLVMFunction;
+
         internal LLVMTypeRef LLVMFunctionType { get; set; }
+
+        internal LLVMValueRef ReturnReference { get; set; }
+
+        internal LLVMBasicBlockRef ReturnBlock { get; set; }
     }
 }

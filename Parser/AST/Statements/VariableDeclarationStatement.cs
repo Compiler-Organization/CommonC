@@ -26,6 +26,6 @@ namespace CommonC.Parser.AST.Statements
 
         public FieldDefinition Field { get; set; } = null!;
 
-        internal LLVMValueRef LLVMSingleAssignment { get; set; }
+        internal LLVMValueRef LLVMSingleAssignment;
     }
 }

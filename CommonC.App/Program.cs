@@ -11,6 +11,7 @@ using CommonC.Printer;
 using CommonC.Semantic;
 using GeneralTK.Extensions.Console;
 using GeneralTK.Extensions.Logging;
+using LLVMSharp.Interop;
 using System.Buffers;
 using System.Diagnostics;
 
@@ -43,11 +44,13 @@ namespace CommonC.App
             };
             
             LLVMIRCommonCCompiler compiler = new LLVMIRCommonCCompiler(settings);
-            var module = compiler.Compile();
+            LLVMModuleRef module = compiler.Compile();
 
             File.WriteAllText($"{appName}.ll", module.ToString());
 
             Console.WriteLine($"LLVM IR\n=========\n{module}");
+
+            StartApp($"{Environment.CurrentDirectory}\\{appName}");
         }
 
         static void CreateDotNet()
@@ -70,6 +73,11 @@ namespace CommonC.App
             compiler.Compile().Write($"{appName}.dll");
             compiler.CreateAppHost();
 
+            StartApp(appName);
+        }
+
+        static void StartApp(string appName)
+        {
             ConsoleColor.Green.WriteLine("Starting application...");
 
             var process = new Process();

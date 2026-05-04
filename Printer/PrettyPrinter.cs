@@ -48,22 +48,58 @@ namespace CommonC.Printer
         {
             switch(typeExpression.Type)
             {
+                case Parser.AST.ReservedTypes.I8:
+                    Builder.Append("i8");
+                    break;
+                case Parser.AST.ReservedTypes.U8:
+                    Builder.Append("u8");
+                    break;
+
+                case Parser.AST.ReservedTypes.I16:
+                    Builder.Append("i16");
+                    break;
+                case Parser.AST.ReservedTypes.U16:
+                    Builder.Append("u16");
+                    break;
+
                 case Parser.AST.ReservedTypes.I32:
-                    Builder.Append("int");
+                    Builder.Append("i32");
                     break;
-
-                case Parser.AST.ReservedTypes.String:
-                    Builder.Append("string");
-                    break;
-
-                case Parser.AST.ReservedTypes.F64:
-                    Builder.Append("double");
+                case Parser.AST.ReservedTypes.U32:
+                    Builder.Append("u32");
                     break;
 
                 case Parser.AST.ReservedTypes.I64:
-                    Builder.Append("long");
+                    Builder.Append("i64");
+                    break;
+                case Parser.AST.ReservedTypes.U64:
+                    Builder.Append("u64");
                     break;
 
+                case Parser.AST.ReservedTypes.I128:
+                    Builder.Append("i128");
+                    break;
+                case Parser.AST.ReservedTypes.U128:
+                    Builder.Append("u128");
+                    break;
+
+                case Parser.AST.ReservedTypes.F32:
+                    Builder.Append("f32");
+                    break;
+
+                case Parser.AST.ReservedTypes.F64:
+                    Builder.Append("f64");
+                    break;
+
+                case Parser.AST.ReservedTypes.String:
+                    Builder.Append("str");
+                    break;
+                case Parser.AST.ReservedTypes.Char:
+                    Builder.Append("char");
+                    break;
+                case Parser.AST.ReservedTypes.Fn:
+                    Builder.Append("fn");
+                    break;
                 case Parser.AST.ReservedTypes.Bool:
                     Builder.Append("bool");
                     break;
@@ -469,9 +505,8 @@ namespace CommonC.Printer
         {
             Builder.Append(indentation);
             Builder.Append("if");
-            Builder.Append(" (");
+            Builder.Append(" ");
             PrintExpression(ifStatement.Condition, indentation);
-            Builder.Append(")");
             Builder.Append(Settings.NewLine);
             PrintClosureStatement(ifStatement.Body, indentation, indentation);
 
