@@ -6,6 +6,18 @@
 
 ___
 
+The current iteration of Common C proves to be more performant than nearly any other language.
+
+The benchmark has been performed using recursive fibonacci with the 45th number as input. Although fibonacci may prove an inaccurate scale of measurement, more tests will be added at a later date. Maximum optimization has been enabled for the forementioned languages.
+
+| Language | Performance (lower is better) |
+| --- | --- |
+| Common C | 1x |
+| Rust | 5.3x |
+| Python | 96x |
+
+___
+
 The common C language is developed to deliver the performance of natively compiled languages whilst maintaining the ease of memory management without workarounds like garbage collection and borrow checkers.
 Common C is object oriented and statically typed.
 
