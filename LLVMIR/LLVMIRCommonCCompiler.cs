@@ -35,8 +35,19 @@ namespace CommonC.LLVMIR
                 semanticAnalyzer.Analyze(statements);
 
                 LLVMIRCodeGen lLVMIRCodeGen = new LLVMIRCodeGen(Settings.LLVMIRCodeGenSettings, statements);
+                LLVMModuleRef module = lLVMIRCodeGen.GenerateLLVMModule();
 
-                return lLVMIRCodeGen.GenerateLLVMModule();
+                try
+                {
+
+                    module.Verify(LLVMVerifierFailureAction.LLVMPrintMessageAction);
+                }
+                catch(Exception ex)
+                {
+                    Console.WriteLine($"Module failed verification! {ex.Message}");
+                }
+
+                return module;
             }
 
             throw new FileNotFoundException($"Main file {Settings.MainFilePath} does not exist");

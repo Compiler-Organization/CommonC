@@ -137,7 +137,14 @@ namespace CommonC.LLVMIR.CodeGen
         {
             if(callStatement.Expression is IdentifierExpression identifierExpression)
             {
-                if(!Functions.ContainsKey(identifierExpression.Name))
+                if(identifierExpression.Name == "log")
+                {
+                    FunctionDeclarationStatement printfFunction = Functions["printf"];
+                    Builder.BuildCall2(printfFunction.LLVMFunctionType, printfFunction.LLVMFunction, EmitExpressions(callStatement.Arguments, variables), "");
+                    return;
+                }
+
+                if (!Functions.ContainsKey(identifierExpression.Name))
                 {
                     throw new Exception($"Function {identifierExpression.Name} is not defined.");
                 }
@@ -152,8 +159,8 @@ namespace CommonC.LLVMIR.CodeGen
 
         void EmitFunctionDeclarationStatement(FunctionDeclarationStatement functionDeclarationStatement)
         {
-            LLVMBasicBlockRef entryBlock = functionDeclarationStatement.LLVMFunction.EntryBasicBlock;
-            Builder.PositionAtEnd(entryBlock);
+            LLVMBasicBlockRef startBlock = functionDeclarationStatement.LLVMFunction.EntryBasicBlock;
+            Builder.PositionAtEnd(startBlock);
 
             CurrentFunction = functionDeclarationStatement;
 
@@ -177,35 +184,38 @@ namespace CommonC.LLVMIR.CodeGen
 
         void EmitIfStatement(IfStatement ifStatement)
         {
-                LLVMBasicBlockRef thenBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("then");
-                LLVMBasicBlockRef elseBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("else");
-                LLVMBasicBlockRef mergeBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("ifcont");
+            LLVMBasicBlockRef thenBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("then");
+            LLVMBasicBlockRef elseBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("else");
+            LLVMBasicBlockRef mergeBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("ifcont");
+
+            LLVMValueRef condition = EmitExpression(ifStatement.Condition, ifStatement.Body.Locals);
+            Builder.BuildCondBr(condition, thenBlock, elseBlock);
     
-                LLVMValueRef condition = EmitExpression(ifStatement.Condition, ifStatement.Body.Locals);
-                Builder.BuildCondBr(condition, thenBlock, elseBlock);
-    
-                // Then block
-                Builder.PositionAtEnd(thenBlock);
-                EmitStatements(ifStatement.Body.Statements, ifStatement.Body.Locals);
+            // Then block
+            Builder.PositionAtEnd(thenBlock);
+            EmitStatements(ifStatement.Body.Statements, ifStatement.Body.Locals);
+            if(ifStatement.Body.Statements.Last() is not ReturnStatement)
+            {
                 Builder.BuildBr(mergeBlock);
+            }
     
-                // Else block
-                Builder.PositionAtEnd(elseBlock);
-                if(ifStatement.ElseIfs != null)
+            // Else block
+            Builder.PositionAtEnd(elseBlock);
+            if(ifStatement.ElseIfs != null)
+            {
+                foreach(IfStatement elseIf in ifStatement.ElseIfs)
                 {
-                    foreach(IfStatement elseIf in ifStatement.ElseIfs)
-                    {
-                        EmitIfStatement(elseIf);
-                    }
+                    EmitIfStatement(elseIf);
                 }
-                if(ifStatement.Else != null)
-                {
-                    EmitStatements(ifStatement.Else.Statements, ifStatement.Else.Locals);
-                }
-                Builder.BuildBr(mergeBlock);
+            }
+            if(ifStatement.Else.Statements.Any())
+            {
+                EmitStatements(ifStatement.Else.Statements, ifStatement.Else.Locals);
+            }
+            Builder.BuildBr(mergeBlock);
     
-                // Merge block
-                Builder.PositionAtEnd(mergeBlock);
+            // Merge block
+            Builder.PositionAtEnd(mergeBlock);
         }
 
         void EmitVariableDeclarationStatement(VariableDeclarationStatement variableDeclarationStatement, List<VariableDeclarationStatement> variables)
@@ -350,7 +360,18 @@ namespace CommonC.LLVMIR.CodeGen
                     throw new Exception($"Function {identifierExpression.Name} is not defined.");
                 }
                 FunctionDeclarationStatement function = Functions[identifierExpression.Name];
-                return Builder.BuildCall2(function.LLVMFunctionType, function.LLVMFunction, EmitExpressions(callExpression.Arguments, variables), "");
+
+                LLVMValueRef callInstruction = Builder.BuildCall2(function.LLVMFunctionType, function.LLVMFunction, EmitExpressions(callExpression.Arguments, variables), "");
+
+                // TODO: Rewrite this so it supports functions with different overloads
+                if(identifierExpression.Name == CurrentFunction.Name)
+                {
+                    callInstruction.IsTailCall = true;
+                    callInstruction.InstructionCallConv = (uint)LLVMCallConv.LLVMFastCallConv;
+                    CurrentFunction.LLVMFunction.FunctionCallConv = (uint)LLVMCallConv.LLVMFastCallConv;
+                }
+
+                return callInstruction;
             }
             throw new Exception($"Call expression of type {callExpression.Expression.GetType().Name} is not supported when emitting LLVM call expressions.");
         }
@@ -366,14 +387,13 @@ namespace CommonC.LLVMIR.CodeGen
             if(matchingVariables.Any())
             {
                 VariableDeclarationStatement variable = matchingVariables.First();
-                return variable.LLVMSingleAssignment;
-            }
+                
+                if(variable.IsParameter)
+                {
+                    return CurrentFunction.LLVMFunction.GetParam((uint)variable.ParameterIndex);
+                }
 
-            List<ParameterExpression> matchingParameters = CurrentFunction.Parameters.Where(p => p.Name == identifierExpression.Name).ToList();
-            if(matchingParameters.Any())
-            {
-                ParameterExpression parameter = matchingParameters.First();
-                return CurrentFunction.LLVMFunction.GetParam((uint)CurrentFunction.Parameters.IndexOf(parameter));
+                return variable.LLVMSingleAssignment;
             }
 
             throw new Exception($"Variable {identifierExpression.Name} does not exist in the current scope.");

@@ -45,6 +45,8 @@ namespace CommonC.App
             LLVMIRCommonCCompiler compiler = new LLVMIRCommonCCompiler(settings);
             var module = compiler.Compile();
 
+            File.WriteAllText($"{appName}.ll", module.ToString());
+
             Console.WriteLine($"LLVM IR\n=========\n{module}");
         }
 
