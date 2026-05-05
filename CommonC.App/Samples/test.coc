@@ -1,7 +1,4 @@
-
-
 fn main() {
-    for 0..10, i {
-        logl("Iteration ", i)
-    }
+    i32 test = i32[3] {5, 10, 15};
+    logl(test[0])
 }

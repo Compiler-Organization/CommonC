@@ -26,7 +26,7 @@ namespace CommonC.LLVMIR.CodeGen
 
         LLVMBuilderRef Builder { get; set; }
 
-        FunctionDeclarationStatement CurrentFunction { get; set; }
+        FunctionDeclarationStatement? CurrentFunction { get; set; }
 
         Dictionary<string, FunctionDeclarationStatement> Functions = new Dictionary<string, FunctionDeclarationStatement>();
 
@@ -121,6 +121,28 @@ namespace CommonC.LLVMIR.CodeGen
                 }
 
                 throw new Exception($"Call expression of type {callExpression.Expression.GetType().Name} is not supported when resolving LLVM types from expressions.");
+            }
+            if(expression is IndexExpression indexExpression)
+            {
+                LLVMTypeRef arrayType = ResolveLLVMTypeFromExpression(indexExpression.Expression, variables);
+
+                if(indexExpression.Index is NumberExpression indexNumberExpression)
+                {
+                    if(indexNumberExpression.IsDouble)
+                    {
+                        throw new Exception($"Array size cannot be a double.");
+                    }
+                    else
+                    {
+                        if(int.TryParse(indexNumberExpression.Value, out int arraySize))
+                        {
+                            return LLVMTypeRef.CreateArray(arrayType, (uint)arraySize);
+                        }
+                        throw new Exception($"Could not parse array size '{indexNumberExpression.Value}' as an integer.");
+                    }
+                }
+
+                throw new Exception($"Array size expression of type {indexExpression.Index.GetType().Name} is not supported when resolving LLVM types from expressions.");
             }
 
             throw new Exception($"Expression {expression.GetType().Name} could not be resolved to an LLVM type.");
@@ -245,6 +267,11 @@ namespace CommonC.LLVMIR.CodeGen
 
         void EmitIfStatement(IfStatement ifStatement)
         {
+            if (CurrentFunction == null)
+            {
+                throw new Exception("Current function is not set when emitting if statement.");
+            }
+
             LLVMBasicBlockRef thenBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("if.then");
             LLVMBasicBlockRef elseBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("if.else");
             LLVMBasicBlockRef mergeBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("if.end");
@@ -258,7 +285,7 @@ namespace CommonC.LLVMIR.CodeGen
             {
                 Builder.BuildBr(mergeBlock);
             }
-    
+
             Builder.PositionAtEnd(elseBlock);
             if(ifStatement.ElseIfs != null)
             {
@@ -272,7 +299,7 @@ namespace CommonC.LLVMIR.CodeGen
                 EmitStatements(ifStatement.Else.Statements, ifStatement.Else.Locals);
             }
             Builder.BuildBr(mergeBlock);
-    
+
             Builder.PositionAtEnd(mergeBlock);
         }
 
@@ -319,6 +346,11 @@ namespace CommonC.LLVMIR.CodeGen
 
         void EmitForStatement(ForStatement forStatement, List<VariableDeclarationStatement> variables)
         {
+            if (CurrentFunction == null)
+            {
+                throw new Exception("Current function is not set when emitting for statement.");
+            }
+
             LLVMBasicBlockRef loopConditionBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("for.cond");
             LLVMBasicBlockRef loopBodyBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("for.body");
             LLVMBasicBlockRef loopIncrementBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("for.inc");
@@ -458,7 +490,82 @@ namespace CommonC.LLVMIR.CodeGen
                 return EmitCallExpression(callExpression, variables);
             }
 
+            if(expression is ArrayInitializerExpression arrayInitializerExpression)
+            {
+                return EmitArrayInitializerExpression(arrayInitializerExpression, variables);
+            }
+
+            if(expression is IndexExpression indexExpression)
+            {
+                return EmitIndexExpression(indexExpression, variables);
+            }
+
             throw new Exception($"Expression {expression.GetType().Name} is not supported when emitting LLVM expressions.");
+        }
+
+        LLVMValueRef EmitIndexExpression(IndexExpression indexExpression, List<VariableDeclarationStatement> variables)
+        {
+            if(indexExpression.Index is NumberExpression numberExpression) 
+            {
+                if(numberExpression.IsDouble)
+                {
+                    throw new Exception($"Array index cannot be a double.");
+                }
+                else
+                {
+                    if(ulong.TryParse(numberExpression.Value, out ulong arraySize))
+                    {
+                        LLVMValueRef arrayPtr = EmitExpression(indexExpression.Expression, variables);
+                        LLVMValueRef indexValue = EmitExpression(indexExpression.Index, variables);
+                        LLVMTypeRef arrayType = ResolveLLVMTypeFromExpression(indexExpression.Expression, variables);
+                        LLVMValueRef elementPtr = Builder.BuildInBoundsGEP2(LLVMTypeRef.CreateArray2(arrayType, arraySize), arrayPtr, new LLVMValueRef[] { LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0, false), indexValue }, "");
+                        return Builder.BuildLoad2(arrayType, elementPtr);
+                    }
+                    throw new Exception($"Could not parse array size '{numberExpression.Value}' as an integer.");
+                }
+            }
+            
+            throw new Exception($"Array index expression of type {indexExpression.Index.GetType().Name} is not supported when emitting LLVM index expressions.");
+        }
+
+        LLVMValueRef EmitArrayInitializerExpression(ArrayInitializerExpression arrayInitializerExpression, List<VariableDeclarationStatement> variables)
+        {
+            // LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0)
+
+            CreateExtern("llvm.memcpy.p0.p0.i64", LLVMTypeRef.Void, [LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), LLVMTypeRef.Int64, LLVMTypeRef.Int1], isVarArg: false);
+
+            if(arrayInitializerExpression.Index.Index is NumberExpression indexNumberExpression)
+            {
+                if(indexNumberExpression.IsDouble)
+                {
+                    throw new Exception($"Array size cannot be a double.");
+                }
+                else
+                {
+                    if(ulong.TryParse(indexNumberExpression.Value, out ulong arraySize))
+                    {
+                        LLVMTypeRef arrayType = ResolveLLVMTypeFromExpression(arrayInitializerExpression.Index.Expression, variables);
+                        LLVMValueRef arrayGlobalRef = Module.AddGlobal(LLVMTypeRef.CreateArray2(arrayType, arraySize), $"__const.array.{arraySize}");
+
+                        arrayGlobalRef.Initializer = LLVMValueRef.CreateConstArray(arrayType, [.. arrayInitializerExpression.Array.Expressions.Select(e => EmitExpression(e, variables))]);
+                        LLVMValueRef tempArray = Builder.BuildAlloca(LLVMTypeRef.CreateArray2(arrayType, arraySize), $"arraytmp");
+
+                        LLVMTypeRef int8Ptr = LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0);
+                        LLVMValueRef srcPtr = Builder.BuildBitCast(arrayGlobalRef, int8Ptr, "");
+                        LLVMValueRef dstPtr = Builder.BuildBitCast(tempArray, int8Ptr, "");
+
+                        ulong elementSizeInBytes = (ulong)arrayType.ToString().Length;
+                        LLVMValueRef sizeInBytes = LLVMValueRef.CreateConstInt(LLVMTypeRef.Int64, arraySize * 4 /* TODO: Make this dynamic */, false);
+
+                        Builder.BuildCall2(Functions["llvm.memcpy.p0.p0.i64"].LLVMFunctionType, Functions["llvm.memcpy.p0.p0.i64"].LLVMFunction, new LLVMValueRef[] { dstPtr, srcPtr, sizeInBytes, LLVMValueRef.CreateConstInt(LLVMTypeRef.Int1, 0, false) }, "");
+
+                        return tempArray;
+                    }
+                    throw new Exception($"Could not parse array size '{indexNumberExpression.Value}' as an ulong.");
+                }
+            }
+
+            throw new Exception($"Index of type {arrayInitializerExpression.Index.Index.GetType().Name} is not supported.");
         }
 
         LLVMValueRef EmitCallExpression(CallExpression callExpression, List<VariableDeclarationStatement> variables)

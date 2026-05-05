@@ -541,7 +541,7 @@ namespace CommonC.Parser
         {
             arrayInitializerExpression = new ArrayInitializerExpression() 
             {
-                Initializer = indexExpression
+                Index = indexExpression
             };
 
             if(ParseArrayExpression(out ArrayExpression arrayExpression))

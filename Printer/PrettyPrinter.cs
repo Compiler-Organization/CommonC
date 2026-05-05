@@ -254,7 +254,7 @@ namespace CommonC.Printer
 
         void PrintArrayInitializerExpression(ArrayInitializerExpression arrayInitializerExpression, string indentation)
         {
-            PrintIndexExpression(arrayInitializerExpression.Initializer, indentation);
+            PrintIndexExpression(arrayInitializerExpression.Index, indentation);
             Builder.Append(" ");
             PrintArrayExpression(arrayInitializerExpression.Array, indentation);
         }

@@ -1045,8 +1045,8 @@ namespace CommonC.DotNet.CodeGen
 
         void GenerateArrayInitializerExpression(ArrayInitializerExpression arrayInitializerExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
         {
-            GenerateExpression(arrayInitializerExpression.Initializer.Index, variableDeclarationStatements, body);
-            ITypeDefOrRef arrayType = ResolveType(arrayInitializerExpression.Initializer.Expression, variableDeclarationStatements);
+            GenerateExpression(arrayInitializerExpression.Index.Index, variableDeclarationStatements, body);
+            ITypeDefOrRef arrayType = ResolveType(arrayInitializerExpression.Index.Expression, variableDeclarationStatements);
             body.Instructions.Add(CilOpCodes.Newarr, arrayType);
 
             for (int i = 0; i < arrayInitializerExpression.Array.Expressions.Count; i++)
