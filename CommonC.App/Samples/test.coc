@@ -1,4 +1,4 @@
 fn main() {
     i32 test = i32[3] {5, 10, 15};
-    logl(test[0])
+    logl(test)
 }

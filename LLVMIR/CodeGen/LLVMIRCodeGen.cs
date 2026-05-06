@@ -36,6 +36,8 @@ namespace CommonC.LLVMIR.CodeGen
             Builder = LLVMBuilderRef.Create(Module.Context);
 
             CreateExtern(name: "printf", returnType: LLVMTypeRef.Int32, parameters: [LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0)], isVarArg: true);
+            CreateExtern("llvm.memcpy.p0.p0.i64", LLVMTypeRef.Void, [LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), LLVMTypeRef.Int64, LLVMTypeRef.Int1], isVarArg: false);
+
             CreateFunctionReferences();
             EmitStatements(Statements, new List<VariableDeclarationStatement>());
 
@@ -237,6 +239,14 @@ namespace CommonC.LLVMIR.CodeGen
             //functionDeclarationStatement.ReturnBlock = functionDeclarationStatement.LLVMFunction.AppendBasicBlock("return");
 
             CurrentFunction = functionDeclarationStatement;
+
+            foreach(VariableDeclarationStatement parameter in functionDeclarationStatement.Body.Locals.Where(local => local.IsParameter))
+            {
+                if(parameter.Expression != null)
+                {
+                    parameter.LLVMSingleAssignment = EmitExpression(parameter.Expression, functionDeclarationStatement.Body.Locals);
+                }
+            }
 
             if (functionDeclarationStatement.Body != null && functionDeclarationStatement.Body.Statements.Count > 0)
             {
@@ -500,7 +510,19 @@ namespace CommonC.LLVMIR.CodeGen
                 return EmitIndexExpression(indexExpression, variables);
             }
 
+            if(expression is ParenthesizedExpression parenthesizedExpression)
+            {
+                return EmitParenthesizedExpression(parenthesizedExpression, variables);
+            }
+
             throw new Exception($"Expression {expression.GetType().Name} is not supported when emitting LLVM expressions.");
+        }
+
+        
+
+        LLVMValueRef EmitParenthesizedExpression(ParenthesizedExpression parenthesizedExpression, List<VariableDeclarationStatement> variables)
+        {
+            return EmitExpression(parenthesizedExpression.Expression, variables);
         }
 
         LLVMValueRef EmitIndexExpression(IndexExpression indexExpression, List<VariableDeclarationStatement> variables)
@@ -532,8 +554,6 @@ namespace CommonC.LLVMIR.CodeGen
         {
             // LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0)
 
-            CreateExtern("llvm.memcpy.p0.p0.i64", LLVMTypeRef.Void, [LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), LLVMTypeRef.Int64, LLVMTypeRef.Int1], isVarArg: false);
-
             if(arrayInitializerExpression.Index.Index is NumberExpression indexNumberExpression)
             {
                 if(indexNumberExpression.IsDouble)
@@ -557,7 +577,8 @@ namespace CommonC.LLVMIR.CodeGen
                         ulong elementSizeInBytes = (ulong)arrayType.ToString().Length;
                         LLVMValueRef sizeInBytes = LLVMValueRef.CreateConstInt(LLVMTypeRef.Int64, arraySize * 4 /* TODO: Make this dynamic */, false);
 
-                        Builder.BuildCall2(Functions["llvm.memcpy.p0.p0.i64"].LLVMFunctionType, Functions["llvm.memcpy.p0.p0.i64"].LLVMFunction, new LLVMValueRef[] { dstPtr, srcPtr, sizeInBytes, LLVMValueRef.CreateConstInt(LLVMTypeRef.Int1, 0, false) }, "");
+                        FunctionDeclarationStatement memcpyFunction = Functions["llvm.memcpy.p0.p0.i64"];
+                        Builder.BuildCall2(memcpyFunction.LLVMFunctionType, memcpyFunction.LLVMFunction, new LLVMValueRef[] { dstPtr, srcPtr, sizeInBytes, LLVMValueRef.CreateConstInt(LLVMTypeRef.Int1, 0, false) }, "");
 
                         return tempArray;
                     }
@@ -608,7 +629,14 @@ namespace CommonC.LLVMIR.CodeGen
                 if (variable.IsParameter)
                 {
                     // return CurrentFunction.LLVMFunction.GetParam((uint)variable.ParameterIndex);
-                    return Builder.BuildLoad2(ResolveLLVMTypeFromExpression(variable.Type, variables), variable.LLVMSingleAssignment);
+                    if(variable.Expression == null)
+                    {
+                        return Builder.BuildLoad2(ResolveLLVMTypeFromExpression(variable.Type, variables), variable.LLVMSingleAssignment);
+                    }
+                    else
+                    {
+                        return EmitExpression(variable.Expression, variables);
+                    }
                 }
 
                 return variable.LLVMSingleAssignment;

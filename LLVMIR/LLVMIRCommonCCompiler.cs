@@ -23,7 +23,24 @@ namespace CommonC.LLVMIR
             Settings = settings;
         }
 
-        public LLVMModuleRef Compile()
+        /// <summary>
+        /// Runs the given LLVM module with the provided arguments into the entry point function, which is specified in the code gen settings.
+        /// </summary>
+        /// <param name="module"></param>
+        /// <param name="args"></param>
+        /// <returns></returns>
+        public LLVMGenericValueRef RunModule(LLVMModuleRef module, LLVMGenericValueRef[] args)
+        {
+            LLVMExecutionEngineRef executionEngine = module.CreateExecutionEngine();
+            return executionEngine.RunFunction(module.GetNamedFunction(Settings.LLVMIRCodeGenSettings.EntryPoint), args);
+        }
+
+        /// <summary>
+        /// Builds a LLVM module
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="FileNotFoundException"></exception>
+        public LLVMModuleRef BuildLLVMModule()
         {
             if (File.Exists(Settings.MainFilePath))
             {
@@ -37,30 +54,40 @@ namespace CommonC.LLVMIR
                 semanticAnalyzer.Analyze(statements);
 
                 LLVMIRCodeGen lLVMIRCodeGen = new LLVMIRCodeGen(Settings.LLVMIRCodeGenSettings, statements);
-                LLVMModuleRef module = lLVMIRCodeGen.GenerateLLVMModule();
 
-                try
-                {
-                    module.Verify(LLVMVerifierFailureAction.LLVMPrintMessageAction);
-                }
-                catch(Exception ex)
-                {
-                    Console.WriteLine($"Module failed verification! {ex.Message}");
-                }
-
-                File.WriteAllText($"{Settings.LLVMIRCodeGenSettings.Name}.ll", module.ToString());
-
-                ProcessStartInfo clang = new ProcessStartInfo()
-                {
-                    FileName = @".\\Llvm\\bin\\clang.exe",
-                    Arguments = $"\"{Environment.CurrentDirectory}\\{Settings.LLVMIRCodeGenSettings.Name}.ll\" -L{Environment.CurrentDirectory}\\libs -llegacy_stdio_definitions -O3 -o \"{Environment.CurrentDirectory}\\{Settings.LLVMIRCodeGenSettings.Name}.exe\"",
-                };
-                Process.Start(clang).WaitForExit();
-
-                return module;
+                return lLVMIRCodeGen.GenerateLLVMModule();
             }
 
             throw new FileNotFoundException($"Main file {Settings.MainFilePath} does not exist");
+        }
+
+        /// <summary>
+        /// Compiles the application to a .exe
+        /// </summary>
+        /// <returns></returns>
+        public LLVMModuleRef Compile()
+        {
+            LLVMModuleRef module = BuildLLVMModule();
+
+            try
+            {
+                module.Verify(LLVMVerifierFailureAction.LLVMPrintMessageAction);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Module failed verification! {ex.Message}");
+            }
+
+            File.WriteAllText($"{Settings.LLVMIRCodeGenSettings.Name}.ll", module.ToString());
+
+            ProcessStartInfo clang = new ProcessStartInfo()
+            {
+                FileName = @".\\Llvm\\bin\\clang.exe",
+                Arguments = $"\"{Environment.CurrentDirectory}\\{Settings.LLVMIRCodeGenSettings.Name}.ll\" -L{Environment.CurrentDirectory}\\libs -llegacy_stdio_definitions -O3 -o \"{Environment.CurrentDirectory}\\{Settings.LLVMIRCodeGenSettings.Name}.exe\"",
+            };
+            Process.Start(clang).WaitForExit();
+
+            return module;
         }
 
         StatementList ImportUseFiles(StatementList statements)
