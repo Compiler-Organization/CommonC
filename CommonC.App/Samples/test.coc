@@ -1,5 +1,5 @@
 use math
 
 fn main() {
-    Sieve(10000)
+    Sieve(10010);
 }

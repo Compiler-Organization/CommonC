@@ -1,19 +1,41 @@
 fn Sieve(i32 n) {
-	bool nonprimes = bool[n] {}
-	i32 sum = 2
-	i32 prime = 3
-
-	while (prime < n) {
-		if (!nonprimes[prime]) {
-			sum += prime
-			i32 i = prime * prime
-			while (i < n) {
-				nonprimes[i] = true
-				i += 2 * prime
-			}
-		}
-		prime += 2
+	if (n <= 2) {
+		logl("Primes up to ", n, ":", 0)
+		return
 	}
 
-	logl("Sieve sum: ", sum)
+	bool a = bool[n] {}
+	i32 b = 2
+	i32 c = 3
+	
+	while (c < n) {
+		if (!a[c]) {
+			b = (b + c)
+			
+			if (c <= 46340) {
+				i32 d = (c * c)
+				while (d < n) {
+					a[d] = true
+					
+					i32 e = (2 * c)
+					i32 f = (n - e)
+					
+					if (d <= f) {
+						d = (d + e)
+					} else {
+						d = n
+					}
+				}
+			}
+		}
+
+		i32 g = (n - 2)
+		if (c <= g) {
+			c = (c + 2)
+		} else {
+			c = n
+		}
+	}
+
+	logl("Primes up to ", n, ":", b)
 }

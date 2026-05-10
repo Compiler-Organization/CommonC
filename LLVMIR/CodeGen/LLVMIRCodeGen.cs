@@ -308,7 +308,7 @@ namespace CommonC.LLVMIR.CodeGen
 
             Builder.PositionAtEnd(thenBlock);
             EmitStatements(ifStatement.Body.Statements, ifStatement.Body.Locals);
-            if(ifStatement.Body.Statements.Last() is not ReturnStatement)
+            if(ifStatement.Body.Statements.Any() && ifStatement.Body.Statements.Last() is not ReturnStatement)
             {
                 Builder.BuildBr(mergeBlock);
             }
