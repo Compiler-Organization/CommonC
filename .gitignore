@@ -361,3 +361,5 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/CommonC.App/Llvm/ARM73/lib
+/CommonC.App/Llvm/x73/lib
