@@ -956,17 +956,40 @@ namespace CommonC.Parser
                 Variable = variable
             };
 
-            if (TokenReader.Expect(LexKinds.Equals))
+            switch(TokenReader.Peek().Kind)
             {
-                TokenReader.Consume();
-                if (ParseExpression(out Expression valueExpression))
-                {
-                    assignmentStatement.Expression = valueExpression;
-                    return true;
-                }
-                throw new Exception($"Line {TokenReader.Peek().Line}: Invalid assignment statement, expected an expression after the equals sign");
+                case LexKinds.Equals:
+                    assignmentStatement.Operator = AssignmentOperator.Equals;
+                    break;
+                case LexKinds.CompoundAdd:
+                    assignmentStatement.Operator = AssignmentOperator.CompoundAdd;
+                    break;
+                case LexKinds.CompoundSub:
+                    assignmentStatement.Operator = AssignmentOperator.CompoundSubtract;
+                    break;
+                case LexKinds.CompoundMul:
+                    assignmentStatement.Operator = AssignmentOperator.CompoundMultiply;
+                    break;
+                case LexKinds.CompoundDiv:
+                    assignmentStatement.Operator = AssignmentOperator.CompoundDivide;
+                    break;
+                case LexKinds.CompoundMod:
+                    assignmentStatement.Operator = AssignmentOperator.CompoundModulo;
+                    break;
+                case LexKinds.CompoundExp:
+                    throw new Exception("Compound exponentiation assignment operator is not supported");
+                default:
+                    return false;
             }
-            return false;
+
+            TokenReader.Consume();
+            if (ParseExpression(out Expression valueExpression))
+            {
+                assignmentStatement.Expression = valueExpression;
+                return true;
+            }
+
+            throw new Exception($"Line {TokenReader.Peek().Line}: Invalid assignment statement, expected an expression after the equals sign");
         }
 
         bool ParseForStatement(out ForStatement forStatement)

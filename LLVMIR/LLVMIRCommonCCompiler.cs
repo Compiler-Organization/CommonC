@@ -75,7 +75,9 @@ namespace CommonC.LLVMIR
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Module failed verification! {ex.Message}");
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"Module failed verification!\n{ex.Message}");
+                Console.ForegroundColor = ConsoleColor.Gray;
             }
 
             File.WriteAllText($"{Settings.LLVMIRCodeGenSettings.Name}.ll", module.ToString());

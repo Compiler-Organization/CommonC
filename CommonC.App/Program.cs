@@ -24,7 +24,7 @@ namespace CommonC.App
             Console.Clear();
 
             // CreateDotNet();
-            RunLLVM();
+            CreateLLVM();
         }
 
         static void RunLLVM()
@@ -105,7 +105,9 @@ namespace CommonC.App
             };
 
             DotNetCommonCCompiler compiler = new DotNetCommonCCompiler(settings);
-            compiler.Compile().Write($"{appName}.dll");
+            AsmResolver.PE.File.PEFile peFile = compiler.Compile();
+
+            peFile.Write($"{appName}.dll");
             compiler.CreateAppHost();
 
             StartApp(appName);

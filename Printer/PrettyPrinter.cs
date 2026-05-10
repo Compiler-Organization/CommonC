@@ -596,45 +596,89 @@ namespace CommonC.Printer
             Builder.Append(Settings.NewLine);
         }
 
+        void PrintAssignmentStatement(AssignmentStatement assignmentStatement, string indentation)
+        {
+            Builder.Append(indentation);
+            PrintExpression(assignmentStatement.Variable, indentation);
+            switch(assignmentStatement.Operator)
+            {
+                case AssignmentOperator.Equals:
+                    Builder.Append(" = ");
+                    break;
+                case AssignmentOperator.CompoundAdd:
+                    Builder.Append(" += ");
+                    break;
+                case AssignmentOperator.CompoundSubtract:
+                    Builder.Append(" -= ");
+                    break;
+                case AssignmentOperator.CompoundMultiply:
+                    Builder.Append(" *= ");
+                    break;
+                case AssignmentOperator.CompoundDivide:
+                    Builder.Append(" /= ");
+                    break;
+                case AssignmentOperator.CompoundModulo:
+                    Builder.Append(" %= ");
+                    break;
+            }
+            PrintExpression(assignmentStatement.Expression!, indentation);
+            Builder.Append(";");
+            Builder.Append(Settings.NewLine);
+        }
+
         void PrintStatements(StatementList statements, string indentation)
         {
             foreach(Statement statement in statements)
             {
-                if(statement is StructStatement structStatement)
+                if(statement is AssignmentStatement assignmentStatement)
+                {
+                    PrintAssignmentStatement(assignmentStatement, indentation);
+                    continue;
+                }
+                if (statement is StructStatement structStatement)
                 {
                     PrintStructStatement(structStatement, indentation);
+                    continue;
                 }
                 if(statement is CallStatement callStatement)
                 {
                     PrintCallStatement(callStatement, indentation);
+                    continue;
                 }
                 if(statement is ClosureStatement closureStatement)
                 {
                     PrintClosureStatement(closureStatement, indentation, indentation);
+                    continue;
                 }
                 if(statement is FunctionDeclarationStatement functionDeclarationStatement)
                 {
                     PrintFunctionDeclarationStatement(functionDeclarationStatement, indentation);
+                    continue;
                 }
                 if (statement is VariableDeclarationStatement variableDeclarationStatement)
                 {
                     PrintVariableDeclarationStatement(variableDeclarationStatement, indentation);
+                    continue;
                 }
                 if(statement is IfStatement ifStatement)
                 {
                     PrintIfStatement(ifStatement, indentation);
+                    continue;
                 }
                 if(statement is ForStatement forStatement)
                 {
                     PrintForStatement(forStatement, indentation);
+                    continue;
                 }
                 if(statement is ReturnStatement returnStatement)
                 {
                     PrintReturnStatement(returnStatement, indentation);
+                    continue;
                 }
                 if(statement is WhileStatement whileStatement)
                 {
                     PrintWhileStatement(whileStatement, indentation);
+                    continue;
                 }
             }
         }

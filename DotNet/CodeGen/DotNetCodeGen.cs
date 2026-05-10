@@ -804,7 +804,7 @@ namespace CommonC.DotNet.CodeGen
         {
             if (callStatement.Expression is IdentifierExpression identifierExpression)
             {
-                if (identifierExpression.Name == "logline" && callStatement.Arguments.Any())
+                if (identifierExpression.Name == "logl" && callStatement.Arguments.Any())
                 {
                     GenerateExpressions(callStatement.Arguments, variableDeclarationStatements, body);
 

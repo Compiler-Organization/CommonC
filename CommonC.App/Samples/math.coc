@@ -1,23 +1,19 @@
-fn Sieve(i64 n) {
-	bool flags = bool[n] {}
-	i64 count = 0
+fn Sieve(i32 n) {
+	bool nonprimes = bool[n] {}
+	i32 sum = 2
+	i32 prime = 3
 
-	for 2..n, i 
-	{
-		if (!flags[i]) 
-		{
-			count = count + 1
-
-			i64 j = i << 1
-			while (j < n) {
-				flags[j] = true
-				j = j + i
+	while (prime < n) {
+		if (!nonprimes[prime]) {
+			sum += prime
+			i32 i = prime * prime
+			while (i < n) {
+				nonprimes[i] = true
+				i += 2 * prime
 			}
 		}
+		prime += 2
 	}
 
-	log("Primes up to ")
-	log(n)
-	log(" ")
-	logline(count)
+	logl("Sieve sum: ", sum)
 }
