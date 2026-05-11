@@ -1,19 +1,14 @@
 # Performance
 The current iteration of Common C proves to be more performant than nearly any other language.
 
-Code used for each test is available below.
-* [Common C](#common-c)
-* [C](#c)
-* [Rust](#rust)
-* [Python](#python)
-
-This was the result of the benchmark:
-| Language | Performance (lower is better) | Time    |
-| -------- | ----------------------------- | ------- |
-| Common C | 1x                            | 3,413s  |
-| C        | 1.14x                         | 3.884s  |
-| Rust     | 3x                            | 10.512s |
-| Python   | 51.5x                         | 175.73s |
+This was the result of each benchmark:
+| Language              | Performance (lower is better) | Time    |
+| --------------------- | ----------------------------- | ------- |
+| [Common C](#common-c) | 1x                            | 3,413s  |
+| [C](#c)               | 1.14x                         | 3.884s  |
+| [C++](#c++)           | 1.51x                         | 5.142s  |
+| [Rust](#rust)         | 3x                            | 10.512s |
+| [Python](#python)     | 51.5x                         | 175.73s |
 
 Shown below is the specifications for each benchmark.
 
@@ -21,6 +16,7 @@ Shown below is the specifications for each benchmark.
 | -------- | ----------------- | -------------- | ---------- | ------------------------------------------------------------------------------------------------ | --------------- |
 | Common C | AMD Ryzen 7 3700X | 48GB DDR4-3000 | Windows 11 | Common C 1.0                                                                                     | No optimization |
 | C        | AMD Ryzen 7 3700X | 48GB DDR4-3000 | Windows 11 | clang version 20.1.8, i686-pc-windows-msvc, posix                                                | -O3             |
+| C++      | AMD Ryzen 7 3700X | 48GB DDR4-3000 | Windows 11 | Microsoft (R) C/C++ Optimizing Compiler Version 19.50.35730 for x86                              | /O2             |
 | Rust     | AMD Ryzen 7 3700X | 48GB DDR4-3000 | Windows 11 | rustc 1.67.1 (d5a82bbd2 2023-02-07)                                                              | -C opt-level=3  |
 | Python   | AMD Ryzen 7 3700X | 48GB DDR4-3000 | Windows 11 | Python 3.14.4 (tags/v3.14.4:23116f9, Apr  7 2026, 14:10:54) [MSC v.1944 64 bit (AMD64)] on win32 | N/A             |
 
@@ -83,6 +79,42 @@ Result;
 ```
 Fibonacci(45) = 1134903170
 Time taken: 3.884000 seconds
+```
+___
+
+# C++
+The C++ implementation of the recursive fibonacci function is as follows:
+```cpp
+#include <iostream>
+#include <chrono>
+
+long long fibonacci(int n) {
+    if (n <= 1) return n;
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+int main() {
+    int n = 45;
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    long long result = fibonacci(n);
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    std::chrono::duration<double, std::milli> duration = end - start;
+
+    std::cout << "Fibonacci(" << n << ") = " << result << std::endl;
+    std::cout << "Time taken: " << duration.count() << " ms" << std::endl;
+
+    return 0;
+}
+```
+
+Result;
+```
+Fibonacci(45) = 1134903170
+Time taken: 5142.84 ms
 ```
 ___
 
