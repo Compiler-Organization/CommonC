@@ -56,6 +56,8 @@ namespace CommonC.Lexer
             "return",
             "ret",
 
+            "sizeof",
+
             "use"
         };
 

@@ -167,6 +167,22 @@ namespace CommonC.LLVMIR.CodeGen
             {
                 return ResolveLLVMTypeFromExpression(relationalExpression.Left, variables);
             }
+            if(expression is ArithmeticExpression arithmeticExpression)
+            {
+                return ResolveLLVMTypeFromExpression(arithmeticExpression.Left, variables);
+            }
+            if(expression is ArrayInitializerExpression arrayInitializerExpression)
+            {
+                return LLVMTypeRef.CreatePointer(ResolveLLVMTypeFromExpression(arrayInitializerExpression.Index.Expression, variables), 0);
+            }
+            if(expression is SizeOfExpression sizeOfExpression)
+            {
+                return ResolveLLVMTypeFromExpression(sizeOfExpression.Expression, variables);
+            }
+            if(expression is LengthExpression lengthExpression)
+            {
+                return ResolveLLVMTypeFromExpression(lengthExpression.Expression, variables);
+            }
 
             throw new Exception($"Expression {expression.GetType().Name} could not be resolved to an LLVM type.");
         }
@@ -632,7 +648,28 @@ namespace CommonC.LLVMIR.CodeGen
                 return EmitNotExpression(notExpression, variables);
             }
 
+            if(expression is SizeOfExpression sizeOfExpression)
+            {
+                return EmitSizeOfExpression(sizeOfExpression, variables);
+            }
+
+            if(expression is LengthExpression lengthExpression)
+            {
+                return EmitLengthExpression(lengthExpression, variables);
+            }
+
             throw new Exception($"Expression {expression.GetType().Name} is not supported when emitting LLVM expressions.");
+        }
+
+        LLVMValueRef EmitLengthExpression(LengthExpression lengthExpression, List<VariableDeclarationStatement> variables)
+        {
+            throw new Exception($"Length operator is not implemented");
+        }
+
+
+        LLVMValueRef EmitSizeOfExpression(SizeOfExpression sizeOfExpression, List<VariableDeclarationStatement> variables)
+        {
+            throw new Exception($"Length operator is not implemented");
         }
 
         LLVMValueRef EmitNotExpression(NotExpression notExpression, List<VariableDeclarationStatement> variables)

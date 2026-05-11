@@ -276,6 +276,12 @@ namespace CommonC.Parser
                 return true;
             }
 
+            if (ParseSizeOfExpression(out SizeOfExpression sizeOfExpression))
+            {
+                expression = sizeOfExpression;
+                return true;
+            }
+
 
             return false;
         }
@@ -645,6 +651,26 @@ namespace CommonC.Parser
                         TokenReader.Consume();
                         return true;
                     }
+                }
+            }
+
+            return false;
+        }
+
+        bool ParseSizeOfExpression(out SizeOfExpression sizeOfExpression)
+        {
+            sizeOfExpression = new SizeOfExpression();
+            if (TokenReader.Expect(LexKinds.Keyword, "sizeof"))
+            {
+                TokenReader.Skip(1);
+                if (ParseExpression(out Expression expression))
+                {
+                    sizeOfExpression.Expression = expression;
+                    return true;
+                }
+                else
+                {
+                    throw new Exception("Expression expected after sizeof keyword");
                 }
             }
 

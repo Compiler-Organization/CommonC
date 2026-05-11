@@ -102,6 +102,8 @@ Semicolon after statements is optional simply because some people prefer it, tho
         * Native, reserved types.
     * [Unpack](#Unpack)
         * Unpacking arrays.
+    * [SizeOf](#SizeOf)
+        * Size of an expression.
 * Statements
     * [Assignment](#Assignment)
         * Variable assignments.
@@ -415,6 +417,23 @@ Example
 arr -> 0..5
 ```
 
+___
+
+## SizeOf
+Gets the size of an expression.
+```
+sizeof <expr>
+```
+
+Example
+```cs
+i32 number = 10;
+logl("Size of i32: ", sizeof number)
+
+// Size of i32: 4
+```
+
+___
 
 # Statements
 
