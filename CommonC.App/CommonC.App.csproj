@@ -21,6 +21,9 @@
 		<None Update="lib\legacy_stdio_definitions.lib">
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
+		<None Update="Samples\fibonacci.coc">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
 		<None Update="Samples\godspeaks.coc">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>

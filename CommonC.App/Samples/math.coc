@@ -1,41 +1,41 @@
-fn Sieve(i32 n) {
-	if (n <= 2) {
-		logl("Primes up to ", n, ":", 0)
+fn Sieve(i32 limit) {
+	if (limit <= 2) {
+		logl("Primes up to ", limit, ":", 0)
 		return
 	}
 
-	bool a = bool[n] {}
-	i32 b = 2
-	i32 c = 3
+	bool isComposite = bool[limit] {}
+	i32 primeSum = 2
+	i32 currentCandidate = 3
 	
-	while (c < n) {
-		if (!a[c]) {
-			b = (b + c)
+	while (currentCandidate < limit) {
+		if (!isComposite[currentCandidate]) {
+			primeSum = (primeSum + currentCandidate)
 			
-			if (c <= 46340) {
-				i32 d = (c * c)
-				while (d < n) {
-					a[d] = true
+			if (currentCandidate <= 46340) {
+				i32 multiple = (currentCandidate * currentCandidate)
+				while (multiple < limit) {
+					isComposite[multiple] = true
 					
-					i32 e = (2 * c)
-					i32 f = (n - e)
+					i32 step = (2 * currentCandidate)
+					i32 remainingSpace = (limit - step)
 					
-					if (d <= f) {
-						d = (d + e)
+					if (multiple <= remainingSpace) {
+						multiple = (multiple + step)
 					} else {
-						d = n
+						multiple = limit
 					}
 				}
 			}
 		}
 
-		i32 g = (n - 2)
-		if (c <= g) {
-			c = (c + 2)
+		i32 safeLimit = (limit - 2)
+		if (currentCandidate <= safeLimit) {
+			currentCandidate = (currentCandidate + 2)
 		} else {
-			c = n
+			currentCandidate = limit
 		}
 	}
 
-	logl("Primes up to ", n, ":", b)
+	logl("Primes up to ", limit, ":", primeSum)
 }

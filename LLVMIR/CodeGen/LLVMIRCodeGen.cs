@@ -30,16 +30,21 @@ namespace CommonC.LLVMIR.CodeGen
 
         Dictionary<string, FunctionDeclarationStatement> Functions = new Dictionary<string, FunctionDeclarationStatement>();
 
+        ReferenceManager ReferenceManager { get; set; }
+
         public LLVMModuleRef GenerateLLVMModule()
         {
             Module = LLVMModuleRef.CreateWithName(Settings.Name);
             Builder = LLVMBuilderRef.Create(Module.Context);
 
+            ReferenceManager = new ReferenceManager(Builder);
+
             CreateExtern(name: "printf", returnType: LLVMTypeRef.Int32, parameters: [LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0)], isVarArg: true);
             CreateExtern("llvm.memcpy.p0.p0.i64", LLVMTypeRef.Void, [LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), LLVMTypeRef.Int64, LLVMTypeRef.Int1], isVarArg: false);
+            CreateExtern("llvm.ubsantrap", LLVMTypeRef.Void, [LLVMTypeRef.Int8], isVarArg: false);
 
             CreateFunctionReferences();
-            EmitStatements(Statements, new List<VariableDeclarationStatement>());
+            EmitStatements(Statements, new List<VariableDeclarationStatement>(), true);
 
             return Module;
         }
@@ -201,6 +206,16 @@ namespace CommonC.LLVMIR.CodeGen
             return externFunction;
         }
 
+        void EmitPanic(string message, ulong code)
+        {
+            FunctionDeclarationStatement printfFunction = Functions["printf"];
+
+            Builder.BuildCall2(printfFunction.LLVMFunctionType, printfFunction.LLVMFunction, [Builder.BuildGlobalStringPtr($"%s\n"), Builder.BuildGlobalStringPtr(message)], "asdasd".AsSpan());
+
+            FunctionDeclarationStatement panicFunction = Functions["llvm.ubsantrap"];
+            Builder.BuildCall2(panicFunction.LLVMFunctionType, panicFunction.LLVMFunction, [LLVMValueRef.CreateConstInt(LLVMTypeRef.Int8, code)]);
+        }
+
         void EmitCallStatement(CallStatement callStatement, List<VariableDeclarationStatement> variables)
         {
             if(callStatement.Expression is IdentifierExpression identifierExpression)
@@ -247,13 +262,6 @@ namespace CommonC.LLVMIR.CodeGen
             LLVMBasicBlockRef startBlock = functionDeclarationStatement.LLVMFunction.EntryBasicBlock;
 
             Builder.PositionAtEnd(startBlock);
-
-            //if(functionDeclarationStatement.ReturnType is TypeExpression returnTypeExpression && returnTypeExpression.Type != ReservedTypes.Fn)
-            //{
-            //    functionDeclarationStatement.ReturnReference = Builder.BuildAlloca(ResolveLLVMTypeFromExpression(functionDeclarationStatement.ReturnType), "retval");
-            //}
-            //functionDeclarationStatement.ReturnBlock = functionDeclarationStatement.LLVMFunction.AppendBasicBlock("return");
-
             CurrentFunction = functionDeclarationStatement;
 
             foreach(VariableDeclarationStatement parameter in functionDeclarationStatement.Body.Locals.Where(local => local.IsParameter))
@@ -379,42 +387,30 @@ namespace CommonC.LLVMIR.CodeGen
                 throw new Exception($"Variable {identifierExpression.Name} does not exist in the current scope.");
             }
 
-            if(assignmentStatement.Variable is IndexExpression indexExpression)
+            if (assignmentStatement.Variable is IndexExpression indexExpression)
             {
-                if(indexExpression.Expression is IdentifierExpression indexIdentifierExpression)
+                if (indexExpression.Expression is IdentifierExpression indexIdentifierExpression)
                 {
-                    List<VariableDeclarationStatement> matchingVariables = variables.Where(v => v.Name == indexIdentifierExpression.Name).ToList();
-                    if (matchingVariables.Any())
+                    var variable = variables.FirstOrDefault(v => v.Name == indexIdentifierExpression.Name);
+                    if (variable != null)
                     {
-                        VariableDeclarationStatement variable = matchingVariables.First();
-
+                        LLVMTypeRef elementType = ResolveLLVMTypeFromExpression(variable.Type, variables);
                         LLVMValueRef index = EmitExpression(indexExpression.Index, variables);
-                        LLVMValueRef elementPointer = Builder.BuildInBoundsGEP2(ResolveLLVMTypeFromExpression(variable.Type, variables), variable.LLVMAlloca, [index]);
 
-                        LLVMValueRef assignment = EmitExpression(assignmentStatement.Expression, variables);
+                        LLVMValueRef heapPointer = Builder.BuildLoad2(LLVMTypeRef.CreatePointer(elementType, 0), variable.LLVMAlloca, "ptr.from.stack");
 
-                        Builder.BuildStore(assignment, elementPointer);
+                        LLVMValueRef elementPointer = Builder.BuildInBoundsGEP2(elementType, heapPointer, [index]);
+
+                        LLVMValueRef assignmentValue = EmitExpression(assignmentStatement.Expression, variables);
+
+                        Builder.BuildStore(assignmentValue, elementPointer);
 
                         return;
                     }
-
-                    throw new Exception($"Variable {indexIdentifierExpression.Name} does not exist in the current scope.");
+                    throw new Exception($"Variable {indexIdentifierExpression.Name} does not exist.");
                 }
-                throw new Exception($"Index expressions are not supported as assignment variables when the index is not an identifier expression.");
-                //LLVMValueRef currentValue = Builder.BuildLoad2(ResolveLLVMTypeFromExpression(indexExpression.Expression, variables), elementPtr);
-                //LLVMValueRef newValue = EmitArithmeticExpression(new ArithmeticExpression
-                //{
-                //    Left = new IdentifierExpression { Name = "" },
-                //    Right = assignmentStatement.Expression,
-                //    Operator = assignmentStatement.Operator == AssignmentOperator.CompoundAdd ? ArithmeticOperator.Addition :
-                //               assignmentStatement.Operator == AssignmentOperator.CompoundSubtract ? ArithmeticOperator.Subtraction :
-                //               assignmentStatement.Operator == AssignmentOperator.CompoundMultiply ? ArithmeticOperator.Multiplication :
-                //               assignmentStatement.Operator == AssignmentOperator.CompoundDivide ? ArithmeticOperator.Division :
-                //               assignmentStatement.Operator == AssignmentOperator.CompoundModulo ? ArithmeticOperator.Modulus :
-                //               throw new Exception($"Unsupported assignment operator {assignmentStatement.Operator}.")
-                //}, variables);
-                //Builder.BuildStore(newValue, elementPtr);
             }
+
 
             throw new Exception($"{assignmentStatement.Variable.GetType().Name} is not supported as an assignment variable.");
         }
@@ -466,6 +462,7 @@ namespace CommonC.LLVMIR.CodeGen
             Builder.PositionAtEnd(loopBodyBlock);
 
             EmitStatements(forStatement.Body.Statements, forStatement.Body.Locals);
+
             if(forStatement.Body.Statements.Count == 0 || forStatement.Body.Statements.Last() is not ReturnStatement)
             {
                 Builder.BuildBr(loopIncrementBlock);
@@ -504,8 +501,9 @@ namespace CommonC.LLVMIR.CodeGen
             Builder.PositionAtEnd(loopEndBlock);
         }
 
-        void EmitStatements(StatementList statements, List<VariableDeclarationStatement> variables)
+        void EmitStatements(StatementList statements, List<VariableDeclarationStatement> variables, bool isUpperScope = false)
         {
+            ReferenceManager.EnterScope();
             foreach (Statement statement in statements)
             {
                 if(statement is WhileStatement whileStatement)
@@ -522,8 +520,9 @@ namespace CommonC.LLVMIR.CodeGen
 
                 if(statement is ReturnStatement returnStatement)
                 {
+                    ReferenceManager.ExitScope();
                     EmitReturnStatement(returnStatement, variables);
-                    continue;
+                    return;
                 }
 
                 if(statement is AssignmentStatement assignmentStatement)
@@ -558,6 +557,11 @@ namespace CommonC.LLVMIR.CodeGen
 
 
                 throw new Exception($"Statement {statement.GetType().Name} is not supported in when emitting LLVM statements.");
+            }
+
+            if(!isUpperScope)
+            {
+                ReferenceManager.ExitScope();
             }
         }
 
@@ -644,32 +648,48 @@ namespace CommonC.LLVMIR.CodeGen
 
         LLVMValueRef EmitIndexExpression(IndexExpression indexExpression, List<VariableDeclarationStatement> variables)
         {
+            LLVMTypeRef elementType = ResolveLLVMTypeFromExpression(indexExpression.Expression, variables);
+
+            LLVMValueRef variableAddress = EmitExpression(indexExpression.Expression, variables, true);
+
+            LLVMValueRef arrayPtr = Builder.BuildLoad2(LLVMTypeRef.CreatePointer(elementType, 0), variableAddress, "array.ptr.load");
+
             LLVMValueRef index = EmitExpression(indexExpression.Index, variables);
-            LLVMTypeRef arrayType = ResolveLLVMTypeFromExpression(indexExpression.Expression, variables);
+            LLVMValueRef elementPtr = Builder.BuildInBoundsGEP2(elementType, arrayPtr, new[] { index }, "element.ptr");
 
-            Console.WriteLine($"------------------- array type: {arrayType.PrintToString()}");
+            EmitPanic("Bounds checking is not implemented yet, accessing array element without bounds checking.", 5);
 
-            LLVMValueRef elementPointer = Builder.BuildInBoundsGEP2(arrayType, EmitExpression(indexExpression.Expression, variables, true), new LLVMValueRef[] { index }, "load.index.gep");
-            return Builder.BuildLoad2(arrayType, elementPointer, "load.index");
+            return Builder.BuildLoad2(elementType, elementPtr, "element.val");
         }
 
-        LLVMValueRef EmitArrayInitializerExpression(ArrayInitializerExpression arrayInitializerExpression, List<VariableDeclarationStatement> variables)
+        unsafe LLVMValueRef EmitArrayInitializerExpression(ArrayInitializerExpression arrayInitializerExpression, List<VariableDeclarationStatement> variables)
         {
-            LLVMValueRef index = EmitExpression(arrayInitializerExpression.Index.Index, variables, false);
-            LLVMValueRef arrayPtr = Builder.BuildAlloca(ResolveLLVMTypeFromExpression(arrayInitializerExpression.Index.Expression, variables), "array.initializer");
-            arrayPtr.SetOperand(0, index);
+            var elementType = ResolveLLVMTypeFromExpression(arrayInitializerExpression.Index.Expression, variables);
+            LLVMValueRef numElements = EmitExpression(arrayInitializerExpression.Index.Index, variables, false);
+            LLVMValueRef numElementsI64 = Builder.BuildIntCast(numElements, LLVMTypeRef.Int64, "num.elements.cast");
+            LLVMValueRef sizeInBytes = Builder.BuildMul(numElementsI64, elementType.SizeOf, "malloc.size");
 
-            if(arrayInitializerExpression.Array.Expressions != null && arrayInitializerExpression.Array.Expressions.Count > 0)
+            LLVMValueRef arrayPtr = Builder.BuildMalloc(elementType, "array.ptr");
+
+            LLVMValueRef finalSize = Builder.BuildIntCast(sizeInBytes, LLVMTypeRef.Int32, "final.size");
+            arrayPtr.SetOperand(0, finalSize);
+            ReferenceManager.AddMalloc(arrayPtr);
+
+
+            if (arrayInitializerExpression.Array.Expressions != null)
             {
-                for(int i = 0; i < arrayInitializerExpression.Array.Expressions.Count; i++)
+                for (int i = 0; i < arrayInitializerExpression.Array.Expressions.Count; i++)
                 {
-                    LLVMValueRef elementPtr = Builder.BuildInBoundsGEP2(LLVMTypeRef.CreateArray2(ResolveLLVMTypeFromExpression(arrayInitializerExpression.Index.Expression, variables), (ulong)arrayInitializerExpression.Array.Expressions.Count), arrayPtr, new LLVMValueRef[] { LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0, false), LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, (ulong)i, false) }, "array.initializer.gep");
+                    LLVMValueRef elementPtr = Builder.BuildInBoundsGEP2(elementType, arrayPtr,
+                        new[] { LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, (ulong)i, false) }, $"array.init.gep.{i}");
+
                     Builder.BuildStore(EmitExpression(arrayInitializerExpression.Array.Expressions[i], variables), elementPtr);
                 }
             }
 
             return arrayPtr;
         }
+
 
         LLVMValueRef EmitCallExpression(CallExpression callExpression, List<VariableDeclarationStatement> variables)
         {

@@ -83,7 +83,12 @@ namespace CommonC.App
 
             File.WriteAllText($"{appName}.ll", module.ToString());
 
-            Console.WriteLine($"LLVM IR\n=========\n{module}");
+            string moduleIR = string.Join(Environment.NewLine,
+            module.ToString().Split('\n')
+                .Select((line, index) => $"{index}: {line}"));
+
+
+            Console.WriteLine($"LLVM IR\n=========\n{moduleIR}");
 
             StartApp($"{Environment.CurrentDirectory}\\{appName}");
         }

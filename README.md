@@ -6,15 +6,7 @@
 
 ___
 
-The current iteration of Common C proves to be more performant than nearly any other language.
-
-The benchmark has been performed using recursive fibonacci with the 45th number as input. Although fibonacci may prove an inaccurate scale of measurement, more tests will be added at a later date. Maximum optimization has been enabled for the forementioned languages.
-
-| Language | Performance (lower is better) |
-| --- | --- |
-| Common C | 1x |
-| Rust | 5.3x |
-| Python | 96x |
+For performance benchmarks, see the [Performance](Documentation/Performance.md) markdown file.
 
 ___
 
