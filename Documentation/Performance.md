@@ -1,7 +1,7 @@
 # Performance
 The current iteration of Common C proves to be more performant than nearly any other language.
 
-Why is Common C faster than C? No idea.
+Why is Common C faster than C? Common C produces less instructions than C whilst maintaining the same result. Only god knows why clang doesn't optimize this out. LLVM samples for comparisons will be posted soon.
 
 This was the result of each benchmark:
 | Language              | Performance (lower is better) | Time    |

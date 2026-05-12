@@ -1142,6 +1142,7 @@ namespace CommonC.Parser
                     TokenReader.Consume();
                 }
 
+                int fieldIndex = 0;
                 for(; ; )
                 {
                     if(ParseExpression(out Expression expression, true))
@@ -1155,6 +1156,7 @@ namespace CommonC.Parser
                             {
                                 if (ParseVariableDeclarationStatement(expression, nameExpression, out VariableDeclarationStatement variableDeclarationStatement))
                                 {
+                                    variableDeclarationStatement.FieldIndex = fieldIndex++;
                                     structStatement.Fields.Add(variableDeclarationStatement);
                                 }
                             }

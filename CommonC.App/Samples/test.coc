@@ -1,16 +1,13 @@
-use arrays
+struct Test {
+    i32 age,
+    i32 number
+}
 
 fn main() {
-    i32 arr = i32[5] {
-        1, 
-        2, 
-        3, 
-        4, 
-        5 
-    };
+    Test t = Test {
+        age: 5,
+        number: 10
+    }
 
-    i32 newArr = resizeArrayi32(arr, 5, 10);
-
-    newArr[7] = 42;
-    logl(newArr[7]);
+    logl(t.age)
 }

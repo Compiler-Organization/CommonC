@@ -26,6 +26,8 @@ namespace CommonC.Parser.AST.Statements
 
         public FieldDefinition Field { get; set; } = null!;
 
+        public int FieldIndex { get; set; } = 0;
+
         internal LLVMValueRef LLVMAlloca;
 
         internal LLVMTypeRef LLVMType;

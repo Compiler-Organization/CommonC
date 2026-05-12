@@ -24,7 +24,10 @@ namespace CommonC.App
             Console.Clear();
 
             // CreateDotNet();
-            CreateLLVM();
+            // CreateLLVM();
+
+
+            Console.WriteLine($"LLVM IR\n=========\n{CreateLLVMModule()}");
         }
 
         static void RunLLVM()
@@ -60,6 +63,26 @@ namespace CommonC.App
             ConsoleColor.Green.WriteLine($"\nExecution completed in;");
             ConsoleColor.Green.WriteLine($"Seconds; {(stopwatch.ElapsedMilliseconds) / (double)1000}s");
             ConsoleColor.Green.WriteLine($"Milliseconds; {stopwatch.ElapsedMilliseconds}ms");
+        }
+
+        static LLVMModuleRef CreateLLVMModule()
+        {
+            string appName = "test";
+
+            LLVMIRCommonCCompilerSettings settings = new LLVMIRCommonCCompilerSettings
+            {
+                MainFilePath = Environment.CurrentDirectory + "\\Samples\\test.coc",
+                WorkingDirectory = Environment.CurrentDirectory + "\\Samples",
+                LLVMIRCodeGenSettings = new LLVMIRCodeGenSettings
+                {
+                    Name = appName,
+                    EntryPoint = "main",
+                    Version = new Version(1, 0, 0, 0)
+                }
+            };
+
+            LLVMIRCommonCCompiler compiler = new LLVMIRCommonCCompiler(settings);
+            return compiler.BuildLLVMModule();
         }
 
         static void CreateLLVM()
