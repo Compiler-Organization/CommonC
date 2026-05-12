@@ -1,41 +1,22 @@
-fn Sieve(i32 limit) {
-	if (limit <= 2) {
-		logl("Primes up to ", limit, ":", 0)
-		return
-	}
+// i32 factorize(i32 n) -> Factorizes the given number and returns the product of its factors.
+// isPrime(i32 n) -> Checks if the given number is prime.
 
-	bool isComposite = bool[limit] {}
-	i32 primeSum = 2
-	i32 currentCandidate = 3
-	
-	while (currentCandidate < limit) {
-		if (!isComposite[currentCandidate]) {
-			primeSum = (primeSum + currentCandidate)
-			
-			if (currentCandidate <= 46340) {
-				i32 multiple = (currentCandidate * currentCandidate)
-				while (multiple < limit) {
-					isComposite[multiple] = true
-					
-					i32 step = (2 * currentCandidate)
-					i32 remainingSpace = (limit - step)
-					
-					if (multiple <= remainingSpace) {
-						multiple = (multiple + step)
-					} else {
-						multiple = limit
-					}
-				}
-			}
-		}
-
-		i32 safeLimit = (limit - 2)
-		if (currentCandidate <= safeLimit) {
-			currentCandidate = (currentCandidate + 2)
-		} else {
-			currentCandidate = limit
+i32 factorize(i32 n) {
+	i32 result = 1
+	for 2..n, i {
+		if (n % i) == 0 {
+			result *= i
 		}
 	}
+	return result
+}
 
-	logl("Primes up to ", limit, ":", primeSum)
+bool isPrime(i32 n) {
+	if n <= 1
+		return false
+	for 2..n, i {
+		if (n % i) == 0
+			return false
+	}
+	return true
 }

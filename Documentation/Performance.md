@@ -1,6 +1,8 @@
 # Performance
 The current iteration of Common C proves to be more performant than nearly any other language.
 
+Why is Common C faster than C? No idea.
+
 This was the result of each benchmark:
 | Language              | Performance (lower is better) | Time    |
 | --------------------- | ----------------------------- | ------- |

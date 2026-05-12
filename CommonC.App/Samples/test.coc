@@ -1,7 +1,16 @@
-
+use arrays
 
 fn main() {
-    i32 n = i32[5] { 1, 2, 3, 4, 5 }
-    i32 len = #n
-    logl("Size of n: ", len)
+    i32 arr = i32[5] {
+        1, 
+        2, 
+        3, 
+        4, 
+        5 
+    };
+
+    i32 newArr = resizeArrayi32(arr, 5, 10);
+
+    newArr[7] = 42;
+    logl(newArr[7]);
 }

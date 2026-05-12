@@ -1,0 +1,9 @@
+// Temporary solution to resize arrays.
+i32 resizeArrayi32(i32 arr, i32 currentSize, i32 newSize) {
+    i32 newArr = i32[newSize]{}
+    for 0..currentSize, i {
+        i32 val = arr[i];
+        newArr[i] = val;
+    }
+    return newArr
+}

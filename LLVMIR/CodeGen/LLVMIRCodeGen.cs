@@ -694,8 +694,6 @@ namespace CommonC.LLVMIR.CodeGen
             LLVMValueRef index = EmitExpression(indexExpression.Index, variables);
             LLVMValueRef elementPtr = Builder.BuildInBoundsGEP2(elementType, arrayPtr, new[] { index }, "element.ptr");
 
-            EmitPanic("Bounds checking is not implemented yet, accessing array element without bounds checking.", 5);
-
             return Builder.BuildLoad2(elementType, elementPtr, "element.val");
         }
 
@@ -706,9 +704,9 @@ namespace CommonC.LLVMIR.CodeGen
             LLVMValueRef numElementsI64 = Builder.BuildIntCast(numElements, LLVMTypeRef.Int64, "num.elements.cast");
             LLVMValueRef sizeInBytes = Builder.BuildMul(numElementsI64, elementType.SizeOf, "malloc.size");
 
+            LLVMValueRef finalSize = Builder.BuildIntCast(sizeInBytes, LLVMTypeRef.Int32, "final.size");
             LLVMValueRef arrayPtr = Builder.BuildMalloc(elementType, "array.ptr");
 
-            LLVMValueRef finalSize = Builder.BuildIntCast(sizeInBytes, LLVMTypeRef.Int32, "final.size");
             arrayPtr.SetOperand(0, finalSize);
             ReferenceManager.AddMalloc(arrayPtr);
 
@@ -780,7 +778,7 @@ namespace CommonC.LLVMIR.CodeGen
         {
             LLVMValueRef left = EmitExpression(relationalExpression.Left, variables);
             LLVMValueRef right = EmitExpression(relationalExpression.Right, variables);
-            Console.WriteLine("-------------- build relational");
+            
             switch(relationalExpression.Operator)
             {
                 case RelationalOperators.Equal:

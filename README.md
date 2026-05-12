@@ -13,40 +13,35 @@ ___
 The common C language is developed to deliver the performance of natively compiled languages whilst maintaining the ease of memory management without workarounds like garbage collection and borrow checkers.
 Common C is object oriented and statically typed.
 
-Common C will be targeting both x86_64 for Intel and AMD aswell as .NET (CIL).
+Common C will be targeting both LLVM aswell as .NET (CIL).
 
-Currently the .NET target is under development, with the x86_64 target to be developed as soon as the .NET target is satisfactory.
+The language is currently in a prototype stage, meaning everything is subject to change. Opinions from the public are welcome!
 
 > Contributions are welcome with open arms!
 ___
 ## Thoughts behind Common C
 Other languages are either easy to write, but perform poorly (E.g Python, JavaScript, etc) or they perform well but are difficult to write (E.g C, C++, Rust, etc). Common C is designed to be easy to write and perform well without workarounds like garbage collection and borrow checkers.
 
-The philosophy behind the syntax is to be easily readable and writable. Syntax is developed so that the shortest combination of keystrokes produces functionality. We keep in mind that not every developed posesses giant hands that reach across the keyboard.
+The philosophy behind the syntax is to be easily readable and writable. Syntax is developed so that the shortest combination of keystrokes produces functionality whilst maintaining readability. We keep in mind that not every developed posesses giant hands that reach across the keyboard.
 
 An example of this is using `log` as the standard output function. C# uses Console.WriteLine and Rust uses println!. Both of these are long to write and require more keystrokes than simply `log`.
 
-The grand wish of Common C is to be a language where JavaScript, C#, Lua and developers of other garbage-collected languages can write low-level code without needing to relearn an entirely new language and their principles. The late-stage of Common C will be a heterogeneous compiler with, for example, an integrated array language interopable and indifferent to the "main" language.
+The grand wish of Common C is to be a language where JavaScript, C#, Lua and developers of other garbage-collected languages can write low-level code without needing to relearn an entirely new language and their mental model. The late-stage of Common C will be a heterogeneous compiler with, for example, an integrated array language interopable and indifferent to the "main" language.
 
-___
-## "New" functionality
-Unpacking tables has never been easier! Here is an example of unpacking a table in Common C:
-```c
-// array = { "Hello", "there", "world!", "I'm", "a", "machine", "with", "finite", "possibilities!" }
+At some point you will be able to use .NET libraries aswell as C (or equal) libraries in the same project, as everything will be lifted back to AST before being lowered to the specified target (LLVM or CIL).
 
-log(array->3..5)
+Could Common C at some point be the universally compatible language that can be used anywhere without rewriting code? That is the dream.
 
-// I'm a machine
-```
-Here we are unpacking the array from index 3 to index 5 and logging it to the console.
 ___
 
 # Language design
 Common C uses top-level, global and public declarations for functions, structs and globals - meaning everything can be accessed from anywhere. Given CommonC's ergonomic style, it has been decided that having access to everything anywhere is the "free-est" way of programming. You do not have to declare the visibility of user-types like functions and globals. The only exception is uninitialized user-types like struct declarations.
 
-There really is no point in using `var` or equal in a modern, statically typed language apart from extra syntax clutter - hence the type is directly stated instead.
+There really is no point in using `var` or equal in a modern language apart from extra syntax clutter and "type confusion" - hence the choice of the language being statically typed.
 
-Semicolon after statements is optional simply because some people prefer it, though it has no function.
+Semicolon after statements is optional simply because some people prefer it, though it has no real function during compilation and is ignored.
+
+The LLVM-bit of the compiler uses a reference manager which frees memory when the current scope is exited. The reference manager is simple as of now, but will be developed further in the future.
 
 **Table of contents**
 * Expressions
