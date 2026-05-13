@@ -253,7 +253,6 @@ namespace CommonC.LLVMIR.CodeGen
             {
                 LLVMTypeRef[] fields = structReference.Fields.Select(f => ResolveLLVMTypeFromExpression(f.Type, [])).ToArray();
                 structReference.LLVMStructType.StructSetBody(fields, false);
-                Builder.
                 structReference.LLVMStructGlobal = Module.AddGlobal(structReference.LLVMStructType, structReference.Name);
             }
         }
