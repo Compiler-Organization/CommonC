@@ -1,4 +1,5 @@
-﻿using CommonC.Parser.AST.Statements;
+﻿using CommonC.Parser.AST.Expressions;
+using CommonC.Parser.AST.Statements;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -20,6 +21,121 @@ namespace CommonC.Liveness
             Statements = statements;
         }
 
+        public void Analyse()
+        {
+            AnalyseStatements(Statements);
+        }
 
+        void AnalyseStatements(StatementList statements)
+        {
+            foreach(Statement statement in statements)
+            {
+                AnalyseStatement(statement);
+            }
+        }
+
+        void AnalyseStatement(Statement statement)
+        {
+            if(statement is FunctionDeclarationStatement functionDeclarationStatement)
+            {
+                AnalyseFunctionDeclarationStatement(functionDeclarationStatement);
+                return;
+            }
+
+            if(statement is VariableDeclarationStatement variableDeclarationStatement)
+            {
+                AnalyseVariableDeclarationStatement(variableDeclarationStatement);
+                return;
+            }
+
+            if(statement is AssignmentStatement assignmentStatement)
+            {
+                AnalyseAssignmentStatement(assignmentStatement);
+                return;
+            }
+
+            if(statement is ReturnStatement returnStatement)
+            {
+                AnalyseReturnStatement(returnStatement);
+                return;
+            }
+
+            if(statement is IfStatement ifStatement)
+            {
+                AnalyseIfStatement(ifStatement);
+                return;
+            }
+
+            if(statement is ForStatement forStatement)
+            {
+                AnalyseForStatement(forStatement);
+                return;
+            }
+
+            if(statement is WhileStatement whileStatement)
+            {
+                AnalyseWhileStatement(whileStatement);
+                return;
+            }
+        }
+
+        void AnalyseWhileStatement(WhileStatement whileStatement)
+        {
+
+        }
+
+        void AnalyseForStatement(ForStatement forStatement)
+        {
+
+        }
+
+        void AnalyseIfStatement(IfStatement ifStatement)
+        {
+
+        }
+
+        void AnalyseReturnStatement(ReturnStatement returnStatement)
+        {
+
+        }
+
+        void AnalyseAssignmentStatement(AssignmentStatement assignmentStatement)
+        {
+
+        }
+        void AnalyseVariableDeclarationStatement(VariableDeclarationStatement variableDeclarationStatement)
+        {
+
+        }
+
+        void AnalyseFunctionDeclarationStatement(FunctionDeclarationStatement functionDeclarationStatement)
+        {
+
+        }
+
+        void AnalyseExpression(Expression expression)
+        {
+            if(expression is IdentifierExpression identifierExpression)
+            {
+                AnalyseIdentifierExpression(identifierExpression);
+                return;
+            }
+
+            if(expression is MemberExpression memberExpression)
+            {
+                AnalyseMemberExpression(memberExpression);
+                return;
+            }
+        }
+
+        void AnalyseIdentifierExpression(IdentifierExpression identifierExpression)
+        {
+
+        }
+
+        void AnalyseMemberExpression(MemberExpression memberExpression)
+        {
+
+        }
     }
 }

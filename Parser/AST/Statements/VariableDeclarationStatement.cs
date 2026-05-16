@@ -10,14 +10,17 @@ namespace CommonC.Parser.AST.Statements
 {
     public class VariableDeclarationStatement : Statement
     {
+        // Core AST properties
         public Expression Type { get; set; } = new Expression();
 
         public string Name { get; set; } = "";
 
         public Expression? Expression { get; set; } = null;
 
+        // Internals for CIL code genration
         public CilLocalVariable CilLocalVariable { get; set; } = null!;
 
+        // Semantics
         public bool IsGlobal { get; set; } = false;
 
         public bool IsParameter { get; set; } = false;
@@ -30,6 +33,10 @@ namespace CommonC.Parser.AST.Statements
 
         public int FieldIndex { get; set; } = 0;
 
+        // Liveness
+
+
+        // Internals for LLVM code generation
         internal LLVMValueRef LLVMAlloca;
 
         internal LLVMTypeRef LLVMType;

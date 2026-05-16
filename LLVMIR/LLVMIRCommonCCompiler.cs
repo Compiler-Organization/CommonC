@@ -1,5 +1,6 @@
 ﻿using CommonC.Lexer;
 using CommonC.Lexer.Objects;
+using CommonC.Liveness;
 using CommonC.LLVMIR.CodeGen;
 using CommonC.Optimizer;
 using CommonC.Parser;
@@ -52,6 +53,9 @@ namespace CommonC.LLVMIR
 
                 SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer(statements);
                 semanticAnalyzer.Analyze();
+
+                LivenessAnalyser livenessAnalyser = new LivenessAnalyser(statements);
+                livenessAnalyser.Analyse();
 
                 LLVMIRCodeGen lLVMIRCodeGen = new LLVMIRCodeGen(Settings.LLVMIRCodeGenSettings, statements);
 
