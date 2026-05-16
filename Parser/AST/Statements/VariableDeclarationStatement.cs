@@ -18,6 +18,8 @@ namespace CommonC.Parser.AST.Statements
 
         public CilLocalVariable CilLocalVariable { get; set; } = null!;
 
+        public bool IsGlobal { get; set; } = false;
+
         public bool IsParameter { get; set; } = false;
 
         public int ParameterIndex { get; set; } = 0;

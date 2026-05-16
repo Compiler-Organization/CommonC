@@ -24,10 +24,10 @@ namespace CommonC.App
             Console.Clear();
 
             // CreateDotNet();
-            // CreateLLVM();
+             CreateLLVM();
 
 
-            Console.WriteLine($"LLVM IR\n=========\n{CreateLLVMModule()}");
+            // Console.WriteLine($"LLVM IR\n=========\n{CreateLLVMModule()}");
         }
 
         static void RunLLVM()

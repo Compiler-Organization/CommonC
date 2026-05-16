@@ -1,13 +1,6 @@
-struct Test {
-    i32 age,
-    i32 number
-}
+i32 barr = 50
 
 fn main() {
-    Test t = Test {
-        age: 5,
-        number: 10
-    }
 
-    logl(t.age)
+    logl(barr)
 }

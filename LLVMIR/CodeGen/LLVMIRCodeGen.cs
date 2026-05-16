@@ -49,6 +49,8 @@ namespace CommonC.LLVMIR.CodeGen
 
             CreateStructReferences();
             CreateFunctionReferences();
+            CreateGlobalReferences();
+
             EmitStatements(Statements, new List<VariableDeclarationStatement>(), true);
 
             return Module;
@@ -156,6 +158,10 @@ namespace CommonC.LLVMIR.CodeGen
                         }
                         throw new Exception($"Could not parse array size '{indexNumberExpression.Value}' as an integer.");
                     }
+                }
+                else
+                {
+                    return ResolveLLVMTypeFromExpression(indexExpression.Expression, variables);
                 }
 
                 throw new Exception($"Array size expression of type {indexExpression.Index.GetType().Name} is not supported when resolving LLVM types from expressions.");
@@ -273,6 +279,16 @@ namespace CommonC.LLVMIR.CodeGen
                 functionDeclarationStatement.LLVMFunctionType = functionType;
 
                 Functions.Add(functionDeclarationStatement.Name, functionDeclarationStatement);
+            }
+        }
+
+        void CreateGlobalReferences()
+        {
+            foreach(VariableDeclarationStatement variableDeclarationStatement in Statements.OfType<VariableDeclarationStatement>())
+            {
+                LLVMTypeRef type = ResolveLLVMTypeFromExpression(variableDeclarationStatement.Type, null);
+                variableDeclarationStatement.LLVMType = LLVMTypeRef.CreatePointer(type, 0);
+                variableDeclarationStatement.IsGlobal = true;
             }
         }
 
@@ -428,22 +444,43 @@ namespace CommonC.LLVMIR.CodeGen
         {
             if(variableDeclarationStatement.Expression != null)
             {
-                if(variableDeclarationStatement.Type is IdentifierExpression typeIdentifier
-                    && Structs.ContainsKey(typeIdentifier.Name))
+                if (variableDeclarationStatement.IsGlobal)
                 {
-                    Console.WriteLine($"------------------ variable declaration was struct! {typeIdentifier.Name}");
-                    LLVMTypeRef structType = ResolveLLVMTypeFromExpression(variableDeclarationStatement.Type, variables);
-                    LLVMValueRef structAlloca = Builder.BuildAlloca(LLVMTypeRef.CreatePointer(structType, 0), variableDeclarationStatement.Name);
+                    if (!Functions.ContainsKey(Settings.EntryPoint))
+                    {
+                        throw new Exception($"Entry point function {Settings.EntryPoint} does not exist!");
+                    }
 
-                    LLVMValueRef structValue = EmitExpression(variableDeclarationStatement.Expression, variables);
-                    LLVMValueRef structStore = Builder.BuildStore(structValue, structAlloca);
+                    LLVMTypeRef globalType = ResolveLLVMTypeFromExpression(variableDeclarationStatement.Type, variables);
+                    LLVMValueRef global = Module.AddGlobal(globalType, variableDeclarationStatement.Name);
 
-                    variableDeclarationStatement.LLVMAlloca = structAlloca;
-                    variableDeclarationStatement.LLVMType = structType;
+                    global.Initializer = LLVMValueRef.CreateConstNull(globalType);
+                    global.IsGlobalConstant = false;
+
+                    variableDeclarationStatement.LLVMAlloca = global;
+                    variableDeclarationStatement.LLVMType = globalType;
+
+                    FunctionDeclarationStatement entryPointFunction = Functions[Settings.EntryPoint];
+                    Builder.PositionAtEnd(entryPointFunction.LLVMFunction.EntryBasicBlock);
+
+                    LLVMValueRef val = EmitExpression(variableDeclarationStatement.Expression, variables);
+                    Builder.BuildStore(val, global);
+
+                    return;
                 }
 
                 LLVMTypeRef type = ResolveLLVMTypeFromExpression(variableDeclarationStatement.Type, variables);
-                LLVMValueRef alloca = Builder.BuildAlloca(type, variableDeclarationStatement.Name);
+                LLVMValueRef alloca;
+
+                if (variableDeclarationStatement.Type is IdentifierExpression typeIdentifier
+                    && Structs.ContainsKey(typeIdentifier.Name))
+                {
+                    alloca = Builder.BuildAlloca(LLVMTypeRef.CreatePointer(type, 0), variableDeclarationStatement.Name);
+                }
+                else
+                {
+                    alloca = Builder.BuildAlloca(type, variableDeclarationStatement.Name);
+                }
 
                 LLVMValueRef value = EmitExpression(variableDeclarationStatement.Expression, variables);
                 LLVMValueRef store = Builder.BuildStore(value, alloca);

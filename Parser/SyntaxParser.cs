@@ -1252,7 +1252,8 @@ namespace CommonC.Parser
 
                 if(expression is TypeExpression 
                     || expression is IdentifierExpression
-                    || expression is MemberExpression)
+                    || expression is MemberExpression
+                    || expression is IndexExpression)
                 {
 
                     if(ParseIdentifierExpression(out IdentifierExpression nameExpression))

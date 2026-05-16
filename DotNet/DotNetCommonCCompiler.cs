@@ -38,8 +38,8 @@ namespace CommonC.DotNet
                 PrettyPrinter prettyPrinter = new PrettyPrinter(statements, PrettyPrinterSettings.Beautify);
                 Console.WriteLine(prettyPrinter.Print());
 
-                SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer();
-                semanticAnalyzer.Analyze(statements);
+                SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer(statements);
+                semanticAnalyzer.Analyze();
 
                 DotNetCodeGen dotNetCodeGen = new DotNetCodeGen(Settings.DotNetCodeGenSettings);
 

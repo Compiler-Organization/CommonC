@@ -8,9 +8,16 @@ namespace CommonC.Semantic
 {
     public class SemanticAnalyzer
     {
-        public void Analyze(StatementList statementList)
+        StatementList Statements { get; set; }
+
+        public SemanticAnalyzer(StatementList statements)
         {
-            PassVariablesToInnerScope(statementList, new List<VariableDeclarationStatement>());
+            Statements = statements;
+        }
+
+        public void Analyze()
+        {
+            PassVariablesToInnerScope(Statements, Statements.OfType<VariableDeclarationStatement>().ToList());
         }
 
         void PassVariablesToInnerScope(StatementList statementList, List<VariableDeclarationStatement> variableDeclarationStatements)
