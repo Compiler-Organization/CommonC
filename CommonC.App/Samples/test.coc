@@ -1,6 +1,13 @@
 i32 barr = 50
 
-fn main() {
+struct Test {
+    i32 prop1
+}
 
-    logl(barr)
+fn main() {
+    Test test = Test {
+        prop1: 40
+    }
+
+    logl(test.prop1)
 }
