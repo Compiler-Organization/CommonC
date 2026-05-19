@@ -1,13 +1,10 @@
-i32 barr = 50
-
-struct Test {
-    i32 prop1
-}
+use compilerobjecttest
 
 fn main() {
-    Test test = Test {
-        prop1: 40
-    }
+    Person mother = CreatePerson("Karie", 42)
+    Person father = CreatePerson("Colton", 45)
 
-    logl(test.prop1)
+    Homestead home = CreateHomestead(mother, father)
+
+    LogHomestead(home)
 }

@@ -24,6 +24,9 @@
 		<None Update="Samples\arrays.coc">
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
+		<None Update="Samples\compilerobjecttest.coc">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
 		<None Update="Samples\fibonacci.coc">
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>

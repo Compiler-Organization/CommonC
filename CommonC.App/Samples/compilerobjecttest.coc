@@ -1,0 +1,32 @@
+// Compiler tests to determine functionality
+
+struct Person {
+	str Name,
+	i32 Age
+}
+
+struct Homestead {
+	Person Mother,
+	Person Father
+}
+
+Person CreatePerson(str name, i32 age) {
+	return Person {
+		Name: name,
+		Age: age
+	}
+}
+
+Homestead CreateHomestead(Person mother, Person father) {
+	return Homestead {
+		Mother: mother
+		Father: father
+	}
+}
+
+fn LogHomestead(Homestead homestead) {
+	str mothersName = homestead.Mother.Name
+	str fathersName = homestead.Father.Name
+	
+	logl(mothersName, " and ", fathersName, " lives together in a homestead.")
+}

@@ -24,8 +24,8 @@ namespace CommonC.App
             Console.Clear();
 
             // CreateDotNet();
-            // CreateLLVM();
-             RunLLVM();
+             CreateLLVM();
+            // RunLLVM();
 
             // Console.WriteLine($"LLVM IR\n=========\n{CreateLLVMModule()}");
         }
@@ -151,6 +151,12 @@ namespace CommonC.App
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.RedirectStandardOutput = true;
             process.StartInfo.RedirectStandardError = true;
+
+            if(!File.Exists($"{appName}.exe"))
+            {
+                ConsoleColor.Red.WriteLine($"File {appName}.exe does not exist!");
+                return;
+            }
 
             Stopwatch stopwatch = new Stopwatch();
             process.Start();

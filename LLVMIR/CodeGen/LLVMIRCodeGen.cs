@@ -40,7 +40,6 @@ namespace CommonC.LLVMIR.CodeGen
             Module = LLVMModuleRef.CreateWithName(Settings.Name);
             Builder = LLVMBuilderRef.Create(Module.Context);
             Context = Module.Context;
-
             ReferenceManager = new ReferenceManager(Builder);
 
             CreateExtern(name: "printf", returnType: LLVMTypeRef.Int32, parameters: [LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0)], isVarArg: true);
@@ -198,67 +197,76 @@ namespace CommonC.LLVMIR.CodeGen
             {
                 return ResolveLLVMTypeFromExpression(lengthExpression.Expression, variables);
             }
-            if(expression is MemberExpression memberExpression)
+            if (expression is MemberExpression memberExpression)
             {
-                if(memberExpression.Parent is IdentifierExpression parentIdentifier)
+                ExpressionList memberChain = memberExpression.Flatten();
+                StructStatement currentStruct;
+
+                if(memberChain.Count <= 0)
                 {
-                    if(variables == null)
-                    {
-                        throw new Exception("Must pass variables to llvm type resolver!");
-                    }
-
-                    List<VariableDeclarationStatement> matchingLocals = variables.Where(v => v.Name == parentIdentifier.Name).ToList();
-                    if(!matchingLocals.Any())
-                    {
-                        throw new Exception($"Variable {parentIdentifier.Name} does not exist when resolving llvm type of member parent expression.");
-                    }
-
-                    VariableDeclarationStatement matchingLocal = matchingLocals.First();
-                    if(matchingLocal.Type is IdentifierExpression typeIdentifier)
-                    {
-                        if(!Structs.ContainsKey(typeIdentifier.Name))
-                        {
-                            throw new Exception($"Struct {typeIdentifier.Name} does not exist");
-                        }
-
-                        StructStatement structRef = Structs[typeIdentifier.Name];
-
-                        if (memberExpression.Member is IdentifierExpression memberIdentifier)
-                        {
-                            List<VariableDeclarationStatement> matchingFields = structRef.Fields.Where(f => f.Name == memberIdentifier.Name).ToList();
-                            if (!matchingFields.Any())
-                            {
-                                throw new Exception($"Field {memberIdentifier.Name} does not exist in object {structRef.Name}");
-                            }
-
-                            VariableDeclarationStatement matchingField = matchingFields.First();
-
-                            return ResolveLLVMTypeFromExpression(matchingField.Type, variables);
-                        }
-                    }
-
-                    throw new Exception($"Local type {matchingLocal.Type.GetType().Name} is not supported when resolving llvm type of member parent expression.");
+                    throw new Exception("Invalid member expression when solving LLVM type, cannot be 0!");
                 }
 
-                throw new Exception($"Resolving member parent of type {memberExpression.Parent.GetType().Name} is not supported.");
+                if(memberChain.First() is IdentifierExpression firstIdentifier)
+                {
+                    
+
+                    currentStruct = Structs[firstIdentifier.Name];
+                }
+
+
+                foreach(Expression member in memberChain.Skip(1))
+                {
+                    if(member is IdentifierExpression memberIdentifier)
+                    {
+                        if(Structs.ContainsKey(memberIdentifier.Name))
+                        {
+                            currentStruct = Structs[memberIdentifier.Name];
+                            continue;
+                        }
+                    }
+                }
             }
 
             throw new Exception($"Expression {expression.GetType().Name} could not be resolved to an LLVM type.");
+        }
+
+        IdentifierExpression? GetInnerIdentifierExpression(Expression expression)
+        {
+            return expression switch
+            {
+                CallExpression expr => GetInnerIdentifierExpression(expr.Expression),
+                IndexExpression expr => GetInnerIdentifierExpression(expr.Expression),
+                ArithmeticExpression expr => GetInnerIdentifierExpression(expr.Left),
+                RelationalExpression expr => GetInnerIdentifierExpression(expr.Left),
+                ArrayExpression expr => GetInnerIdentifierExpression(expr.Expressions.Any() ? expr.Expressions.First() : throw new Exception($"Cannot resolve inner identifier expression of empty array")),
+                LengthExpression expr => GetInnerIdentifierExpression(expr.Expression),
+                MemberExpression expr => GetInnerIdentifierExpression(expr.Parent),
+                NegateExpression expr => GetInnerIdentifierExpression(expr.Expression),
+                NotExpression expr => GetInnerIdentifierExpression(expr.Expression),
+                ObjectInitializerExpression expr => GetInnerIdentifierExpression(expr.Expression),
+                ParameterExpression expr => GetInnerIdentifierExpression(expr.Type),
+                ParenthesizedExpression expr => GetInnerIdentifierExpression(expr.Expression),
+                SizeOfExpression expr => GetInnerIdentifierExpression(expr.Expression),
+                UnpackExpression expr => GetInnerIdentifierExpression(expr.Left),
+                TypeExpression => null,
+                IdentifierExpression expr => expr,
+                _ => throw new Exception($"Inner identifier expression of type {expression.GetType().Name} is not supported.")
+            };
         }
 
         void CreateStructReferences()
         {
             foreach(StructStatement structStatement in Statements.OfType<StructStatement>())
             {
-                LLVMTypeRef lLVMStructType = LLVMTypeRef.CreateStruct([], false);
-                structStatement.LLVMStructType = lLVMStructType;
                 Structs.Add(structStatement.Name, structStatement);
             }
 
             foreach(StructStatement structReference in Structs.Values)
             {
                 LLVMTypeRef[] fields = structReference.Fields.Select(f => ResolveLLVMTypeFromExpression(f.Type, [])).ToArray();
-                structReference.LLVMStructType.StructSetBody(fields, false);
+                structReference.LLVMStructType = LLVMTypeRef.CreateStruct(fields, false);
+
                 // structReference.LLVMStructGlobal = Module.AddGlobal(structReference.LLVMStructType, structReference.Name);
             }
         }
@@ -470,30 +478,34 @@ namespace CommonC.LLVMIR.CodeGen
                 return;
             }
 
-            LLVMTypeRef type = ResolveLLVMTypeFromExpression(variableDeclarationStatement.Type, variables);
-            LLVMValueRef alloca = Builder.BuildAlloca(type, variableDeclarationStatement.Name);
+            LLVMTypeRef type;
+
+            if (variableDeclarationStatement.Type is IndexExpression indexExpr)
+            {
+                IdentifierExpression? innerTypeIdent = GetInnerIdentifierExpression(indexExpr);
+                if (innerTypeIdent != null && Structs.ContainsKey(innerTypeIdent.Name))
+                {
+                    type = LLVMTypeRef.CreatePointer(Structs[innerTypeIdent.Name].LLVMStructType, 0);
+                }
+                else
+                {
+                    type = LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0);
+                }
+            }
+            else
+            {
+                type = ResolveLLVMTypeFromExpression(variableDeclarationStatement.Type, variables);
+            }
 
             if (variableDeclarationStatement.Expression != null)
             {
                 LLVMValueRef value = EmitExpression(variableDeclarationStatement.Expression, variables);
 
-                if (variableDeclarationStatement.Type is IdentifierExpression typeIdentifier
-                    && Structs.ContainsKey(typeIdentifier.Name))
-                {
-                    FunctionDeclarationStatement memcpyFunction = Functions["llvm.memcpy.p0.p0.i64"];
-                    LLVMValueRef structSize = type.SizeOf;
-                    LLVMValueRef isVolatile = LLVMValueRef.CreateConstInt(LLVMTypeRef.Int1, 0, false);
-
-                    Builder.BuildCall2(memcpyFunction.LLVMFunctionType, memcpyFunction.LLVMFunction, 
-                        new[] { alloca, value, structSize, isVolatile }, "");
-                }
-                else
-                {
-                    Builder.BuildStore(value, alloca);
-                }
+                variableDeclarationStatement.LLVMAlloca = Builder.BuildAlloca(type, variableDeclarationStatement.Name);
+                Builder.BuildStore(value, variableDeclarationStatement.LLVMAlloca);
             }
 
-            variableDeclarationStatement.LLVMAlloca = alloca;
+
             variableDeclarationStatement.LLVMType = type;
         }
 
@@ -540,15 +552,12 @@ namespace CommonC.LLVMIR.CodeGen
                     {
                         LLVMTypeRef elementType = ResolveLLVMTypeFromExpression(variable.Type, variables);
                         LLVMValueRef index = EmitExpression(indexExpression.Index, variables);
-
                         LLVMValueRef heapPointer = Builder.BuildLoad2(LLVMTypeRef.CreatePointer(elementType, 0), variable.LLVMAlloca, "ptr.from.stack");
 
                         LLVMValueRef elementPointer = Builder.BuildInBoundsGEP2(elementType, heapPointer, [index]);
-
                         LLVMValueRef assignmentValue = EmitExpression(assignmentStatement.Expression, variables);
 
                         Builder.BuildStore(assignmentValue, elementPointer);
-
                         return;
                     }
                     throw new Exception($"Variable {indexIdentifierExpression.Name} does not exist.");
@@ -563,10 +572,23 @@ namespace CommonC.LLVMIR.CodeGen
         {
             if(returnStatement.Expression != null)
             {
+                if(CurrentFunction != null)
+                {
+                    if(CurrentFunction.ReturnType is IdentifierExpression returnIdentifier)
+                    {
+                        if(Structs.ContainsKey(returnIdentifier.Name))
+                        {
+                            StructStatement structT = Structs[returnIdentifier.Name];
+
+                            LLVMValueRef structReturnValue = EmitExpression(returnStatement.Expression, variables);
+                            Builder.BuildRet(Builder.BuildLoad2(structT.LLVMStructType, structReturnValue, $"return_struct_{returnIdentifier.Name}"));
+                            return;
+                        }
+                    }
+                }
+
                 LLVMValueRef returnValue = EmitExpression(returnStatement.Expression, variables);
                 Builder.BuildRet(returnValue);
-                // Builder.BuildStore(returnValue, CurrentFunction.ReturnReference);
-                // Builder.BuildBr(CurrentFunction.ReturnBlock);
             }
             else
             {
@@ -726,138 +748,208 @@ namespace CommonC.LLVMIR.CodeGen
 
         LLVMValueRef EmitExpression(Expression expression, List<VariableDeclarationStatement> variables, bool reference = false)
         {
-            if(expression is StringExpression stringExpression)
+            return expression switch
             {
-                return EmitStringExpression(stringExpression);
-            }
-
-            if(expression is NumberExpression numberExpression)
-            {
-                return EmitNumberExpression(numberExpression);
-            }
-
-            if(expression is ArithmeticExpression arithmeticExpression)
-            {
-                return EmitArithmeticExpression(arithmeticExpression, variables);
-            }
-
-            if(expression is RelationalExpression relationalExpression)
-            {
-                return EmitRelationalExpression(relationalExpression, variables);
-            }
-
-            if(expression is IdentifierExpression identifierExpression)
-            {
-                return EmitIdentifierExpression(identifierExpression, variables, reference);
-            }
-
-            if(expression is BooleanExpression booleanExpression)
-            {
-                return EmitBooleanExpression(booleanExpression);
-            }
-
-            if(expression is CallExpression callExpression)
-            {
-                return EmitCallExpression(callExpression, variables);
-            }
-
-            if(expression is ArrayInitializerExpression arrayInitializerExpression)
-            {
-                return EmitArrayInitializerExpression(arrayInitializerExpression, variables);
-            }
-
-            if(expression is IndexExpression indexExpression)
-            {
-                return EmitIndexExpression(indexExpression, variables);
-            }
-
-            if(expression is ParenthesizedExpression parenthesizedExpression)
-            {
-                return EmitParenthesizedExpression(parenthesizedExpression, variables);
-            }
-
-            if(expression is NotExpression notExpression)
-            {
-                return EmitNotExpression(notExpression, variables);
-            }
-
-            if(expression is SizeOfExpression sizeOfExpression)
-            {
-                return EmitSizeOfExpression(sizeOfExpression, variables);
-            }
-
-            if(expression is LengthExpression lengthExpression)
-            {
-                return EmitLengthExpression(lengthExpression, variables);
-            }
-
-            if(expression is ObjectInitializerExpression objectInitializerExpression)
-            {
-                return EmitObjectInitializerExpression(objectInitializerExpression, variables);
-            }
-
-            if(expression is MemberExpression memberExpression)
-            {
-                return EmitMemberExpression(memberExpression, variables);
-            }
-
-            
-
-            throw new Exception($"Expression {expression.GetType().Name} is not supported when emitting LLVM expressions.");
+                StringExpression expr => EmitStringExpression(expr),
+                NumberExpression expr => EmitNumberExpression(expr),
+                ArithmeticExpression expr => EmitArithmeticExpression(expr, variables),
+                RelationalExpression expr => EmitRelationalExpression(expr, variables),
+                IdentifierExpression expr => EmitIdentifierExpression(expr, variables, reference),
+                BooleanExpression expr => EmitBooleanExpression(expr),
+                CallExpression expr => EmitCallExpression(expr, variables),
+                ArrayInitializerExpression expr => EmitArrayInitializerExpression(expr, variables),
+                IndexExpression expr => EmitIndexExpression(expr, variables),
+                ParenthesizedExpression expr => EmitParenthesizedExpression(expr, variables),
+                NotExpression expr => EmitNotExpression(expr, variables),
+                SizeOfExpression expr => EmitSizeOfExpression(expr, variables),
+                LengthExpression expr => EmitLengthExpression(expr, variables),
+                ObjectInitializerExpression expr => EmitObjectInitializerExpression(expr, variables),
+                MemberExpression expr => EmitMemberExpression(expr, variables),
+                _ => throw new Exception($"Expression {expression.GetType().Name} is not supported when emitting LLVM expressions.")
+            };
         }
+
+        /*
+         
+                if(Functions.ContainsKey(identifierExpression.Name))
+                {
+                    return Functions[identifierExpression.Name].LLVMFunctionType;
+                }
+                if(Structs.ContainsKey(identifierExpression.Name))
+                {
+                    return Structs[identifierExpression.Name].LLVMStructType;
+                }
+
+                List<VariableDeclarationStatement> matchingVariables = variables?.Where(v => v.Name == identifierExpression.Name).ToList() ?? new List<VariableDeclarationStatement>();
+                if (matchingVariables.Any())
+                {
+                    VariableDeclarationStatement variable = matchingVariables.First();
+                    return ResolveLLVMTypeFromExpression(variable.Type, variables);
+                }
+         
+         */
 
         LLVMValueRef EmitMemberExpression(MemberExpression memberExpression, List<VariableDeclarationStatement> variables)
         {
-            if(memberExpression.Parent is IdentifierExpression identifier)
+            ExpressionList memberChain = memberExpression.Flatten();
+
+            StructStatement? currentStruct = null;
+            LLVMValueRef currentPointer = null;
+            bool isPointer = false;
+
+            if (memberChain.First() is CallExpression firstMemberCall)
             {
-                if(memberExpression.Member is IdentifierExpression memberIdentifier)
+                IdentifierExpression? callIdentifier = GetInnerIdentifierExpression(firstMemberCall);
+
+                if(callIdentifier == null)
                 {
-                    Console.WriteLine($"Variables; {string.Join(", ", variables.Select(t => t.Name))}");
-
-                    List<VariableDeclarationStatement> locals = variables.Where(v => v.Name == identifier.Name).ToList();
-                    if (!locals.Any())
-                    {
-                        throw new Exception($"Member access parent {identifier.Name} does not exist.");
-                    }
-
-                    VariableDeclarationStatement parentLocal = locals.First();
-
-                    if(parentLocal.Type is IdentifierExpression typeIdentifier)
-                    {
-                        StructStatement structRef = Structs[typeIdentifier.Name];
-                        LLVMTypeRef structType = structRef.LLVMStructType;
-                        LLVMValueRef structPointer = parentLocal.LLVMAlloca;
-
-                        List<VariableDeclarationStatement> fields = structRef.Fields.Where(f => f.Name == memberIdentifier.Name).ToList();
-                        if (!fields.Any())
-                        {
-                            throw new Exception($"Property {memberIdentifier.Name} does not exist in object {structRef.Name}");
-                        }
-
-                        VariableDeclarationStatement field = fields.First();
-                        LLVMTypeRef fieldType = ResolveLLVMTypeFromExpression(field.Type, variables);
-                        int index = field.FieldIndex;
-
-
-                        var indices = new LLVMValueRef[] {
-                            LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0),
-                            LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, (ulong)index)
-                        };
-
-                        LLVMValueRef fieldPtr = Builder.BuildGEP2(structType, structPointer, indices, "field_ptr");
-
-                        LLVMValueRef fieldValues = Builder.BuildLoad2(fieldType, fieldPtr, "loaded_field_val");
-                        return fieldValues;
-                    }
-                    throw new Exception($"Cannot access  {parentLocal.Name} of type {parentLocal.Type.GetType().Name}");
-                    
+                    throw new Exception($"Could not resolve inner identifier of call in member expression.");
                 }
-                throw new Exception($"Member access to member of type {memberExpression.Member.GetType().Name} is not supported");
+
+                if (!Functions.ContainsKey(callIdentifier.Name))
+                {
+                    throw new Exception($"Function {callIdentifier.Name} does not exist");
+                }
+
+                Expression funcReturnType = Functions[callIdentifier.Name].ReturnType;
+                if (funcReturnType is IdentifierExpression funcIdentifier)
+                {
+                    if (!Structs.ContainsKey(funcIdentifier.Name))
+                    {
+                        throw new Exception($"Struct {funcIdentifier.Name} does not exist.");
+                    }
+
+                    currentStruct = Structs[funcIdentifier.Name];
+                    currentPointer = EmitCallExpression(firstMemberCall, variables);
+                    isPointer = true;
+                }
+                else
+                {
+                    throw new Exception($"Cannot access member of parent with type {funcReturnType.GetType().Name}");
+                }
             }
 
-            throw new Exception($"Member access to parent of type {memberExpression.Parent.GetType().Name} is not supported");
-        }
+            if(memberChain.First() is IndexExpression firstMemberIndex)
+            {
+                IdentifierExpression? indexIdentifier = GetInnerIdentifierExpression(firstMemberIndex);
 
+                if (indexIdentifier == null)
+                {
+                    throw new Exception($"Could not resolve inner identifier of call in member expression.");
+                }
+
+                List<VariableDeclarationStatement> variableMatches = variables.Where(v => v.Name == indexIdentifier.Name).ToList();
+                if(!variableMatches.Any())
+                {
+                    throw new Exception($"Variable {indexIdentifier.Name} does not exist");
+                }
+
+                VariableDeclarationStatement variableMatch = variableMatches.First();
+
+                if (variableMatch.Type is IdentifierExpression variableIdentifierType)
+                {
+                    if (!Structs.ContainsKey(variableIdentifierType.Name))
+                    {
+                        throw new Exception($"Struct {variableIdentifierType.Name} does not exist.");
+                    }
+
+                    currentStruct = Structs[variableIdentifierType.Name];
+                    currentPointer = EmitIndexExpression(firstMemberIndex, variables);
+                    isPointer = false;
+                    // currentPointer = variableMatch.LLVMAlloca;
+                }
+                else if(variableMatch.Type is IndexExpression variableIndexType) // Here were making sure it recognizes variables declared as arrays
+                {
+                    IdentifierExpression? variableIndexTypeIdentifier = GetInnerIdentifierExpression(variableIndexType);
+
+                    if(variableIndexTypeIdentifier == null)
+                    {
+                        throw new Exception($"Could not resolve inner identifier of index in member expression.");
+                    }
+
+                    if (!Structs.ContainsKey(variableIndexTypeIdentifier.Name))
+                    {
+                        throw new Exception($"Struct {variableIndexTypeIdentifier.Name} does not exist.");
+                    }
+
+                    currentStruct = Structs[variableIndexTypeIdentifier.Name];
+                    currentPointer = EmitIndexExpression(firstMemberIndex, variables);
+                    isPointer = false;
+                    // currentPointer = variableMatch.LLVMAlloca;
+                }
+                else
+                {
+                    throw new Exception($"Cannot access member of parent with type {variableMatch.Type.GetType().Name}");
+                }
+            }
+
+            if(memberChain.First() is IdentifierExpression firstMemberIdentifier)
+            {
+                List<VariableDeclarationStatement> variableMatches = variables.Where(v => v.Name == firstMemberIdentifier.Name).ToList();
+                if (!variableMatches.Any())
+                {
+                    throw new Exception($"Variable {firstMemberIdentifier.Name} does not exist");
+                }
+
+                VariableDeclarationStatement variableMatch = variableMatches.First();
+
+                if (variableMatch.Type is IdentifierExpression variableIdentifier)
+                {
+                    if (!Structs.ContainsKey(variableIdentifier.Name))
+                    {
+                        throw new Exception($"Struct {variableIdentifier.Name} does not exist.");
+                    }
+
+                    currentStruct = Structs[variableIdentifier.Name];
+                    currentPointer = variableMatch.LLVMAlloca;
+                    isPointer = false;
+                }
+                else
+                {
+                    throw new Exception($"Cannot access member of parent with type {variableMatch.Type.GetType().Name}");
+                }
+            }
+
+            if(currentStruct == null || currentPointer == null)
+            {
+                throw new Exception($"Cannot access member of parent with type {memberChain.First().GetType().Name}");
+            }
+            
+            foreach(Expression member in memberChain.Skip(1))
+            {
+                if(member is IdentifierExpression memberIdentifier)
+                {
+                    Console.WriteLine($"------------------ Solving member {memberIdentifier.Name}");
+
+                    VariableDeclarationStatement field = currentStruct.GetField(memberIdentifier.Name);
+                    IdentifierExpression? fieldTypeIdentifier = GetInnerIdentifierExpression(field.Type);
+
+                    if(isPointer)
+                    {
+                        Builder.BuildExtractValue(currentPointer, (uint)field.FieldIndex, $"{memberIdentifier.Name}_extract_value");
+                    }
+                    else
+                    {
+                        var indices = new LLVMValueRef[] {
+                                LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0),
+                                LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, (ulong)field.FieldIndex)
+                            };
+
+                        LLVMValueRef fieldPtr = Builder.BuildGEP2(currentStruct.LLVMStructType, currentPointer, indices, $"{memberIdentifier.Name}_field_ptr");
+                        currentPointer = Builder.BuildLoad2(LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), fieldPtr, $"{memberIdentifier.Name}_loaded_field_val");
+                    }
+
+                    if (fieldTypeIdentifier != null && Structs.ContainsKey(fieldTypeIdentifier.Name))
+                    {
+                        Console.WriteLine($"------------------ {fieldTypeIdentifier.Name} was found in {memberIdentifier.Name}");
+                        currentStruct = Structs[fieldTypeIdentifier.Name];
+                    }
+                }
+            }
+
+            return currentPointer;
+        }
+        
         LLVMValueRef EmitObjectInitializerExpression(ObjectInitializerExpression objectInitializerExpression, List<VariableDeclarationStatement> variables)
         {
             if(objectInitializerExpression.Expression is IdentifierExpression identifier)
@@ -870,7 +962,7 @@ namespace CommonC.LLVMIR.CodeGen
                 StructStatement structStatement = Structs[identifier.Name];
 
                 LLVMTypeRef structType = structStatement.LLVMStructType;
-                LLVMValueRef structPtr = Builder.BuildAlloca(structType, "struct_instance");
+                LLVMValueRef structPtr = Builder.BuildAlloca(structType, $"{identifier.Name}_struct_instance");
                 structStatement.LLVMStructPointer = structPtr;
 
                 foreach (AssignmentStatement propertyAssignment in objectInitializerExpression.PropertyAssignments)
@@ -886,7 +978,7 @@ namespace CommonC.LLVMIR.CodeGen
                             LLVMValueRef fieldPtr = Builder.BuildGEP2(structType, structPtr, new[] {
                                 LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0),
                                 LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, (ulong)field.FieldIndex)
-                            }, "field_ptr");
+                            }, $"set_{propertyName.Name}_field_ptr");
                             Builder.BuildStore(val, fieldPtr);
                         }
                         else
