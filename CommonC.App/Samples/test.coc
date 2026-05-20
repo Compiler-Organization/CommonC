@@ -1,10 +1,7 @@
-use compilerobjecttest
 
 fn main() {
-    Person mother = CreatePerson("Karie", 42)
-    Person father = CreatePerson("Colton", 45)
-
-    Homestead home = CreateHomestead(mother, father)
-
-    LogHomestead(home)
+    f64 t = 4.2
+    f64 n = 5.0
+   
+    logl(t * n + 4.0)
 }

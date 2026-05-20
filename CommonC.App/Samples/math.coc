@@ -1,7 +1,7 @@
-// i32 factorize(i32 n) -> Factorizes the given number and returns the product of its factors.
-// isPrime(i32 n) -> Checks if the given number is prime.
+// i32 Factorize(i32 n) -> Factorizes the given number and returns the product of its factors.
+// IsPrime(i32 n) -> Checks if the given number is prime.
 
-i32 factorize(i32 n) {
+i32 Factorize(i32 n) {
 	i32 result = 1
 	for 2..n, i {
 		if (n % i) == 0 {
@@ -11,7 +11,7 @@ i32 factorize(i32 n) {
 	return result
 }
 
-bool isPrime(i32 n) {
+bool IsPrime(i32 n) {
 	if n <= 1
 		return false
 	for 2..n, i {

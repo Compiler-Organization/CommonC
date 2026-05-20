@@ -5,6 +5,7 @@ using LLVMSharp;
 using LLVMSharp.Interop;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
@@ -339,13 +340,23 @@ namespace CommonC.LLVMIR.CodeGen
                     foreach(Expression expression in callStatement.Arguments)
                     {
                         LLVMTypeRef argumentType = ResolveLLVMTypeFromExpression(expression, variables);
-                        if (argumentType.ToString() == "ptr")
+
+                        Console.WriteLine($"------------------------ {argumentType.ToString()}");
+                        
+                        switch(argumentType.ToString())
                         {
-                            format += "%s";
-                        }
-                        else
-                        {
-                            format += "%d"; 
+                            case "ptr":
+                                format += "%s";
+                                break;
+
+                            case "float":
+                            case "double":
+                                format += "%g";
+                                break;
+
+                            default:
+                                format += "%d";
+                                break;
                         }
                     }
 
@@ -1142,18 +1153,69 @@ namespace CommonC.LLVMIR.CodeGen
         {
             LLVMValueRef left = EmitExpression(arithmeticExpression.Left, variables);
             LLVMValueRef right = EmitExpression(arithmeticExpression.Right, variables);
+
             switch(arithmeticExpression.Operator)
             {
                 case ArithmeticOperator.Addition:
-                    return Builder.BuildAdd(left, right, "add");
+                    {
+                        if(left.TypeOf == LLVMTypeRef.Double
+                            || left.TypeOf == LLVMTypeRef.Float)
+                        {
+                            return Builder.BuildFAdd(left, right, "fadd");
+                        }
+                        else
+                        {
+                            return Builder.BuildAdd(left, right, "add");
+                        }
+                    }
                 case ArithmeticOperator.Subtraction:
-                    return Builder.BuildSub(left, right, "sub");
+                    {
+                        if (left.TypeOf == LLVMTypeRef.Double
+                            || left.TypeOf == LLVMTypeRef.Float)
+                        {
+                            return Builder.BuildFSub(left, right, "fsub");
+                        }
+                        else
+                        {
+                            return Builder.BuildSub(left, right, "sub");
+                        }
+                    }
                 case ArithmeticOperator.Multiplication:
-                    return Builder.BuildMul(left, right, "mul");
+                    {
+                        if (left.TypeOf == LLVMTypeRef.Double
+                            || left.TypeOf == LLVMTypeRef.Float)
+                        {
+                            return Builder.BuildFMul(left, right, "fmul");
+                        }
+                        else
+                        {
+                            return Builder.BuildMul(left, right, "mul");
+                        }
+                    }
                 case ArithmeticOperator.Division:
-                    return Builder.BuildSDiv(left, right, "div");
+                    {
+                        if (left.TypeOf == LLVMTypeRef.Double
+                            || left.TypeOf == LLVMTypeRef.Float)
+                        {
+                            return Builder.BuildFDiv(left, right, "fdiv");
+                        }
+                        else
+                        {
+                            return Builder.BuildSDiv(left, right, "sdiv");
+                        }
+                    }
                 case ArithmeticOperator.Modulus:
-                    return Builder.BuildSRem(left, right, "mod");
+                    {
+                        if (left.TypeOf == LLVMTypeRef.Double
+                            || left.TypeOf == LLVMTypeRef.Float)
+                        {
+                            return Builder.BuildFRem(left, right, "fmod");
+                        }
+                        else
+                        {
+                            return Builder.BuildSRem(left, right, "mod");
+                        }
+                    }
                 case ArithmeticOperator.LeftShift:
                     return Builder.BuildShl(left, right, "lshift");
                 default:
@@ -1165,7 +1227,7 @@ namespace CommonC.LLVMIR.CodeGen
         {
             if(numberExpression.IsDouble)
             {
-                if(double.TryParse(numberExpression.Value, out double result))
+                if(double.TryParse(numberExpression.Value, CultureInfo.InvariantCulture, out double result))
                 {
                     return LLVMValueRef.CreateConstReal(LLVMTypeRef.Double, result);
                 }
