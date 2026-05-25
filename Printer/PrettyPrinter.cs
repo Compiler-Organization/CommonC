@@ -1,4 +1,5 @@
-﻿using CommonC.Parser.AST.Expressions;
+﻿using CommonC.Liveness.Statements;
+using CommonC.Parser.AST.Expressions;
 using CommonC.Parser.AST.Statements;
 using System;
 using System.Collections.Generic;
@@ -626,10 +627,23 @@ namespace CommonC.Printer
             Builder.Append(Settings.NewLine);
         }
 
+        void PrintFreeStatement(FreeStatement freeStatement, string indentation)
+        {
+            Builder.Append(indentation);
+            Builder.Append("#free ");
+            PrintExpression(freeStatement.Expression, indentation);
+            Builder.Append(Settings.NewLine);
+        }
+
         void PrintStatements(StatementList statements, string indentation)
         {
             foreach(Statement statement in statements)
             {
+                if(statement is FreeStatement freeStatement)
+                {
+                    PrintFreeStatement(freeStatement, indentation);
+                    continue;
+                }
                 if(statement is AssignmentStatement assignmentStatement)
                 {
                     PrintAssignmentStatement(assignmentStatement, indentation);

@@ -12,6 +12,6 @@ namespace CommonC.Parser.AST.Statements
     {
         public StatementList Statements { get; set; } = new StatementList();
 
-        public List<VariableDeclarationStatement> Locals { get; set; } = new List<VariableDeclarationStatement>();
+        public Variables Locals { get; set; } = new Variables();
     }
 }

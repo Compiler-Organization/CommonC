@@ -117,7 +117,7 @@ namespace CommonC.DotNet.CodeGen
             throw new Exception($"Unknown type expression '{expression}' could not be resolved.");
         }
 
-        TypeSignature ResolveTypeSignature(Expression typeExpression, Expression valueExpression, List<VariableDeclarationStatement> locals)
+        TypeSignature ResolveTypeSignature(Expression typeExpression, Expression valueExpression, Variables locals)
         {
             bool isValueType = Module.TopLevelTypes.First().NestedTypes.Any(t => typeExpression is IdentifierExpression id && t.Name == id.Name && t.Attributes.HasFlag(TypeAttributes.BeforeFieldInit));
 
@@ -131,7 +131,7 @@ namespace CommonC.DotNet.CodeGen
             return resolvedType.ToTypeSignature(isValueType);
         }
 
-        ITypeDefOrRef ResolveType(Expression expression, List<VariableDeclarationStatement> locals, TypeDefinition parentType = null)
+        ITypeDefOrRef ResolveType(Expression expression, Variables locals, TypeDefinition parentType = null)
         {
             if(parentType == null)
             {
@@ -215,10 +215,10 @@ namespace CommonC.DotNet.CodeGen
                     return Module.CorLibTypeFactory.CorLibScope.CreateTypeReference("System", "Int32");
                 }
 
-                List<VariableDeclarationStatement> existingLocals = locals.Where(l => l.Name == identifierExpression.Name).ToList();
-                if (existingLocals.Any())
+                VariableDeclarationStatement? existingLocals = locals.GetVariable(identifierExpression.Name);
+                if (existingLocals != null)
                 {
-                    return ResolveType(existingLocals.FirstOrDefault()!.Type, locals);
+                    return ResolveType(existingLocals.Type, locals);
                 }
 
                 List<TypeDefinition> types = parentType.NestedTypes.Where(t => t.Name == identifierExpression.Name).ToList();
@@ -370,7 +370,7 @@ namespace CommonC.DotNet.CodeGen
         {
             foreach (VariableDeclarationStatement variableDeclarationStatement in statements.OfType<VariableDeclarationStatement>())
             {
-                FieldDefinition fieldDefinition = new FieldDefinition(variableDeclarationStatement.Name, FieldAttributes.Public | FieldAttributes.Static, new FieldSignature(ResolveTypeSignature(variableDeclarationStatement.Type, variableDeclarationStatement.Expression, new List<VariableDeclarationStatement>())));
+                FieldDefinition fieldDefinition = new FieldDefinition(variableDeclarationStatement.Name, FieldAttributes.Public | FieldAttributes.Static, new FieldSignature(ResolveTypeSignature(variableDeclarationStatement.Type, variableDeclarationStatement.Expression, new Variables())));
 
                 variableDeclarationStatement.IsField = true;
                 variableDeclarationStatement.Field = fieldDefinition;
@@ -387,7 +387,7 @@ namespace CommonC.DotNet.CodeGen
             {
                 if(variableDeclarationStatement.Expression != null)
                 {
-                    GenerateExpression(variableDeclarationStatement.Expression, statements.OfType<VariableDeclarationStatement>().ToList(), constructor.CilMethodBody);
+                    GenerateExpression(variableDeclarationStatement.Expression, new Variables(statements.OfType<VariableDeclarationStatement>()), constructor.CilMethodBody);
                     constructor.CilMethodBody.Instructions.Add(CilOpCodes.Stsfld, variableDeclarationStatement.Field);
                 }
             }
@@ -518,7 +518,7 @@ namespace CommonC.DotNet.CodeGen
 
                 foreach (VariableDeclarationStatement field in structStatement.Fields)
                 {
-                    ITypeDefOrRef fieldType = ResolveType(field.Type, new List<VariableDeclarationStatement>());
+                    ITypeDefOrRef fieldType = ResolveType(field.Type, new Variables());
 
                     FieldDefinition fieldDefinition = new FieldDefinition(field.Name, FieldAttributes.Public, new FieldSignature(fieldType.ToTypeSignature(fieldType.GetIsValueType(Runtime))));
                     structDef.Fields.Add(fieldDefinition);
@@ -573,7 +573,7 @@ namespace CommonC.DotNet.CodeGen
             }
         }
 
-        void GenerateVariableDeclarationStatement(CilMethodBody body, VariableDeclarationStatement variableDeclarationStatement, List<VariableDeclarationStatement> variableDeclarationStatements)
+        void GenerateVariableDeclarationStatement(CilMethodBody body, VariableDeclarationStatement variableDeclarationStatement, Variables variableDeclarationStatements)
         {
             CilLocalVariable localVariable = new CilLocalVariable(ResolveTypeSignature(variableDeclarationStatement.Type, variableDeclarationStatement.Expression, variableDeclarationStatements));
             body.LocalVariables.Add(localVariable);
@@ -587,7 +587,7 @@ namespace CommonC.DotNet.CodeGen
             variableDeclarationStatement.CilLocalVariable = localVariable;
         }
 
-        void GenerateAssignmentStatement(CilMethodBody body, AssignmentStatement assignmentStatement, List<VariableDeclarationStatement> variableDeclarationStatements)
+        void GenerateAssignmentStatement(CilMethodBody body, AssignmentStatement assignmentStatement, Variables variableDeclarationStatements)
         {
             if (assignmentStatement.Variable is IdentifierExpression identifierExpression)
             {
@@ -627,7 +627,7 @@ namespace CommonC.DotNet.CodeGen
             throw new Exception($"Assignment to expression of type '{assignmentStatement.Variable.GetType().Name}' is not supported in code generation.");
         }
 
-        void GenerateGetOrSetMember(MemberExpression memberExpression, bool getMember, List<VariableDeclarationStatement> variableDeclarationStatements, CilMethodBody body, TypeDefinition? parentType = null, Expression? setExpression = null)
+        void GenerateGetOrSetMember(MemberExpression memberExpression, bool getMember, Variables variableDeclarationStatements, CilMethodBody body, TypeDefinition? parentType = null, Expression? setExpression = null)
         {
             if(parentType == null)
             {
@@ -738,7 +738,7 @@ namespace CommonC.DotNet.CodeGen
             body.Instructions.Add(CilOpCodes.Brtrue, loopStart.CreateLabel());
         }
 
-        void GenerateReturnStatement(CilMethodBody body, ReturnStatement returnStatement, List<VariableDeclarationStatement> variableDeclarationStatements)
+        void GenerateReturnStatement(CilMethodBody body, ReturnStatement returnStatement, Variables variableDeclarationStatements)
         {
             if(returnStatement.Expression != null)
             {
@@ -748,7 +748,7 @@ namespace CommonC.DotNet.CodeGen
             body.Instructions.Add(CilOpCodes.Ret);
         }
 
-        void GenerateStatements(CilMethodBody body, StatementList statementList, List<VariableDeclarationStatement> variableDeclarationStatements)
+        void GenerateStatements(CilMethodBody body, StatementList statementList, Variables variableDeclarationStatements)
         {
             foreach (Statement statement in statementList)
             {
@@ -800,7 +800,7 @@ namespace CommonC.DotNet.CodeGen
 
         // TODO: Add support for member expressions, array accesses, etc.
         // Add type checking
-        void GenerateCallStatement(CallStatement callStatement, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
+        void GenerateCallStatement(CallStatement callStatement, CilMethodBody body, Variables variableDeclarationStatements)
         {
             if (callStatement.Expression is IdentifierExpression identifierExpression)
             {
@@ -856,7 +856,7 @@ namespace CommonC.DotNet.CodeGen
             throw new Exception($"Function '{identifierExpression.Name}' is not supported in code generation.");
         }
 
-        void GenerateExpressions(ExpressionList expressionList, List<VariableDeclarationStatement> variableDeclarationStatements, CilMethodBody body)
+        void GenerateExpressions(ExpressionList expressionList, Variables variableDeclarationStatements, CilMethodBody body)
         {
             if(expressionList == null)
             {
@@ -869,7 +869,7 @@ namespace CommonC.DotNet.CodeGen
             }
         }
 
-        void GenerateExpression(Expression expression, List<VariableDeclarationStatement> variableDeclarationStatements, CilMethodBody body)
+        void GenerateExpression(Expression expression, Variables variableDeclarationStatements, CilMethodBody body)
         {
             if (expression is StringExpression stringExpression)
             {
@@ -970,14 +970,14 @@ namespace CommonC.DotNet.CodeGen
             throw new Exception($"Expression of type '{expression.GetType().Name}' is not supported in code generation.");
         }
 
-        void GenerateMemberExpression(MemberExpression memberExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements, TypeDefinition? parentType = null)
+        void GenerateMemberExpression(MemberExpression memberExpression, CilMethodBody body, Variables variableDeclarationStatements, TypeDefinition? parentType = null)
         {
             GenerateExpression(memberExpression.Parent, variableDeclarationStatements, body);
 
             GenerateGetOrSetMember(memberExpression, true, variableDeclarationStatements, body);
         }
 
-        void GenerateObjectInitializerExpression(ObjectInitializerExpression objectInitializerExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
+        void GenerateObjectInitializerExpression(ObjectInitializerExpression objectInitializerExpression, CilMethodBody body, Variables variableDeclarationStatements)
         {
             if(objectInitializerExpression.Expression is IdentifierExpression objectInitializerIdentifier)
             {
@@ -1025,25 +1025,25 @@ namespace CommonC.DotNet.CodeGen
             }
         }
 
-        void GenerateParenthesizedExpression(ParenthesizedExpression parenthesizedExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
+        void GenerateParenthesizedExpression(ParenthesizedExpression parenthesizedExpression, CilMethodBody body, Variables variableDeclarationStatements)
         {
             GenerateExpression(parenthesizedExpression.Expression, variableDeclarationStatements, body);
         }
 
-        void GenerateNotExpression(NotExpression notExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
+        void GenerateNotExpression(NotExpression notExpression, CilMethodBody body, Variables variableDeclarationStatements)
         {
             GenerateExpression(notExpression.Expression, variableDeclarationStatements, body);
             body.Instructions.Add(CilOpCodes.Ldc_I4_0);
             body.Instructions.Add(CilOpCodes.Ceq);
         }
 
-        void GenerateNegateExpression(NegateExpression negateExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
+        void GenerateNegateExpression(NegateExpression negateExpression, CilMethodBody body, Variables variableDeclarationStatements)
         {
             GenerateExpression(negateExpression.Expression, variableDeclarationStatements, body);
             body.Instructions.Add(CilOpCodes.Neg);
         }
 
-        void GenerateArrayInitializerExpression(ArrayInitializerExpression arrayInitializerExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
+        void GenerateArrayInitializerExpression(ArrayInitializerExpression arrayInitializerExpression, CilMethodBody body, Variables variableDeclarationStatements)
         {
             GenerateExpression(arrayInitializerExpression.Index.Index, variableDeclarationStatements, body);
             ITypeDefOrRef arrayType = ResolveType(arrayInitializerExpression.Index.Expression, variableDeclarationStatements);
@@ -1059,7 +1059,7 @@ namespace CommonC.DotNet.CodeGen
             }
         }
 
-        void GenerateLengthExpresssion(LengthExpression lengthExpression, CilMethodBody body , List<VariableDeclarationStatement> variableDeclarationStatements)
+        void GenerateLengthExpresssion(LengthExpression lengthExpression, CilMethodBody body , Variables variableDeclarationStatements)
         {
             GenerateExpression(lengthExpression.Expression, variableDeclarationStatements, body);
             body.Instructions.Add(CilOpCodes.Ldlen);
@@ -1090,7 +1090,7 @@ namespace CommonC.DotNet.CodeGen
             body.Instructions.Add(booleanExpression.Value ? CilOpCodes.Ldc_I4_1 : CilOpCodes.Ldc_I4_0);
         }
 
-        void GenerateArithmeticExpression(ArithmeticExpression arithmeticExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
+        void GenerateArithmeticExpression(ArithmeticExpression arithmeticExpression, CilMethodBody body, Variables variableDeclarationStatements)
         {
             switch (arithmeticExpression.Operator)
             {
@@ -1160,7 +1160,7 @@ namespace CommonC.DotNet.CodeGen
             }
         }
 
-        void GenerateRelationalExpression(RelationalExpression relationalExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
+        void GenerateRelationalExpression(RelationalExpression relationalExpression, CilMethodBody body, Variables variableDeclarationStatements)
         {
             switch (relationalExpression.Operator)
             {
@@ -1208,7 +1208,7 @@ namespace CommonC.DotNet.CodeGen
             }
         }
 
-        VariableDeclarationStatement? GenerateLoadVariable(IdentifierExpression identifierExpression, List<VariableDeclarationStatement> variableDeclarations, CilMethodBody body)
+        VariableDeclarationStatement? GenerateLoadVariable(IdentifierExpression identifierExpression, Variables variableDeclarations, CilMethodBody body)
         {
             if (variableDeclarations.Count(t => t.Name == identifierExpression.Name) > 0)
             {
@@ -1244,7 +1244,7 @@ namespace CommonC.DotNet.CodeGen
             throw new Exception($"Variable '{identifierExpression.Name}' is not declared in the current scope.");
         }
 
-        void GenerateIndexExpression(IndexExpression indexExpression, List<VariableDeclarationStatement> variableDeclarations, CilMethodBody body)
+        void GenerateIndexExpression(IndexExpression indexExpression, Variables variableDeclarations, CilMethodBody body)
         {
             ITypeDefOrRef expressionType = ResolveType(indexExpression.Expression, variableDeclarations);
 
@@ -1279,7 +1279,7 @@ namespace CommonC.DotNet.CodeGen
             //}
         }
 
-        void GenerateArrayExpression(ArrayExpression arrayExpression, List<VariableDeclarationStatement> variableDeclarations, CilMethodBody body)
+        void GenerateArrayExpression(ArrayExpression arrayExpression, Variables variableDeclarations, CilMethodBody body)
         {
             if (arrayExpression.Expressions.Count == 0)
             {
@@ -1302,7 +1302,7 @@ namespace CommonC.DotNet.CodeGen
 
         
 
-        void GenerateCallExpression(CallExpression callExpression, CilMethodBody body, List<VariableDeclarationStatement> variableDeclarationStatements)
+        void GenerateCallExpression(CallExpression callExpression, CilMethodBody body, Variables variableDeclarationStatements)
         {
             if (callExpression.Expression is IdentifierExpression identifierExpression)
             {

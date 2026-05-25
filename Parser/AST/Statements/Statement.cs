@@ -8,5 +8,7 @@ namespace CommonC.Parser.AST.Statements
     public class Statement
     {
         public TypeAnnotation TypeAnnotation { get; set; } = new TypeAnnotation();
+
+        public bool IsLastReadOrWrite { get; set; } = false;
     }
 }

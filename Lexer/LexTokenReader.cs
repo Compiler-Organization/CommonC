@@ -37,7 +37,11 @@ namespace CommonC.Lexer
         /// Consumes current lex token and skips forward
         /// </summary>
         /// <returns></returns>
-        public LexToken Consume() => LexTokens[Base++];
+        public LexToken Consume()
+        {
+            Console.Write(LexTokens[Base + 1].Value);
+            return LexTokens[Base++];
+        }
 
         /// <summary>
         /// Removes the token from the list
@@ -50,7 +54,11 @@ namespace CommonC.Lexer
         /// Skils a token
         /// </summary>
         /// <param name="i"></param>
-        public void Skip(int i) => Base += i;
+        public void Skip(int i)
+        {
+            Console.Write(LexTokens[Base + 1].Value);
+            Base += i;
+        }
 
         /// <summary>
         /// Expects a lex kind at the current + offset position

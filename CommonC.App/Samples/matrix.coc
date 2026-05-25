@@ -1,0 +1,19 @@
+i32[] CreateFlatMatrix(i32 rows, i32 cols) {
+    i32[] matrix = i32[rows * cols] {  };
+    for 0..rows, i 
+    {
+        for 0..cols, j 
+        {
+            matrix[i * cols + j] = i * cols + j;
+        }
+    }
+    return matrix;
+}
+
+i32 GetFlatMatrixElement(i32[] matrix, i32 cols, i32 row, i32 col) {
+    return matrix[row * cols + col];
+}
+
+fn SetFlatMatrixElement(i32[] matrix, i32 cols, i32 row, i32 col, i32 value) {
+    matrix[row * cols + col] = value;
+}

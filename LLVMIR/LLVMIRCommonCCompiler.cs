@@ -48,14 +48,14 @@ namespace CommonC.LLVMIR
                 StatementList statements = ParseText(File.ReadAllText(Settings.MainFilePath));
                 statements = ImportUseFiles(statements);
 
-                PrettyPrinter prettyPrinter = new PrettyPrinter(statements, PrettyPrinterSettings.Beautify);
-                Console.WriteLine(prettyPrinter.Print());
-
                 SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer(statements);
                 semanticAnalyzer.Analyze();
 
                 LivenessAnalyser livenessAnalyser = new LivenessAnalyser(statements);
                 livenessAnalyser.Analyse();
+
+                PrettyPrinter prettyPrinter = new PrettyPrinter(statements, PrettyPrinterSettings.Beautify);
+                Console.WriteLine(prettyPrinter.Print());
 
                 LLVMIRCodeGen lLVMIRCodeGen = new LLVMIRCodeGen(Settings.LLVMIRCodeGenSettings, statements);
 

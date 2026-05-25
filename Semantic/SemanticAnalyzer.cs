@@ -17,10 +17,10 @@ namespace CommonC.Semantic
 
         public void Analyze()
         {
-            PassVariablesToInnerScope(Statements, Statements.OfType<VariableDeclarationStatement>().ToList());
+            PassVariablesToInnerScope(Statements, new Variables(Statements.OfType<VariableDeclarationStatement>()));
         }
 
-        void PassVariablesToInnerScope(StatementList statementList, List<VariableDeclarationStatement> variableDeclarationStatements)
+        void PassVariablesToInnerScope(StatementList statementList, Variables variableDeclarationStatements)
         {
             foreach (Statement statement in statementList)
             {

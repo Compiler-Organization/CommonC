@@ -9,7 +9,7 @@ namespace CommonC.Parser.AST.Statements
     {
         public string Name { get; set; } = "";
 
-        public List<VariableDeclarationStatement> Fields { get; set; } = new List<VariableDeclarationStatement>();
+        public Variables Fields { get; set; } = new Variables();
 
         internal LLVMTypeRef LLVMStructType;
 
@@ -25,14 +25,7 @@ namespace CommonC.Parser.AST.Statements
         /// <exception cref="Exception"></exception>
         public VariableDeclarationStatement GetField(string fieldName)
         {
-            List<VariableDeclarationStatement> fields = Fields.Where(f => f.Name == fieldName).ToList();
-
-            if (!fields.Any())
-            {
-                throw new Exception($"Field {fieldName} does not exist in struct {Name}");
-            }
-
-            return fields.First();
+            return Fields.GetVariable(fieldName) ?? throw new Exception($"Field {fieldName} does not exist in struct {Name}");
         }
     }
 }

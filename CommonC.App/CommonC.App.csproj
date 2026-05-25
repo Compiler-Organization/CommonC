@@ -36,6 +36,9 @@
 		<None Update="Samples\math.coc">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
+		<None Update="Samples\matrix.coc">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
 		<None Update="Samples\test.coc">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>

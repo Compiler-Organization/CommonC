@@ -8,5 +8,7 @@ namespace CommonC.Parser.AST.Expressions
     public class Expression
     {
         public TypeAnnotation TypeAnnotation { get; set; } = new TypeAnnotation();
+
+        public bool IsLastReadOrWrite { get; set; } = false;
     }
 }

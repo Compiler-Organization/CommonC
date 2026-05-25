@@ -475,7 +475,14 @@ namespace CommonC.Parser
 
             if(ParseTypeExpression(out TypeExpression typeExpression))
             {
-                parameterExpression.Type = typeExpression;
+                if (ParseIndexExpression(typeExpression, out IndexExpression indexExpression))
+                {
+                    parameterExpression.Type = indexExpression;
+                }
+                else
+                {
+                    parameterExpression.Type = typeExpression;
+                }
             }
             else
             {
@@ -484,6 +491,10 @@ namespace CommonC.Parser
                     if (ParseMemberExpression(identifierExpression, out MemberExpression memberExpression))
                     {
                         parameterExpression.Type = memberExpression;
+                    }
+                    else if(ParseIndexExpression(identifierExpression, out IndexExpression indexExpression))
+                    {
+                        parameterExpression.Type = indexExpression;
                     }
                     else
                     {
@@ -1149,7 +1160,8 @@ namespace CommonC.Parser
                     {
                         if (expression is TypeExpression
                             || expression is IdentifierExpression
-                            || expression is MemberExpression)
+                            || expression is MemberExpression
+                            || expression is IndexExpression)
                         {
 
                             if (ParseIdentifierExpression(out IdentifierExpression nameExpression))
