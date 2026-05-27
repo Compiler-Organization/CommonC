@@ -45,20 +45,19 @@ namespace CommonC.LLVMIR
         {
             if (File.Exists(Settings.MainFilePath))
             {
-                StatementList statements = ParseText(File.ReadAllText(Settings.MainFilePath));
-                statements = ImportUseFiles(statements);
+                ClosureStatement closure = ParseText(File.ReadAllText(Settings.MainFilePath));
+                closure = ImportUseFiles(closure);
 
-                SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer(statements);
+                SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer(closure);
                 semanticAnalyzer.Analyze();
 
-                LivenessAnalyser livenessAnalyser = new LivenessAnalyser(statements);
+                LivenessAnalyser livenessAnalyser = new LivenessAnalyser(closure);
                 livenessAnalyser.Analyse();
 
-                PrettyPrinter prettyPrinter = new PrettyPrinter(statements, PrettyPrinterSettings.Beautify);
+                PrettyPrinter prettyPrinter = new PrettyPrinter(closure.Statements, PrettyPrinterSettings.Beautify);
                 Console.WriteLine(prettyPrinter.Print());
 
-                LLVMIRCodeGen lLVMIRCodeGen = new LLVMIRCodeGen(Settings.LLVMIRCodeGenSettings, statements);
-
+                LLVMIRCodeGen lLVMIRCodeGen = new LLVMIRCodeGen(Settings.LLVMIRCodeGenSettings, closure);
                 return lLVMIRCodeGen.GenerateLLVMModule();
             }
 
@@ -96,16 +95,16 @@ namespace CommonC.LLVMIR
             return module;
         }
 
-        StatementList ImportUseFiles(StatementList statements)
+        ClosureStatement ImportUseFiles(ClosureStatement closure)
         {
-            List<UseStatement> useStatements = statements.OfType<UseStatement>().ToList();
+            List<UseStatement> useStatements = closure.Statements.OfType<UseStatement>().ToList();
 
             for (int i = 0; i < useStatements.Count; i++)
             {
                 string filePath = Settings.WorkingDirectory + "\\" + useStatements[i].Identifier.Name + ".coc";
                 if (File.Exists(filePath))
                 {
-                    statements.InsertRange(0, ParseText(File.ReadAllText(filePath)));
+                    closure.Statements.InsertRange(0, ParseText(File.ReadAllText(filePath)).Statements);
                 }
                 else
                 {
@@ -113,11 +112,11 @@ namespace CommonC.LLVMIR
                 }
             }
 
-            statements.RemoveAll(s => s is UseStatement);
-            return statements;
+            closure.Statements.RemoveAll(s => s is UseStatement);
+            return closure;
         }
 
-        StatementList ParseText(string code)
+        ClosureStatement ParseText(string code)
         {
             LexicalAnalyser lexicalAnalyser = new LexicalAnalyser(code);
             LexTokenList lexTokens = lexicalAnalyser.Analyze();

@@ -1326,13 +1326,16 @@ namespace CommonC.Parser
         /// </summary>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public StatementList ParseLexTokenList()
+        public ClosureStatement ParseLexTokenList()
         {
             TokenReader.LexTokens.RemoveAll(token => token.Kind == LexKinds.NewLine);
 
             if (ParseStatements(out StatementList statementList))
             {
-                return statementList;
+                return new ClosureStatement
+                {
+                    Statements = statementList
+                };
             }
 
             throw new Exception("Failed to parse the lex token list, is code valid?");

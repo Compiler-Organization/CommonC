@@ -1,5 +1,8 @@
-﻿using CommonC.Parser.AST.Expressions;
+﻿using CommonC.Parser.AST;
+using CommonC.Parser.AST.Expressions;
 using CommonC.Parser.AST.Statements;
+using CommonC.Semantic.Objects;
+using LLVMSharp.Interop;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -8,16 +11,18 @@ namespace CommonC.Semantic
 {
     public class SemanticAnalyzer
     {
-        StatementList Statements { get; set; }
+        ClosureStatement Closure { get; set; }
 
-        public SemanticAnalyzer(StatementList statements)
+        public SemanticAnalyzer(ClosureStatement closure)
         {
-            Statements = statements;
+            Closure = closure;
         }
 
         public void Analyze()
         {
-            PassVariablesToInnerScope(Statements, new Variables(Statements.OfType<VariableDeclarationStatement>()));
+            Closure.Locals = new Variables(Closure.Statements.OfType<VariableDeclarationStatement>());
+
+            PassVariablesToInnerScope(Closure.Statements, Closure.Locals);
         }
 
         void PassVariablesToInnerScope(StatementList statementList, Variables variableDeclarationStatements)
@@ -119,5 +124,7 @@ namespace CommonC.Semantic
                 }
             }
         }
+
+        
     }
 }

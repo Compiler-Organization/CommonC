@@ -32,18 +32,18 @@ namespace CommonC.DotNet
         {
             if(File.Exists(Settings.MainFilePath))
             {
-                StatementList statements = ParseText(File.ReadAllText(Settings.MainFilePath));
-                statements = ImportUseFiles(statements);
+                ClosureStatement closure = ParseText(File.ReadAllText(Settings.MainFilePath));
+                closure.Statements = ImportUseFiles(closure.Statements);
 
-                PrettyPrinter prettyPrinter = new PrettyPrinter(statements, PrettyPrinterSettings.Beautify);
+                PrettyPrinter prettyPrinter = new PrettyPrinter(closure.Statements, PrettyPrinterSettings.Beautify);
                 Console.WriteLine(prettyPrinter.Print());
 
-                SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer(statements);
+                SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer(closure);
                 semanticAnalyzer.Analyze();
 
                 DotNetCodeGen dotNetCodeGen = new DotNetCodeGen(Settings.DotNetCodeGenSettings);
 
-                return dotNetCodeGen.GeneratePEFile(statements);
+                return dotNetCodeGen.GeneratePEFile(closure.Statements);
             }
 
             throw new FileNotFoundException($"Main file {Settings.MainFilePath} does not exist");
@@ -104,7 +104,7 @@ namespace CommonC.DotNet
             return statements;
         }
 
-        StatementList ParseText(string code)
+        ClosureStatement ParseText(string code)
         {
             LexicalAnalyser lexicalAnalyser = new LexicalAnalyser(code);
             LexTokenList lexTokens = lexicalAnalyser.Analyze();

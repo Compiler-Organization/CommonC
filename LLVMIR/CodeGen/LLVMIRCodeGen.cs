@@ -16,11 +16,14 @@ namespace CommonC.LLVMIR.CodeGen
     {
         LLVMIRCodeGenSettings Settings { get; set; }
 
-        StatementList Statements { get; set; }
+        /// <summary>
+        /// The topmost closure of the tree. Contains all statements, functions, structs and globals.
+        /// </summary>
+        ClosureStatement UpperClosure { get; set; }
 
-        public LLVMIRCodeGen(LLVMIRCodeGenSettings settings, StatementList statements)
+        public LLVMIRCodeGen(LLVMIRCodeGenSettings settings, ClosureStatement closure)
         {
-            Statements = statements;
+            UpperClosure = closure;
             Settings = settings;
         }
 
@@ -52,7 +55,7 @@ namespace CommonC.LLVMIR.CodeGen
             CreateFunctionReferences();
             CreateGlobalReferences();
 
-            EmitStatements(Statements, new Variables());
+            EmitStatements(UpperClosure.Statements, new Variables());
 
             return Module;
         }
@@ -270,7 +273,7 @@ namespace CommonC.LLVMIR.CodeGen
 
         void CreateStructReferences()
         {
-            foreach(StructStatement structStatement in Statements.OfType<StructStatement>())
+            foreach(StructStatement structStatement in UpperClosure.Statements.OfType<StructStatement>())
             {
                 Structs.Add(structStatement.Name, structStatement);
             }
@@ -286,7 +289,7 @@ namespace CommonC.LLVMIR.CodeGen
 
         void CreateFunctionReferences()
         {
-            foreach(FunctionDeclarationStatement functionDeclarationStatement in Statements.OfType<FunctionDeclarationStatement>())
+            foreach(FunctionDeclarationStatement functionDeclarationStatement in UpperClosure.Statements.OfType<FunctionDeclarationStatement>())
             {
                 LLVMTypeRef returnType = ResolveLLVMTypeFromExpression(functionDeclarationStatement.ReturnType, null); // TODO: Hacky solution by using null here.
                 LLVMTypeRef[] parameterTypes = functionDeclarationStatement.Parameters.Select(p => ResolveLLVMTypeFromExpression(p.Type, null)).ToArray();
@@ -305,7 +308,7 @@ namespace CommonC.LLVMIR.CodeGen
 
         void CreateGlobalReferences()
         {
-            foreach(VariableDeclarationStatement variableDeclarationStatement in Statements.OfType<VariableDeclarationStatement>())
+            foreach(VariableDeclarationStatement variableDeclarationStatement in UpperClosure.Statements.OfType<VariableDeclarationStatement>())
             {
                 LLVMTypeRef type = ResolveLLVMTypeFromExpression(variableDeclarationStatement.Type, null);
                 variableDeclarationStatement.LLVMType = LLVMTypeRef.CreatePointer(type, 0);
@@ -352,8 +355,6 @@ namespace CommonC.LLVMIR.CodeGen
                     foreach(Expression expression in callStatement.Arguments)
                     {
                         LLVMTypeRef argumentType = ResolveLLVMTypeFromExpression(expression, variables);
-
-                        Console.WriteLine($"------------------------ {argumentType.ToString()}");
                         
                         switch(argumentType.ToString())
                         {
@@ -524,10 +525,17 @@ namespace CommonC.LLVMIR.CodeGen
             {
                 LLVMValueRef value = EmitExpression(variableDeclarationStatement.Expression, variables);
 
-                variableDeclarationStatement.LLVMAlloca = Builder.BuildAlloca(type, variableDeclarationStatement.Name);
-                Builder.BuildStore(value, variableDeclarationStatement.LLVMAlloca);
-            }
+                if(type.StructElementTypesCount > 0)
+                {
+                    variableDeclarationStatement.LLVMAlloca = value;
+                }
+                else
+                {
+                    variableDeclarationStatement.LLVMAlloca = Builder.BuildAlloca(type, variableDeclarationStatement.Name);
+                    Builder.BuildStore(value, variableDeclarationStatement.LLVMAlloca);
+                }
 
+            }
 
             variableDeclarationStatement.LLVMType = type;
         }
@@ -605,7 +613,7 @@ namespace CommonC.LLVMIR.CodeGen
                             StructStatement structT = Structs[returnIdentifier.Name];
 
                             LLVMValueRef structReturnValue = EmitExpression(returnStatement.Expression, variables);
-                            Builder.BuildRet(Builder.BuildLoad2(structT.LLVMStructType, structReturnValue, $"return_struct_{returnIdentifier.Name}"));
+                            Builder.BuildRet(structReturnValue);
                             return;
                         }
                     }
@@ -931,6 +939,7 @@ namespace CommonC.LLVMIR.CodeGen
                                 LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, (ulong)field.FieldIndex)
                             };
 
+                        LLVMTypeRef fieldType = ResolveLLVMTypeFromExpression(field.Type, variables);
                         LLVMValueRef fieldPtr = Builder.BuildGEP2(currentStruct.LLVMStructType, currentPointer, indices, $"{memberIdentifier.Name}_field_ptr");
 
                         if(isWrite && memberChain.Last() == member)
@@ -938,7 +947,8 @@ namespace CommonC.LLVMIR.CodeGen
                             return fieldPtr;
                         }
 
-                        currentPointer = Builder.BuildLoad2(LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), fieldPtr, $"{memberIdentifier.Name}_loaded_field_val");
+                        // LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0)
+                        currentPointer = Builder.BuildLoad2(fieldType, fieldPtr, $"{memberIdentifier.Name}_loaded_field_val");
                     }
 
                     IdentifierExpression? fieldTypeIdentifier = GetInnerIdentifierExpression(field.Type);

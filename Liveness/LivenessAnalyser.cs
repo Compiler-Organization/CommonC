@@ -19,9 +19,9 @@ namespace CommonC.Liveness
         StatementList Statements { get; set; }
         HashSet<string> VariablesBeingReturned { get; set; } = new();
 
-        public LivenessAnalyser(StatementList statements)
+        public LivenessAnalyser(ClosureStatement closure)
         {
-            Statements = statements;
+            Statements = closure.Statements;
         }
 
         public void Analyse()
