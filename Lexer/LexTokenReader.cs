@@ -39,7 +39,7 @@ namespace CommonC.Lexer
         /// <returns></returns>
         public LexToken Consume()
         {
-            Console.Write(LexTokens[Base + 1].Value);
+            // Console.WriteLine(LexTokens[Base + 1].Value);
             return LexTokens[Base++];
         }
 
@@ -56,7 +56,7 @@ namespace CommonC.Lexer
         /// <param name="i"></param>
         public void Skip(int i)
         {
-            Console.Write(LexTokens[Base + 1].Value);
+            // Console.WriteLine(LexTokens[Base + 1].Value);
             Base += i;
         }
 

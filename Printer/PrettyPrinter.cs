@@ -174,7 +174,10 @@ namespace CommonC.Printer
         {
             PrintExpression(indexExpression.Expression, indentation);
             Builder.Append("[");
-            PrintExpression(indexExpression.Index, indentation);
+            if(indexExpression.Index != null)
+            {
+                PrintExpression(indexExpression.Index, indentation);
+            }
             Builder.Append("]");
         }
 
@@ -303,34 +306,42 @@ namespace CommonC.Printer
 
         void PrintExpression(Expression expression, string indentation)
         {
-            if(expression is ObjectInitializerExpression objectInitializerExpression)
+            Builder.Append($"\n{expression.GetType().Name} - IsReservedType: {expression.TypeAnnotation.IsReservedType}, {expression.TypeAnnotation.ReservedType.ToString()} | IsStruct: {expression.TypeAnnotation.IsStruct}, {(expression.TypeAnnotation.Struct ?? new StructStatement()).Name} | IsArray: {expression.TypeAnnotation.IsArray}\n");
+
+            if (expression is ObjectInitializerExpression objectInitializerExpression)
             {
                 PrintObjectInitializerExpression(objectInitializerExpression, indentation);
+                return;
             }
 
             if(expression is ParenthesizedExpression parenthesizedExpression)
             {
                 PrintParenthesizedExpression(parenthesizedExpression, indentation);
+                return;
             }
 
             if(expression is NotExpression notExpression)
             {
                 PrintNotExpression(notExpression, indentation);
+                return;
             }
 
             if(expression is NegateExpression negateExpression)
             {
                 PrintNegateExpression(negateExpression, indentation);
+                return;
             }
 
             if(expression is ArrayInitializerExpression arrayInitializerExpression)
             {
                 PrintArrayInitializerExpression(arrayInitializerExpression, indentation);
+                return;
             }
 
             if(expression is LengthExpression lengthExpression)
             {
                 PrintLengthExpression(lengthExpression, indentation);
+                return;
             }
 
             if(expression is StringExpression stringExpression)
@@ -410,6 +421,8 @@ namespace CommonC.Printer
                 PrintRelationalExpression(relationalExpression, indentation);
                 return;
             }
+
+            throw new Exception($"Unknown expression type: {expression.GetType()}");
         }
 
         void PrintExpressions(ExpressionList expressions, string indentation)

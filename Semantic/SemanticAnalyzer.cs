@@ -23,6 +23,9 @@ namespace CommonC.Semantic
             Closure.Locals = new Variables(Closure.Statements.OfType<VariableDeclarationStatement>());
 
             PassVariablesToInnerScope(Closure.Statements, Closure.Locals);
+
+            TypeAnnotator typeAnnotator = new TypeAnnotator();
+            typeAnnotator.AnnotateTypes(Closure);
         }
 
         void PassVariablesToInnerScope(StatementList statementList, Variables variableDeclarationStatements)

@@ -1,7 +1,7 @@
-﻿using CommonC.Parser.AST.Statements;
+﻿using CommonC.Parser.AST;
 using CommonC.Parser.AST.Expressions;
+using CommonC.Parser.AST.Statements;
 using CommonC.Semantic.Objects;
-using CommonC.Parser.AST;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -17,7 +17,7 @@ namespace CommonC.Semantic
         {
             if (expression is StringExpression)
             {
-                return new TypeAnnotation
+                return expression.TypeAnnotation = new TypeAnnotation
                 {
                     IsReservedType = true,
                     ReservedType = ReservedTypes.String
@@ -27,7 +27,7 @@ namespace CommonC.Semantic
             {
                 if (numberExpression.IsDouble)
                 {
-                    return new TypeAnnotation
+                    return expression.TypeAnnotation = new TypeAnnotation
                     {
                         IsReservedType = true,
                         ReservedType = ReservedTypes.F64
@@ -35,7 +35,7 @@ namespace CommonC.Semantic
                 }
                 else
                 {
-                    return new TypeAnnotation
+                    return expression.TypeAnnotation = new TypeAnnotation
                     {
                         IsReservedType = true,
                         ReservedType = ReservedTypes.I32
@@ -44,7 +44,7 @@ namespace CommonC.Semantic
             }
             if (expression is TypeExpression typeExpression)
             {
-                return new TypeAnnotation
+                return expression.TypeAnnotation = new TypeAnnotation
                 {
                     IsReservedType = true,
                     ReservedType = typeExpression.Type
@@ -61,33 +61,37 @@ namespace CommonC.Semantic
                     };
                 }
 
-                return ResolveTypeFromExpression(variables.GetVariable(identifierExpression.Name).Type, variables);
+                return expression.TypeAnnotation = ResolveTypeFromExpression(variables.GetVariable(identifierExpression.Name).Type, variables);
             }
             if (expression is CallExpression callExpression)
             {
-                if (callExpression.Expression is IdentifierExpression callIdentifierExpression)
-                {
-                    if (Functions.ContainsKey(callIdentifierExpression.Name))
-                    {
-                        return ResolveTypeFromExpression(Functions[callIdentifierExpression.Name].ReturnType, variables);
-                    }
-                }
+                return expression.TypeAnnotation = ResolveTypeFromExpression(callExpression.Expression, variables);
+                //if (callExpression.Expression is IdentifierExpression callIdentifierExpression)
+                //{
+                //    if (Functions.ContainsKey(callIdentifierExpression.Name))
+                //    {
+                //        return ResolveTypeFromExpression(Functions[callIdentifierExpression.Name].ReturnType, variables);
+                //    }
+                //}
 
-                throw new Exception($"Call expression of type {callExpression.Expression.GetType().Name} is not supported when resolving LLVM types from expressions.");
+                //throw new Exception($"Call expression of type {callExpression.Expression.GetType().Name} is not supported when resolving types from expressions.");
             }
             if (expression is IndexExpression indexExpression)
             {
+                if(indexExpression.Index != null)
+                    ResolveTypeFromExpression(indexExpression.Index, variables);
+
                 TypeAnnotation indexTypeAnnotation = ResolveTypeFromExpression(indexExpression.Expression, variables);
                 indexTypeAnnotation.IsArray = true;
                 return indexTypeAnnotation;
             }
             if (expression is NotExpression notExpression)
             {
-                return ResolveTypeFromExpression(notExpression.Expression, variables);
+                return expression.TypeAnnotation = ResolveTypeFromExpression(notExpression.Expression, variables);
             }
             if (expression is BooleanExpression booleanExpression)
             {
-                return new TypeAnnotation
+                return expression.TypeAnnotation = new TypeAnnotation
                 {
                     IsReservedType = true,
                     ReservedType = ReservedTypes.Bool
@@ -95,27 +99,58 @@ namespace CommonC.Semantic
             }
             if (expression is ParenthesizedExpression parenthesizedExpression)
             {
-                return ResolveTypeFromExpression(parenthesizedExpression.Expression, variables);
+                return expression.TypeAnnotation = ResolveTypeFromExpression(parenthesizedExpression.Expression, variables);
             }
             if (expression is RelationalExpression relationalExpression)
             {
-                return ResolveTypeFromExpression(relationalExpression.Left, variables);
+                ResolveTypeFromExpression(relationalExpression.Right, variables);
+                return expression.TypeAnnotation = ResolveTypeFromExpression(relationalExpression.Left, variables);
             }
             if (expression is ArithmeticExpression arithmeticExpression)
             {
-                return ResolveTypeFromExpression(arithmeticExpression.Left, variables);
+                ResolveTypeFromExpression(arithmeticExpression.Right, variables);
+                return expression.TypeAnnotation = ResolveTypeFromExpression(arithmeticExpression.Left, variables);
             }
             if (expression is ArrayInitializerExpression arrayInitializerExpression)
             {
-                return ResolveTypeFromExpression(arrayInitializerExpression.Index, variables);
+                ResolveTypeFromExpression(arrayInitializerExpression.Array, variables);
+                return expression.TypeAnnotation = ResolveTypeFromExpression(arrayInitializerExpression.Index, variables);
+            }
+            if(expression is ArrayExpression arrayExpression)
+            {
+                foreach(Expression element in arrayExpression.Expressions)
+                {
+                    element.TypeAnnotation = ResolveTypeFromExpression(element, variables);
+                }
+
+                if(arrayExpression.Expressions.Any())
+                {
+                    return expression.TypeAnnotation = arrayExpression.Expressions.First().TypeAnnotation;
+                }
+                else
+                {
+                    return expression.TypeAnnotation = new TypeAnnotation
+                    {
+                        IsArray = true,
+                    };
+                }
             }
             if (expression is SizeOfExpression sizeOfExpression)
             {
-                return ResolveTypeFromExpression(sizeOfExpression.Expression, variables);
+                return expression.TypeAnnotation = ResolveTypeFromExpression(sizeOfExpression.Expression, variables);
             }
             if (expression is LengthExpression lengthExpression)
             {
-                return ResolveTypeFromExpression(lengthExpression.Expression, variables);
+                return expression.TypeAnnotation = ResolveTypeFromExpression(lengthExpression.Expression, variables);
+            }
+            if(expression is ParameterExpression parameterExpression)
+            {
+                return expression.TypeAnnotation = ResolveTypeFromExpression(parameterExpression.Type, variables);
+            }
+            if(expression is RangeExpression rangeExpression)
+            {
+                ResolveTypeFromExpression(rangeExpression.End, variables);
+                return expression.TypeAnnotation = ResolveTypeFromExpression(rangeExpression.Start, variables);
             }
             if (expression is MemberExpression memberExpression)
             {
@@ -124,14 +159,14 @@ namespace CommonC.Semantic
 
                 if (memberChain.Count <= 0)
                 {
-                    throw new Exception("Invalid member expression when solving LLVM type, cannot be 0!");
+                    throw new Exception("Invalid member expression when solving type, member chain contained 0 members!");
                 }
 
                 if (memberChain.First() is IdentifierExpression firstIdentifier)
                 {
                     if (variables == null)
                     {
-                        throw new Exception($"Variables cannot be null when resolving LLVM type from member expression with identifier {firstIdentifier.Name} as first member.");
+                        throw new Exception($"Variables cannot be null when resolving type from member expression with identifier {firstIdentifier.Name} as first member.");
                     }
 
                     VariableDeclarationStatement parentVariable = variables.GetVariable(firstIdentifier.Name);
@@ -146,7 +181,7 @@ namespace CommonC.Semantic
 
                 if (currentStruct == null)
                 {
-                    throw new Exception($"Could not resolve struct for member expression when resolving LLVM type.");
+                    throw new Exception($"Could not resolve struct for member expression when resolving type.");
                 }
 
                 foreach (Expression member in memberChain.Skip(1))
@@ -160,12 +195,12 @@ namespace CommonC.Semantic
                         }
 
                         VariableDeclarationStatement field = currentStruct.GetField(memberIdentifier.Name);
-                        return ResolveTypeFromExpression(field.Type, variables); // may cause issues as variables include all variables in the current scope, including parameters and local variables.
+                        return expression.TypeAnnotation = ResolveTypeFromExpression(field.Type, variables); // may cause issues as variables include all variables in the current scope, including parameters and local variables.
                     }
                 }
             }
 
-            throw new Exception($"Expression {expression.GetType().Name} could not be resolved to an LLVM type.");
+            throw new Exception($"Could not resolve type of expression with type {expression.GetType().Name}");
         }
 
         IdentifierExpression? GetInnerIdentifierExpression(Expression expression)
@@ -192,7 +227,7 @@ namespace CommonC.Semantic
             };
         }
 
-        void AnnotateTypes(ClosureStatement closure)
+        public void AnnotateTypes(ClosureStatement closure)
         {
             List<StructStatement> structs = closure.Statements.OfType<StructStatement>().ToList();
             foreach (StructStatement structStatement in structs)
@@ -206,54 +241,108 @@ namespace CommonC.Semantic
                 Functions.Add(functionDeclarationStatement.Name, functionDeclarationStatement);
             }
 
-            AnnotateStatements(closure.Statements, closure.Locals);
+            AnnotateStatements(closure);
+        }
+
+        void AnnotateTypeForParameters(List<ParameterExpression> parameters, Variables variables)
+        {
+            foreach (ParameterExpression parameter in parameters)
+            {
+                AnnotateTypeForExpression(parameter, variables);
+            }
         }
 
         void AnnotateTypeForExpression(Expression expression, Variables variables)
         {
-            if (expression == null) return;
-            if (expression is IdentifierExpression identifierExpression)
-            {
-                if (Structs.TryGetValue(identifierExpression.Name, out StructStatement? structStatement))
-                {
-                    expression.TypeAnnotation = new TypeAnnotation
-                    {
-                        IsStruct = true,
-                        Struct = structStatement
-                    };
-                }
+            expression.TypeAnnotation = ResolveTypeFromExpression(expression, variables);
+        }
 
-                if (variables.Contains(identifierExpression.Name))
-                {
-                    VariableDeclarationStatement variable = variables.GetVariable(identifierExpression.Name);
-                    expression.TypeAnnotation = ResolveTypeFromExpression(variable.Type, variables);
-                }
-                return;
-            }
-            if (expression is CallExpression callExpression)
+        void AnnotateTypeForExpressions(List<Expression> expressions, Variables variables)
+        {
+            foreach (Expression expression in expressions)
             {
-
-                return;
+                AnnotateTypeForExpression(expression, variables);
             }
         }
 
-        void AnnotateStatements(StatementList statements, Variables variables)
+        void AnnotateStatements(ClosureStatement closure)
         {
-            foreach (Statement statement in statements)
+            foreach (Statement statement in closure.Statements)
             {
                 if (statement is FunctionDeclarationStatement functionDeclarationStatement)
                 {
+                    AnnotateTypeForExpression(functionDeclarationStatement.ReturnType, closure.Locals);
+                    AnnotateTypeForParameters(functionDeclarationStatement.Parameters, closure.Locals);
+
+                    if (functionDeclarationStatement.Body != null)
+                        AnnotateStatements(functionDeclarationStatement.Body);
 
                     continue;
                 }
                 if (statement is IfStatement ifStatement)
                 {
+                    AnnotateTypeForExpression(ifStatement.Condition, closure.Locals);
+                    AnnotateStatements(ifStatement.Body);
 
+                    foreach (IfStatement elseIfStatement in ifStatement.ElseIfs)
+                    {
+                        AnnotateTypeForExpression(elseIfStatement.Condition, closure.Locals);
+                        AnnotateStatements(elseIfStatement.Body);
+                    }
+
+                    AnnotateStatements(ifStatement.Else);
                     continue;
                 }
                 if (statement is ForStatement forStatement)
                 {
+                    AnnotateTypeForExpression(forStatement.Range, closure.Locals);
+                    AnnotateTypeForExpression(forStatement.Variable.Type, closure.Locals);
+                    AnnotateStatements(forStatement.Body);
+                    continue;
+                }
+                if (statement is VariableDeclarationStatement variableDeclarationStatement)
+                {
+                    AnnotateTypeForExpression(variableDeclarationStatement.Type, closure.Locals);
+                    variableDeclarationStatement.TypeAnnotation = variableDeclarationStatement.Type.TypeAnnotation;
+                    continue;
+                }
+                if (statement is AssignmentStatement assignmentStatement)
+                {
+                    AnnotateTypeForExpression(assignmentStatement.Variable, closure.Locals);
+                    AnnotateTypeForExpression(assignmentStatement.Expression, closure.Locals);
+                    continue;
+                }
+                if (statement is CallStatement callStatement)
+                {
+                    // AnnotateTypeForExpression(callStatement.Expression, closure.Locals);
+                    AnnotateTypeForExpressions(callStatement.Arguments, closure.Locals);
+                    continue;
+                }
+                if (statement is ClosureStatement closureStatement)
+                {
+                    AnnotateStatements(closureStatement);
+                    continue;
+                }
+                if (statement is StructStatement structStatement)
+                {
+                    foreach (VariableDeclarationStatement field in structStatement.Fields)
+                    {
+                        AnnotateTypeForExpression(field.Type, closure.Locals);
+                        field.TypeAnnotation = field.Type.TypeAnnotation;
+                    }
+                    continue;
+                }
+                if (statement is ReturnStatement returnStatement)
+                {
+                    if (returnStatement.Expression != null)
+                        AnnotateTypeForExpression(returnStatement.Expression, closure.Locals);
 
+                    continue;
+                }
+                if (statement is WhileStatement whileStatement)
+                {
+                    AnnotateTypeForExpression(whileStatement.Expression, closure.Locals);
+                    AnnotateStatements(whileStatement.Body);
                     continue;
                 }
             }

@@ -6,6 +6,8 @@ namespace CommonC.Parser.AST
 {
     public enum ReservedTypes
     {
+        None,
+
         I8,
         U8,
 

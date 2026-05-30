@@ -14,6 +14,6 @@ namespace CommonC.Parser.AST.Expressions
         /// <summary>
         /// The index being accessed
         /// </summary>
-        public Expression Index { get; set; } = new Expression();
+        public Expression? Index { get; set; }
     }
 }
