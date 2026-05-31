@@ -25,7 +25,7 @@ namespace CommonC.Parser.AST.Statements
 
             if(variables.Count == 0)
             {
-                throw new Exception($"Variable {name} does not exist in the current scope.");
+                throw new Exception($"Variable {name} does not exist in the current scope: {string.Join(", ", this.Select(v => v.Name))}");
             }
 
             return variables.First();

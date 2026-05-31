@@ -27,6 +27,8 @@ Homestead CreateHomestead(Person mother, Person father) {
 fn LogHomestead(Homestead homestead) {
 	str mothersName = homestead.Mother.Name
 	str fathersName = homestead.Father.Name
+
+	Person mother = homestead.Mother
 	
 	logl(mothersName, " and ", fathersName, " lives together in a homestead.")
 }
