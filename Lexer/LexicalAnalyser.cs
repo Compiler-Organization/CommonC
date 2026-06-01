@@ -233,18 +233,13 @@ namespace CommonC.Lexer
                     case '\'':
                         {
                             i++;
-                            while (Input[i] != '\'')
+                            value = Input[i].ToString();
+                            i++;
+                            if (Input[i] != '\'')
                             {
-                                if (Input[i] == '\\' && Input[i + 1] == '\'')
-                                {
-                                    i++;
-                                }
-                                sb.Append(Input[i]);
-                                i++;
+                                throw new Exception($"Invalid character literal at line {Line}");
                             }
-                            value = sb.ToString();
-                            kind = LexKinds.String;
-                            sb.Clear();
+                            kind = LexKinds.Char;
 
                             break;
                         }

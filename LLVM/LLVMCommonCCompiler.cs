@@ -48,14 +48,15 @@ namespace CommonC.LLVM
                 ClosureStatement closure = ParseText(File.ReadAllText(Settings.MainFilePath));
                 closure = ImportUseFiles(closure);
 
+                PrettyPrinter prettyPrinter = new PrettyPrinter(closure.Statements, PrettyPrinterSettings.Beautify);
+                Console.WriteLine(prettyPrinter.Print());
+
                 SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer(closure);
                 semanticAnalyzer.Analyze();
 
                 // LivenessAnalyser livenessAnalyser = new LivenessAnalyser(closure);
                 // livenessAnalyser.Analyse();
 
-                PrettyPrinter prettyPrinter = new PrettyPrinter(closure.Statements, PrettyPrinterSettings.Beautify);
-                Console.WriteLine(prettyPrinter.Print());
 
                 LLVMCodeGen lLVMCodeGen = new LLVMCodeGen(Settings.LLVMCodeGenSettings, closure);
                 return lLVMCodeGen.GenerateLLVMModule();

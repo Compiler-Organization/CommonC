@@ -399,6 +399,10 @@ namespace CommonC.LLVM.CodeGen
                         format += "%g";
                         break;
 
+                    case "i8":
+                        format += "%c";
+                        break;
+
                     default:
                         format += "%d";
                         break;
@@ -824,11 +828,11 @@ namespace CommonC.LLVM.CodeGen
         LLVMValueRef EmitIndexExpressionAddress(IndexExpression indexExpression, Variables variables)
         {
             LLVMValueRef arrayPtr;
+            bool isString = indexExpression.Expression.TypeAnnotation.ReservedType == ReservedTypes.String; // Determine if base is 'str'
 
             if (indexExpression.Expression is IndexExpression nestedIndex)
             {
                 LLVMValueRef innerGepAddr = EmitIndexExpressionAddress(nestedIndex, variables);
-
                 LLVMTypeRef intermediateType = nestedIndex.TypeAnnotation.ToLLVMType();
                 arrayPtr = Builder.BuildLoad2(intermediateType, innerGepAddr, "array.subptr.load");
             }
@@ -839,22 +843,27 @@ namespace CommonC.LLVM.CodeGen
 
             LLVMValueRef indexValue = EmitExpression(indexExpression.Index, variables);
 
-            LLVMTypeRef elementType = indexExpression.TypeAnnotation.ToLLVMType(destructArray: true);
+            LLVMTypeRef elementType = isString
+                ? LLVMTypeRef.Int8
+                : indexExpression.TypeAnnotation.ToLLVMType(destructArray: true);
 
             return Builder.BuildInBoundsGEP2(
                 elementType,
                 arrayPtr,
                 new[] { indexValue },
-                "array.index.gep"
+                "str.or.array.index.gep"
             );
         }
 
         LLVMValueRef EmitIndexExpression(IndexExpression indexExpression, Variables variables)
         {
             LLVMValueRef elementPtr = EmitIndexExpressionAddress(indexExpression, variables);
-            LLVMTypeRef elementType = indexExpression.Expression.TypeAnnotation.ToLLVMType(destructArray: true);
 
-            return Builder.BuildLoad2(elementType, elementPtr, "array.index.load");
+            LLVMTypeRef elementType = indexExpression.Expression.TypeAnnotation.ReservedType == ReservedTypes.String
+                ? LLVMTypeRef.Int8
+                : indexExpression.Expression.TypeAnnotation.ToLLVMType(destructArray: true);
+
+            return Builder.BuildLoad2(elementType, elementPtr, "index.load");
         }
 
         LLVMValueRef EmitArrayExpression(ArrayExpression arrayExpression, Variables variables)
@@ -1264,99 +1273,14 @@ namespace CommonC.LLVM.CodeGen
                 : LLVMValueRef.CreateConstNull(LLVMTypeRef.Int1);
         }
 
-        LLVMValueRef EmitUnpackExpression(UnpackExpression unpackExpression, Variables variables)
+        LLVMValueRef EmitCharacterExpression(CharacterExpression characterExpression)
         {
-            if (unpackExpression == null)
+            if (characterExpression == null)
             {
-                throw new ArgumentNullException(nameof(unpackExpression), "Unpack expression node cannot be null.");
+                throw new ArgumentNullException(nameof(characterExpression), "Character expression node cannot be null.");
             }
-
-            // 1. Evaluate the source array expression (Left side, e.g., 'arr')
-            LLVMValueRef sourceArrayPtr = EmitExpression(unpackExpression.Left, variables);
-            if (sourceArrayPtr == null)
-            {
-                throw new Exception("The source array expression (Left) for unpacking evaluated to null.");
-            }
-
-            LLVMTypeRef sourceArrayPtrType = sourceArrayPtr.TypeOf;
-            if (sourceArrayPtrType.Kind != LLVMTypeKind.LLVMPointerTypeKind && sourceArrayPtrType.Kind != LLVMTypeKind.LLVMArrayTypeKind)
-            {
-                throw new Exception($"Cannot unpack type '{sourceArrayPtrType}'. Left side must evaluate to an array reference.");
-            }
-
-            // Resolve the individual element type (e.g., int, i32, f64)
-            LLVMTypeRef elementType = sourceArrayPtrType.Kind == LLVMTypeKind.LLVMArrayTypeKind
-                ? sourceArrayPtrType.ElementType
-                : unpackExpression.Left.TypeAnnotation.ToLLVMType();
-
-            // 2. Validate and cast the target Range Expression (Right side, e.g., '0..5')
-            if (unpackExpression.Right is not RangeExpression rangeExpr)
-            {
-                throw new Exception($"The right side of a Common C unpack expression must be a RangeExpression, found '{unpackExpression.Right.GetType().Name}'.");
-            }
-
-            LLVMValueRef startIdx = EmitExpression(rangeExpr.Start, variables);
-            LLVMValueRef endIdx = EmitExpression(rangeExpr.End, variables);
-
-            if (startIdx == null || endIdx == null)
-            {
-                throw new Exception("Unpack slice range boundaries could not be successfully evaluated.");
-            }
-
-            // 3. Compute the length of the new slice: (EndIndex - StartIndex)
-            LLVMValueRef sliceLength = Builder.BuildSub(endIdx, startIdx, "unpack.slice.len");
-            LLVMValueRef sliceLengthI32 = Builder.BuildIntCast(sliceLength, LLVMTypeRef.Int32, "unpack.slice.len.i32");
-
-            // 4. Allocate space for the new destination sub-array memory segment
-            LLVMValueRef destinationArrayPtr = Builder.BuildArrayMalloc(elementType, sliceLengthI32, "unpack.slice.ptr");
-
-            // 5. Emit a highly optimized runtime loop block to copy elements over
-            LLVMValueRef currentFunc = Builder.InsertBlock.Parent;
-
-            LLVMBasicBlockRef loopCondBB = currentFunc.AppendBasicBlock("unpack.copy.cond");
-            LLVMBasicBlockRef loopBodyBB = currentFunc.AppendBasicBlock("unpack.copy.body");
-            LLVMBasicBlockRef loopNextBB = currentFunc.AppendBasicBlock("unpack.copy.next");
-
-            // Track loop iteration progress via an offset tracking index counter
-            LLVMValueRef indexCounterAlloca = Builder.BuildAlloca(LLVMTypeRef.Int32, "unpack.counter");
-            Builder.BuildStore(LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0), indexCounterAlloca);
-            Builder.BuildBr(loopCondBB);
-
-            // Condition Basic Block
-            Builder.PositionAtEnd(loopCondBB);
-            LLVMValueRef currentCounter = Builder.BuildLoad2(LLVMTypeRef.Int32, indexCounterAlloca, "counter.load");
-            LLVMValueRef isLess = Builder.BuildICmp(LLVMIntPredicate.LLVMIntSLT, currentCounter, sliceLengthI32, "counter.lt.len");
-            Builder.BuildCondBr(isLess, loopBodyBB, loopNextBB);
-
-            // Body Basic Block (Copying indices)
-            Builder.PositionAtEnd(loopBodyBB);
-
-            // Compute original source index position: (StartIdx + currentCounter)
-            LLVMValueRef absoluteSourceIdx = Builder.BuildAdd(startIdx, currentCounter, "src.idx.offset");
-
-            // GEP + Load from source array address
-            LLVMValueRef sourceElementPtr = Builder.BuildInBoundsGEP2(elementType, sourceArrayPtr, [absoluteSourceIdx], "src.elem.gep".AsSpan());
-            LLVMValueRef elementsVal = Builder.BuildLoad2(elementType, sourceElementPtr, "src.elem.val");
-
-            // GEP + Store to destination slice array address
-            LLVMValueRef destinationElementPtr = Builder.BuildInBoundsGEP2(elementType, destinationArrayPtr, [currentCounter], "dest.elem.gep".AsSpan());
-            Builder.BuildStore(elementsVal, destinationElementPtr);
-
-            // Increment index counter tracking loop iteration
-            LLVMValueRef nextCounterValue = Builder.BuildAdd(currentCounter, LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 1), "counter.inc");
-            Builder.BuildStore(nextCounterValue, indexCounterAlloca);
-            Builder.BuildBr(loopCondBB);
-
-            // Exit Block
-            Builder.PositionAtEnd(loopNextBB);
-
-            // Returns a pointer referencing the newly populated array slice allocation
-            return destinationArrayPtr;
+            return LLVMValueRef.CreateConstInt(LLVMTypeRef.Int8, (ulong)characterExpression.Value, false);
         }
-
-
-
-
 
         LLVMValueRef EmitExpression(Expression expression, Variables variables)
         {
@@ -1377,6 +1301,7 @@ namespace CommonC.LLVM.CodeGen
                 NotExpression notExpression => EmitNotExpression(notExpression, variables),
                 ParenthesizedExpression parenthesizedExpression => EmitParenthesizedExpression(parenthesizedExpression, variables),
                 BooleanExpression booleanExpression => EmitBooleanExpression(booleanExpression),
+                CharacterExpression characterExpression => EmitCharacterExpression(characterExpression),
                 _ => throw new Exception($"Unsupported expression type: {expression.GetType().Name}")
             };
         }

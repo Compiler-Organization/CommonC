@@ -310,9 +310,20 @@ namespace CommonC.Printer
             PrintExpression(sizeOfExpression.Expression, indentation);
         }
 
+        void PrintCharacterExpression(CharacterExpression characterExpression)
+        {
+            Builder.Append($"'{characterExpression.Value}'");
+        }
+
         void PrintExpression(Expression expression, string indentation)
         {
             // Builder.Append($"\n{expression.GetType().Name} - IsReservedType: {expression.TypeAnnotation.IsReservedType}, {expression.TypeAnnotation.ReservedType.ToString()} | IsStruct: {expression.TypeAnnotation.IsStruct}, {(expression.TypeAnnotation.Struct ?? new StructStatement()).Name} | IsArray: {expression.TypeAnnotation.IsArray}, ArrayDepth: {expression.TypeAnnotation.ArrayDepth} \n");
+
+            if(expression is CharacterExpression characterExpression)
+            {
+                PrintCharacterExpression(characterExpression);
+                return;
+            }
 
             if (expression is ObjectInitializerExpression objectInitializerExpression)
             {

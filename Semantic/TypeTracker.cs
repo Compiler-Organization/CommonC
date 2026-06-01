@@ -23,6 +23,14 @@ namespace CommonC.Semantic
                     ReservedType = ReservedTypes.String
                 };
             }
+            if(expression is CharacterExpression)
+            {
+                return expression.TypeAnnotation = new TypeAnnotation
+                {
+                    IsReservedType = true,
+                    ReservedType = ReservedTypes.Char
+                };
+            }
             if (expression is NumberExpression numberExpression)
             {
                 if (numberExpression.IsDouble)

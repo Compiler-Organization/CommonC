@@ -37,6 +37,17 @@ namespace CommonC.Parser
             return false;
         }
 
+        bool ParseCharacterExpression(out CharacterExpression characterExpression)
+        {
+            characterExpression = new CharacterExpression();
+            if (TokenReader.Expect(LexKinds.Char))
+            {
+                characterExpression.Value = TokenReader.Consume().Value[0];
+                return true;
+            }
+            return false;
+        }
+
         bool ParseNumberExpression(out NumberExpression numberExpression)
         {
             numberExpression = new NumberExpression();
@@ -239,6 +250,11 @@ namespace CommonC.Parser
             if (ParseStringExpression(out StringExpression stringExpression))
             {
                 expression = stringExpression;
+                return true;
+            }
+            if(ParseCharacterExpression(out CharacterExpression characterExpression))
+            {
+                expression = characterExpression;
                 return true;
             }
             if (ParseNumberExpression(out NumberExpression numberExpression))
