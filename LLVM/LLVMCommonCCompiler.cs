@@ -1,7 +1,7 @@
 ﻿using CommonC.Lexer;
 using CommonC.Lexer.Objects;
 using CommonC.Liveness;
-using CommonC.LLVMIR.CodeGen;
+using CommonC.LLVM.CodeGen;
 using CommonC.Optimizer;
 using CommonC.Parser;
 using CommonC.Parser.AST.Statements;
@@ -13,13 +13,13 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 
-namespace CommonC.LLVMIR
+namespace CommonC.LLVM
 {
-    public class LLVMIRCommonCCompiler
+    public class LLVMCommonCCompiler
     {
-        LLVMIRCommonCCompilerSettings Settings { get; set; }
+        LLVMCommonCCompilerSettings Settings { get; set; }
 
-        public LLVMIRCommonCCompiler(LLVMIRCommonCCompilerSettings settings)
+        public LLVMCommonCCompiler(LLVMCommonCCompilerSettings settings)
         {
             Settings = settings;
         }
@@ -33,7 +33,7 @@ namespace CommonC.LLVMIR
         public LLVMGenericValueRef RunModule(LLVMModuleRef module, LLVMGenericValueRef[] args)
         {
             LLVMExecutionEngineRef executionEngine = module.CreateExecutionEngine();
-            return executionEngine.RunFunction(module.GetNamedFunction(Settings.LLVMIRCodeGenSettings.EntryPoint), args);
+            return executionEngine.RunFunction(module.GetNamedFunction(Settings.LLVMCodeGenSettings.EntryPoint), args);
         }
 
         /// <summary>
@@ -51,14 +51,14 @@ namespace CommonC.LLVMIR
                 SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer(closure);
                 semanticAnalyzer.Analyze();
 
-                LivenessAnalyser livenessAnalyser = new LivenessAnalyser(closure);
-                livenessAnalyser.Analyse();
+                // LivenessAnalyser livenessAnalyser = new LivenessAnalyser(closure);
+                // livenessAnalyser.Analyse();
 
                 PrettyPrinter prettyPrinter = new PrettyPrinter(closure.Statements, PrettyPrinterSettings.Beautify);
                 Console.WriteLine(prettyPrinter.Print());
 
-                LLVMCodeGen lLVMIRCodeGen = new LLVMCodeGen(Settings.LLVMIRCodeGenSettings, closure);
-                return lLVMIRCodeGen.GenerateLLVMModule();
+                LLVMCodeGen lLVMCodeGen = new LLVMCodeGen(Settings.LLVMCodeGenSettings, closure);
+                return lLVMCodeGen.GenerateLLVMModule();
             }
 
             throw new FileNotFoundException($"Main file {Settings.MainFilePath} does not exist");
@@ -83,12 +83,12 @@ namespace CommonC.LLVMIR
                 Console.ForegroundColor = ConsoleColor.Gray;
             }
 
-            File.WriteAllText($"{Settings.LLVMIRCodeGenSettings.Name}.ll", module.ToString());
+            File.WriteAllText($"{Settings.LLVMCodeGenSettings.Name}.ll", module.ToString());
 
             ProcessStartInfo clang = new ProcessStartInfo()
             {
                 FileName = @".\\Llvm\\bin\\clang.exe",
-                Arguments = $"\"{Environment.CurrentDirectory}\\{Settings.LLVMIRCodeGenSettings.Name}.ll\" -L{Environment.CurrentDirectory}\\libs -llegacy_stdio_definitions -O3 -o \"{Environment.CurrentDirectory}\\{Settings.LLVMIRCodeGenSettings.Name}.exe\"",
+                Arguments = $"\"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.ll\" -L{Environment.CurrentDirectory}\\libs -llegacy_stdio_definitions -O3 -o \"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.exe\"",
             };
             Process.Start(clang).WaitForExit();
 

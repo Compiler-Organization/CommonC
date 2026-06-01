@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace CommonC.LLVMIR.CodeGen
+namespace CommonC.LLVM.CodeGen
 {
-    public class LLVMIRCodeGenSettings
+    public class LLVMCodeGenSettings
     {
 
         /// <summary>

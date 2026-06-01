@@ -65,11 +65,38 @@ namespace CommonC.Semantic.Objects
                     _ => throw new InvalidOperationException($"Unsupported reserved type: {ReservedType}")
                 },
                 { IsStruct: true } => Struct.LLVMStructType,
-                _ => throw new InvalidOperationException("Type annotation does not have a valid LLVM type.")
+                _ => throw new InvalidOperationException($"Type annotation does not have a valid LLVM type: {ToString()}")
             };
 
             return !destructArray && IsArray ? LLVMTypeRef.CreatePointer(baseType, 0) : baseType;
         }
 
+        /// <summary>
+        /// Creates a deep copy of the type annotation.
+        /// Useful for when you want to modify a type annotation without affecting the original
+        /// </summary>
+        /// <returns></returns>
+        public TypeAnnotation Copy()
+        {
+            return new TypeAnnotation
+            {
+                IsReservedType = IsReservedType,
+                ReservedType = ReservedType,
+                IsStruct = IsStruct,
+                Struct = Struct,
+                IsArray = IsArray,
+                ArrayDepth = ArrayDepth,
+                IsVariable = IsVariable
+            };
+        }
+
+        /// <summary>
+        /// Converts the annotation to a readable string for debugging purposes
+        /// </summary>
+        /// <returns></returns>
+        public override string ToString()
+        {
+            return $"{(IsReservedType ? ReservedType.ToString() : IsStruct ? Struct.Name : "Unknown")}{(IsArray ? string.Concat(Enumerable.Repeat("[]", ArrayDepth)) : "")}";
+        }
     }
 }

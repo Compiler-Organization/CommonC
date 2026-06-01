@@ -1,12 +1,12 @@
 ﻿using CommonC.DotNet.CodeGen;
-using CommonC.LLVMIR.CodeGen;
+using CommonC.LLVM.CodeGen;
 using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace CommonC.LLVMIR
+namespace CommonC.LLVM
 {
-    public class LLVMIRCommonCCompilerSettings
+    public class LLVMCommonCCompilerSettings
     {
 
         /// <summary>
@@ -19,7 +19,7 @@ namespace CommonC.LLVMIR
         /// </summary>
         public required string MainFilePath { get; set; }
 
-        public LLVMIRCodeGenSettings LLVMIRCodeGenSettings { get; set; } = new LLVMIRCodeGenSettings
+        public LLVMCodeGenSettings LLVMCodeGenSettings { get; set; } = new LLVMCodeGenSettings
         {
             Name = "app",
             EntryPoint = "main",

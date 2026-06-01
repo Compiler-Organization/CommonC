@@ -13,7 +13,7 @@ namespace CommonC.Semantic
         Dictionary<string, StructStatement> Structs = new Dictionary<string, StructStatement>();
         Dictionary<string, FunctionDeclarationStatement> Functions = new Dictionary<string, FunctionDeclarationStatement>();
 
-        TypeAnnotation ResolveTypeFromExpression(Expression expression, Variables? variables, bool isAssignment = false)
+        TypeAnnotation ResolveTypeFromExpression(Expression expression, Variables? variables)
         {
             if (expression is StringExpression)
             {
@@ -81,9 +81,12 @@ namespace CommonC.Semantic
             }
             if (expression is CallExpression callExpression)
             {
-                foreach(Expression argument in callExpression.Arguments)
+                if(callExpression.Arguments != null && callExpression.Arguments.Count > 0)
                 {
-                    argument.TypeAnnotation = ResolveTypeFromExpression(argument, variables);
+                    foreach (Expression argument in callExpression.Arguments)
+                    {
+                        argument.TypeAnnotation = ResolveTypeFromExpression(argument, variables);
+                    }
                 }
 
                 return expression.TypeAnnotation = ResolveTypeFromExpression(callExpression.Expression, variables);
@@ -102,20 +105,12 @@ namespace CommonC.Semantic
                 if(indexExpression.Index != null)
                     ResolveTypeFromExpression(indexExpression.Index, variables);
 
-                TypeAnnotation indexTypeAnnotation = ResolveTypeFromExpression(indexExpression.Expression, variables);
-                
-                return indexExpression.TypeAnnotation = new TypeAnnotation
-                {
-                    IsReservedType = indexTypeAnnotation.IsReservedType,
-                    ReservedType = indexTypeAnnotation.ReservedType,
-                    IsStruct = indexTypeAnnotation.IsStruct,
-                    Struct = indexTypeAnnotation.Struct,
+                TypeAnnotation indexTypeAnnotation = ResolveTypeFromExpression(indexExpression.Expression, variables).Copy();
 
-                    IsArray = true,
-                    ArrayDepth = indexTypeAnnotation.ArrayDepth + (indexTypeAnnotation.IsVariable ? 0 : 1),
+                indexTypeAnnotation.IsArray = true;
+                indexTypeAnnotation.ArrayDepth += indexTypeAnnotation.IsVariable ? 0 : 1;
 
-                    IsVariable = indexTypeAnnotation.IsVariable
-                };
+                return indexExpression.TypeAnnotation = indexTypeAnnotation;
             }
             if (expression is NotExpression notExpression)
             {
@@ -157,7 +152,9 @@ namespace CommonC.Semantic
 
                 if(arrayExpression.Expressions.Any())
                 {
-                    return expression.TypeAnnotation = arrayExpression.Expressions.First().TypeAnnotation;
+                    TypeAnnotation elementType = arrayExpression.Expressions.First().TypeAnnotation.Copy();
+                    elementType.IsArray = true;
+                    return expression.TypeAnnotation = elementType;
                 }
                 else
                 {
@@ -201,7 +198,7 @@ namespace CommonC.Semantic
                                 TrackTypeForExpression(propertyAssignment.Expression, variables);
                                 if (!propertyAssignment.Expression.TypeAnnotation.Match(field.TypeAnnotation))
                                 {
-                                    throw new Exception($"Type of property assignment for property {propertyIdentifier.Name} does not match type of field in struct {structStatement.Name}.");
+                                    throw new Exception($"Type of property assignment for property {propertyIdentifier.Name} ({propertyAssignment.Expression.TypeAnnotation.ToString()}) does not match type of field in struct {structStatement.Name} ({field.TypeAnnotation.ToString()}).");
                                 }
                             }
                             else
@@ -250,47 +247,54 @@ namespace CommonC.Semantic
 
                 foreach (Expression member in memberChain.Skip(1))
                 {
-                    if (member is IdentifierExpression memberIdentifier)
+                    IdentifierExpression? memberIdentifier = GetInnerIdentifierExpression(member);
+
+                    if(memberIdentifier == null)
                     {
-                        if (currentStruct.Fields.GetVariable(memberIdentifier.Name).Type is IdentifierExpression)
+                        throw new Exception($"Could not resolve inner identifier expression for member in member expression when resolving type from member expression.");
+                    }
+
+                    Expression fieldType = currentStruct.Fields.GetVariable(memberIdentifier.Name).Type;
+
+                    if (fieldType is IdentifierExpression or IndexExpression)
+                    {
+                        VariableDeclarationStatement field = currentStruct.GetField(memberIdentifier.Name);
+                        ResolveTypeFromExpression(member, [field, .. variables]);
+                        member.TypeAnnotation = ResolveTypeFromExpression(field.Type, variables);
+
+                        if (memberChain.IsLast(member))
                         {
-                            VariableDeclarationStatement field = currentStruct.GetField(memberIdentifier.Name);
-                            member.TypeAnnotation = ResolveTypeFromExpression(field.Type, variables);
-
-                            IdentifierExpression? fieldTypeIdentifier = GetInnerIdentifierExpression(field.Type);
-                            if (fieldTypeIdentifier == null)
-                            {
-                                throw new Exception($"Could not resolve inner identifier expression for field {field.Name} of struct {currentStruct.Name}.");
-                            }
-
-                            if(memberChain.IsLast(member))
-                            {
-                                return expression.TypeAnnotation = ResolveTypeFromExpression(field.Type, variables);
-                            }
-
-                            if (Structs.ContainsKey(fieldTypeIdentifier.Name))
-                            {
-                                currentStruct = Structs[fieldTypeIdentifier.Name];
-                                continue;
-                            }
-                            else
-                            {
-                                throw new Exception($"Struct {fieldTypeIdentifier.Name} not found when resolving type from member expression.");
-                            }
+                            return expression.TypeAnnotation = ResolveTypeFromExpression(field.Type, variables);
                         }
 
-                        if(currentStruct.Fields.GetVariable(memberIdentifier.Name).Type is TypeExpression fieldTypeExpression)
+                        IdentifierExpression? fieldTypeIdentifier = GetInnerIdentifierExpression(field.Type);
+                        if (fieldTypeIdentifier == null)
                         {
-                            if (!memberChain.IsLast(member))
-                            {
-                                throw new Exception($"Member {memberIdentifier.Name} of struct {currentStruct.Name} is of reserved type {fieldTypeExpression.Type}, but is not the last member in the member expression chain.");
-                            }
-                            member.TypeAnnotation = ResolveTypeFromExpression(fieldTypeExpression, variables);
-                            return expression.TypeAnnotation = member.TypeAnnotation;
+                            throw new Exception($"Could not resolve inner identifier expression for field {field.Name} of struct {currentStruct.Name}: {field.Type.TypeAnnotation.ToString()}");
+                        }
+
+                        if (Structs.ContainsKey(fieldTypeIdentifier.Name))
+                        {
+                            currentStruct = Structs[fieldTypeIdentifier.Name];
+                            continue;
+                        }
+                        else
+                        {
+                            throw new Exception($"Struct {fieldTypeIdentifier.Name} not found when resolving type from member expression.");
                         }
                     }
 
-                    throw new Exception($"Member of type {member.GetType().Name} is not supported in member expressions when resolving types.");
+                    if (fieldType is TypeExpression fieldTypeExpression)
+                    {
+                        if (!memberChain.IsLast(member))
+                        {
+                            throw new Exception($"Member {memberIdentifier.Name} of struct {currentStruct.Name} is of reserved type {fieldTypeExpression.Type}, but is not the last member in the member expression chain.");
+                        }
+                        member.TypeAnnotation = ResolveTypeFromExpression(fieldTypeExpression, variables);
+                        return expression.TypeAnnotation = member.TypeAnnotation;
+                    }
+
+                    throw new Exception($"Member expressions accessing field of type {currentStruct.Fields.GetVariable(memberIdentifier.Name).Type} are not supported.");
                 }
             }
 
@@ -346,9 +350,9 @@ namespace CommonC.Semantic
             }
         }
 
-        void TrackTypeForExpression(Expression expression, Variables variables, bool isAssignment = false)
+        void TrackTypeForExpression(Expression expression, Variables variables)
         {
-            expression.TypeAnnotation = ResolveTypeFromExpression(expression, variables, isAssignment);
+            expression.TypeAnnotation = ResolveTypeFromExpression(expression, variables);
         }
 
         void TrackTypeForExpressions(List<Expression> expressions, Variables variables)
@@ -412,7 +416,7 @@ namespace CommonC.Semantic
             }
             if (statement is AssignmentStatement assignmentStatement)
             {
-                TrackTypeForExpression(assignmentStatement.Variable, variables, true);
+                TrackTypeForExpression(assignmentStatement.Variable, variables);
                 TrackTypeForExpression(assignmentStatement.Expression, variables);
                 return;
             }

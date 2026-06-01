@@ -304,9 +304,15 @@ namespace CommonC.Printer
             Builder.Append("}");
         }
 
+        void PrintSizeOfExpression(SizeOfExpression sizeOfExpression, string indentation)
+        {
+            Builder.Append("sizeof ");
+            PrintExpression(sizeOfExpression.Expression, indentation);
+        }
+
         void PrintExpression(Expression expression, string indentation)
         {
-            Builder.Append($"\n{expression.GetType().Name} - IsReservedType: {expression.TypeAnnotation.IsReservedType}, {expression.TypeAnnotation.ReservedType.ToString()} | IsStruct: {expression.TypeAnnotation.IsStruct}, {(expression.TypeAnnotation.Struct ?? new StructStatement()).Name} | IsArray: {expression.TypeAnnotation.IsArray}, ArrayDepth: {expression.TypeAnnotation.ArrayDepth} \n");
+            // Builder.Append($"\n{expression.GetType().Name} - IsReservedType: {expression.TypeAnnotation.IsReservedType}, {expression.TypeAnnotation.ReservedType.ToString()} | IsStruct: {expression.TypeAnnotation.IsStruct}, {(expression.TypeAnnotation.Struct ?? new StructStatement()).Name} | IsArray: {expression.TypeAnnotation.IsArray}, ArrayDepth: {expression.TypeAnnotation.ArrayDepth} \n");
 
             if (expression is ObjectInitializerExpression objectInitializerExpression)
             {
@@ -419,6 +425,12 @@ namespace CommonC.Printer
             if(expression is RelationalExpression relationalExpression)
             {
                 PrintRelationalExpression(relationalExpression, indentation);
+                return;
+            }
+
+            if(expression is SizeOfExpression sizeOfExpression)
+            {
+                PrintSizeOfExpression(sizeOfExpression, indentation);
                 return;
             }
 

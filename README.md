@@ -41,9 +41,18 @@ There really is no point in using `var` or equal in a modern language apart from
 
 Semicolon after statements is optional simply because some people prefer it, though it has no real function during compilation and is ignored.
 
-The LLVM-bit of the compiler uses a reference manager which frees memory when the current scope is exited. The reference manager is simple as of now, but will be developed further in the future.
+## log and logl
+The standard output function is `log` and `logl`, which writes to console, with logl appending a newline at the end.
 
-**Table of contents**
+These functions wrap printf and takes any input, seperated by commas, determines the type of the input and formats it accordingly.
+
+Example
+```cs
+logl("String: ", "Hello world!", ", Number: ", 123, ", Boolean: ", true)
+// String: Hello world!, Number: 123, Boolean: true
+```
+
+# Table of Contents
 * Expressions
     * [String](#String)
         * Primitive type **string**.
@@ -171,13 +180,16 @@ someVariable
 
 Example
 ```cs
-log(yourName)
+logl(yourName)
 ```
 
 ___
 
 ## Array
 An array of expression, seperated by a comma.
+
+If an array is not initialized with a type, the first item in the array determines the type of the array. 
+An uninitialized array without elements will not compile.
 
 ```
 { <expr[]> }
@@ -191,7 +203,15 @@ Example
 ___
 
 ## Array initializer
-Initializes a new array with specified type and size. Each item in the initialized array is seperated by a comma.
+Initializes a new array with specified type and size, where size is the exact number of elements in the array.
+
+You can initialize an array without specifying an element count, in which case the element count will be determined by the amount of items in the initializer.
+
+You can initialize an array without any elements, in which case the element count will be determined by the specified element count.
+
+An array without a specified element count and without any elements will not compile.
+
+Common C supports multidimensional arrays.
 ```
 <expr | type>[<expr | number>] {
     <expr[]>
@@ -200,22 +220,34 @@ Initializes a new array with specified type and size. Each item in the initializ
 
 Example
 ```cs
-int[3] { 5, 10, 15 }
+i32[3] { 5, 10, 15 }
 ```
 
+Multidimensional array example
+```cs
+i32[2][3] {
+    { 1, 2, 3 },
+    { 4, 5, 6 }
+}
+```
 ___
 
 ## Index
 Accesses an array through a specified index.
+
+Accessing a multidimensional array is done by chaining indexes.
 ```
 <expr | array<any>>[<expr>]
 ```
 
 Example
 ```cs
-int arr = int[3] { 5, 10, 15 }
+logl(arr[1])
+```
 
-log(arr[1])
+Multidimensional array example
+```cs
+logl(arr[1][2])
 ```
 
 ___
@@ -241,7 +273,7 @@ Performs a call on the given function. Arguments are seperated by a comma.
 
 Example
 ```cs
-log("Hello, world!")
+logl("Hello, world!")
 ```
 
 ___
@@ -329,6 +361,8 @@ ___
 
 ## Object initializer
 Initializes a new object of a specified type. Properties of the object can be assigned, with name and value seperated by a colon and each property seperated by a comma.
+
+Structs can be initialized with nested object initializers.
 ```
 <expr | type> {
     <expr>: <expr>,
@@ -415,7 +449,7 @@ arr -> 0..5
 ___
 
 ## SizeOf
-Gets the size of an expression.
+Gets the size of the type of an expression in bytes.
 ```
 sizeof <expr>
 ```
@@ -453,7 +487,7 @@ Calls a function and, if the return type is not `fn`, returns it.
 
 Example
 ```cs
-log("Hello, world!")
+logl("Hello, world!")
 ```
 
 ___
@@ -482,7 +516,7 @@ for <expr | range>, <expr | identifier> {
 Example
 ```cs
 for 0..5, i {
-    log(i)
+    logl(i)
 }
 ```
 
@@ -499,7 +533,7 @@ Declares a new function with parameters and a return type. Parentheses for param
 Example
 ```rust
 fn testFunc(str message) {
-    log(message)
+    logl(message)
 }
 
 fn main {
@@ -510,7 +544,7 @@ fn main {
 ___
 
 ## Return
-Returns an expression and exits the function immediately.
+Returns an expression and exits the function immediately. The type of the expression must match the return type of the function.
 ```
 return <expr>
 ```
@@ -554,7 +588,7 @@ str message = "Hello, world!"
 ___
 
 ## While
-Repeats a closure until the condition is met.
+Repeats a closure until the condition resolves to false.
 ```
 while <expr> {
     <statements>
@@ -564,7 +598,7 @@ while <expr> {
 Example
 ```cs
 while true {
-    log("To infinity...")
+    logl("To infinity...")
 }
 ```
 
@@ -587,14 +621,14 @@ else {
 Example
 ```cs
 if 2 == 2 {
-    log(4)
+    logl(4)
 }
 ```
 
 ___
 
 ## Use
-Adds a .coc extension, imports the file from the name in the specified working directory, parses its syntax and merges it with the main file.
+Adds a .coc extension, imports the file from the name in the specified working directory, parses its syntax tree and merges it with the main file.
 ```
 use <expr | identifier>
 ```

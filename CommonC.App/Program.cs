@@ -3,8 +3,8 @@ using CommonC.DotNet;
 using CommonC.DotNet.CodeGen;
 using CommonC.Lexer;
 using CommonC.Lexer.Objects;
-using CommonC.LLVMIR;
-using CommonC.LLVMIR.CodeGen;
+using CommonC.LLVM;
+using CommonC.LLVM.CodeGen;
 using CommonC.Parser;
 using CommonC.Parser.AST.Statements;
 using CommonC.Printer;
@@ -34,11 +34,11 @@ namespace CommonC.App
         {
             string appName = "test";
 
-            LLVMIRCommonCCompilerSettings settings = new LLVMIRCommonCCompilerSettings
+            LLVMCommonCCompilerSettings settings = new LLVMCommonCCompilerSettings
             {
                 MainFilePath = Environment.CurrentDirectory + "\\Samples\\test.coc",
                 WorkingDirectory = Environment.CurrentDirectory + "\\Samples",
-                LLVMIRCodeGenSettings = new LLVMIRCodeGenSettings
+                LLVMCodeGenSettings = new LLVMCodeGenSettings
                 {
                     Name = appName,
                     EntryPoint = "main",
@@ -46,7 +46,7 @@ namespace CommonC.App
                 }
             };
 
-            LLVMIRCommonCCompiler compiler = new LLVMIRCommonCCompiler(settings);
+            LLVMCommonCCompiler compiler = new LLVMCommonCCompiler(settings);
 
             ConsoleColor.Green.WriteLine("Compiling module...");
             LLVMModuleRef module = compiler.BuildLLVMModule();
@@ -69,11 +69,11 @@ namespace CommonC.App
         {
             string appName = "test";
 
-            LLVMIRCommonCCompilerSettings settings = new LLVMIRCommonCCompilerSettings
+            LLVMCommonCCompilerSettings settings = new LLVMCommonCCompilerSettings
             {
                 MainFilePath = Environment.CurrentDirectory + "\\Samples\\test.coc",
                 WorkingDirectory = Environment.CurrentDirectory + "\\Samples",
-                LLVMIRCodeGenSettings = new LLVMIRCodeGenSettings
+                LLVMCodeGenSettings = new LLVMCodeGenSettings
                 {
                     Name = appName,
                     EntryPoint = "main",
@@ -81,7 +81,7 @@ namespace CommonC.App
                 }
             };
 
-            LLVMIRCommonCCompiler compiler = new LLVMIRCommonCCompiler(settings);
+            LLVMCommonCCompiler compiler = new LLVMCommonCCompiler(settings);
             return compiler.BuildLLVMModule();
         }
 
@@ -89,11 +89,11 @@ namespace CommonC.App
         {
             string appName = "test";
 
-            LLVMIRCommonCCompilerSettings settings = new LLVMIRCommonCCompilerSettings
+            LLVMCommonCCompilerSettings settings = new LLVMCommonCCompilerSettings
             {
                 MainFilePath = Environment.CurrentDirectory + "\\Samples\\test.coc",
                 WorkingDirectory = Environment.CurrentDirectory + "\\Samples",
-                LLVMIRCodeGenSettings = new LLVMIRCodeGenSettings
+                LLVMCodeGenSettings = new LLVMCodeGenSettings
                 {
                     Name = appName,
                     EntryPoint = "main",
@@ -101,7 +101,7 @@ namespace CommonC.App
                 }
             };
             
-            LLVMIRCommonCCompiler compiler = new LLVMIRCommonCCompiler(settings);
+            LLVMCommonCCompiler compiler = new LLVMCommonCCompiler(settings);
             LLVMModuleRef module = compiler.Compile();
 
             File.WriteAllText($"{appName}.ll", module.ToString());
