@@ -377,11 +377,11 @@ namespace CommonC.Lexer
 
                     default:
                         {
-                            if (Char.IsLetterOrDigit(Input[i]))
+                            if (Char.IsLetterOrDigit(Input[i]) || Input[i] == '_')
                             {
                                 while (Input.Length > i)
                                 {
-                                    if(Char.IsLetterOrDigit(Input[i]))
+                                    if(Char.IsLetterOrDigit(Input[i]) || Input[i] == '_')
                                     {
                                         sb.Append(Input[i++]);
                                     }

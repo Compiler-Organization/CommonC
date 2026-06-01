@@ -139,7 +139,7 @@ namespace CommonC.Printer
                 case ArithmeticOperator.Division:
                     Builder.Append(" / ");
                     break;
-                case ArithmeticOperator.Modulus:
+                case ArithmeticOperator.Modulo:
                     Builder.Append(" % ");
                     break;
                 case ArithmeticOperator.Exponential:
@@ -287,14 +287,14 @@ namespace CommonC.Printer
             PrintExpression(objectInitializerExpression.Expression, indentation);
             Builder.Append(" {");
             Builder.Append(Settings.NewLine);
-            foreach (AssignmentStatement assignmentStatement in objectInitializerExpression.PropertyAssignments)
+            foreach (AssignmentStatement assignmentStatement in objectInitializerExpression.Fields)
             {
                 Builder.Append(indentation + Settings.Indentation);
                 PrintExpression(assignmentStatement.Variable, indentation);
                 Builder.Append(": ");
                 PrintExpression(assignmentStatement.Expression!, indentation);
                 
-                if (objectInitializerExpression.PropertyAssignments.IndexOf(assignmentStatement) != objectInitializerExpression.PropertyAssignments.Count - 1)
+                if (objectInitializerExpression.Fields.IndexOf(assignmentStatement) != objectInitializerExpression.Fields.Count - 1)
                 {
                     Builder.Append("," + Settings.NewLine);
                 }
@@ -306,7 +306,7 @@ namespace CommonC.Printer
 
         void PrintExpression(Expression expression, string indentation)
         {
-            Builder.Append($"\n{expression.GetType().Name} - IsReservedType: {expression.TypeAnnotation.IsReservedType}, {expression.TypeAnnotation.ReservedType.ToString()} | IsStruct: {expression.TypeAnnotation.IsStruct}, {(expression.TypeAnnotation.Struct ?? new StructStatement()).Name} | IsArray: {expression.TypeAnnotation.IsArray}\n");
+            Builder.Append($"\n{expression.GetType().Name} - IsReservedType: {expression.TypeAnnotation.IsReservedType}, {expression.TypeAnnotation.ReservedType.ToString()} | IsStruct: {expression.TypeAnnotation.IsStruct}, {(expression.TypeAnnotation.Struct ?? new StructStatement()).Name} | IsArray: {expression.TypeAnnotation.IsArray}, ArrayDepth: {expression.TypeAnnotation.ArrayDepth} \n");
 
             if (expression is ObjectInitializerExpression objectInitializerExpression)
             {

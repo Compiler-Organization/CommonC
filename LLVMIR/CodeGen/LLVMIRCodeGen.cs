@@ -560,7 +560,7 @@ namespace CommonC.LLVMIR.CodeGen
 							   assignmentStatement.Operator == AssignmentOperator.CompoundSubtract ? ArithmeticOperator.Subtraction :
 							   assignmentStatement.Operator == AssignmentOperator.CompoundMultiply ? ArithmeticOperator.Multiplication :
 							   assignmentStatement.Operator == AssignmentOperator.CompoundDivide ? ArithmeticOperator.Division :
-							   assignmentStatement.Operator == AssignmentOperator.CompoundModulo ? ArithmeticOperator.Modulus :
+							   assignmentStatement.Operator == AssignmentOperator.CompoundModulo ? ArithmeticOperator.Modulo :
 							   throw new Exception($"Unsupported assignment operator {assignmentStatement.Operator}.")
 				}, variables);
 
@@ -977,7 +977,7 @@ namespace CommonC.LLVMIR.CodeGen
                 LLVMValueRef structPtr = Builder.BuildAlloca(structType, $"{identifier.Name}_struct_instance");
                 structStatement.LLVMStructPointer = structPtr;
 
-                foreach (AssignmentStatement propertyAssignment in objectInitializerExpression.PropertyAssignments)
+                foreach (AssignmentStatement propertyAssignment in objectInitializerExpression.Fields)
                 {
                     if(propertyAssignment.Variable is IdentifierExpression propertyName)
                     {
@@ -1188,7 +1188,7 @@ namespace CommonC.LLVMIR.CodeGen
                             return Builder.BuildSDiv(left, right, "sdiv");
                         }
                     }
-                case ArithmeticOperator.Modulus:
+                case ArithmeticOperator.Modulo:
                     {
                         if (left.TypeOf == LLVMTypeRef.Double
                             || left.TypeOf == LLVMTypeRef.Float)

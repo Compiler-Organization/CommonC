@@ -20,7 +20,7 @@ namespace CommonC.Parser.AST.Expressions
         Subtraction = LexKinds.Subtraction,
         Multiplication = LexKinds.Multiplication,
         Division = LexKinds.Division,
-        Modulus = LexKinds.Modulus,
+        Modulo = LexKinds.Modulus,
         Exponential = LexKinds.Exponential,
         LeftShift = LexKinds.LeftShift,
         RightShift = LexKinds.RightShift,

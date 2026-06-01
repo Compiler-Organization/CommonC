@@ -475,14 +475,14 @@ namespace CommonC.Parser
 
             if(ParseTypeExpression(out TypeExpression typeExpression))
             {
-                if (ParseIndexExpression(typeExpression, out IndexExpression indexExpression))
+                Expression currentTypeLayout = typeExpression;
+
+                while (ParseIndexExpression(currentTypeLayout, out IndexExpression indexExpression))
                 {
-                    parameterExpression.Type = indexExpression;
+                    currentTypeLayout = indexExpression;
                 }
-                else
-                {
-                    parameterExpression.Type = typeExpression;
-                }
+
+                parameterExpression.Type = currentTypeLayout;
             }
             else
             {
@@ -634,7 +634,7 @@ namespace CommonC.Parser
                                 TokenReader.Consume();
                                 if (ParseExpression(out Expression valueExpression))
                                 {
-                                    objectInitializerExpression.PropertyAssignments.Add(new AssignmentStatement
+                                    objectInitializerExpression.Fields.Add(new AssignmentStatement
                                     {
                                         Variable = assignmentVariableExpression,
                                         Expression = valueExpression

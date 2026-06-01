@@ -9,6 +9,6 @@ namespace CommonC.Parser.AST.Expressions
     {
         public Expression Expression = new Expression();
 
-        public List<AssignmentStatement> PropertyAssignments = new List<AssignmentStatement>();
+        public List<AssignmentStatement> Fields = new List<AssignmentStatement>();
     }
 }

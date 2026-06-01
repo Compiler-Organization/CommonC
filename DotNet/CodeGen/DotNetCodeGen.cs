@@ -997,7 +997,7 @@ namespace CommonC.DotNet.CodeGen
                     body.Instructions.Add(CilOpCodes.Initobj, type);
 
 
-                    foreach (AssignmentStatement propertyAssignments in objectInitializerExpression.PropertyAssignments)
+                    foreach (AssignmentStatement propertyAssignments in objectInitializerExpression.Fields)
                     {
                         Emitter.EmitLdloca(temp, body);
                         GenerateExpression(propertyAssignments.Expression, variableDeclarationStatements, body);
@@ -1137,7 +1137,7 @@ namespace CommonC.DotNet.CodeGen
                     body.Instructions.Add(CilOpCodes.Div);
                     break;
 
-                case ArithmeticOperator.Modulus:
+                case ArithmeticOperator.Modulo:
                     GenerateExpression(arithmeticExpression.Left, variableDeclarationStatements, body);
                     GenerateExpression(arithmeticExpression.Right, variableDeclarationStatements, body);
                     body.Instructions.Add(CilOpCodes.Rem);

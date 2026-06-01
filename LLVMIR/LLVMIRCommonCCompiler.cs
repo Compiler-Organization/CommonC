@@ -57,7 +57,7 @@ namespace CommonC.LLVMIR
                 PrettyPrinter prettyPrinter = new PrettyPrinter(closure.Statements, PrettyPrinterSettings.Beautify);
                 Console.WriteLine(prettyPrinter.Print());
 
-                LLVMIRCodeGen lLVMIRCodeGen = new LLVMIRCodeGen(Settings.LLVMIRCodeGenSettings, closure);
+                LLVMCodeGen lLVMIRCodeGen = new LLVMCodeGen(Settings.LLVMIRCodeGenSettings, closure);
                 return lLVMIRCodeGen.GenerateLLVMModule();
             }
 
