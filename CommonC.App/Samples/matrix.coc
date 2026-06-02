@@ -1,9 +1,0 @@
-i32[][] CreateMatrix(i32 rows, i32 cols) {
-    i32[][] matrix = i32[rows][cols] { };
-
-    return matrix;
-}
-
-fn SetMatrixValue(i32[][] matrix, i32 row, i32 col, i32 value) {
-    matrix[row][col] = value;
-}

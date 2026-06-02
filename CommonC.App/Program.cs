@@ -145,38 +145,33 @@ namespace CommonC.App
         {
             ConsoleColor.Green.WriteLine("Starting application...");
 
-            var process = new Process();
-
-            process.StartInfo.FileName = $"{appName}.exe";
-            process.StartInfo.UseShellExecute = false;
-            process.StartInfo.RedirectStandardOutput = true;
-            process.StartInfo.RedirectStandardError = true;
-
-            if(!File.Exists($"{appName}.exe"))
+            string exePath = $"{appName}.exe";
+            if (!File.Exists(exePath))
             {
-                ConsoleColor.Red.WriteLine($"File {appName}.exe does not exist!");
+                ConsoleColor.Red.WriteLine($"File {exePath} does not exist!");
                 return;
             }
 
-            Stopwatch stopwatch = new Stopwatch();
-            process.Start();
-            stopwatch.Start();
-            string output = process.StandardOutput.ReadToEnd();
-            string error = process.StandardError.ReadToEnd();
-            process.WaitForExit();
-            stopwatch.Stop();
-
-            ConsoleColor.White.Write(output);
-            if (!string.IsNullOrEmpty(error))
+            using (var process = new Process())
             {
-                ConsoleColor.Red.Write(error);
+                process.StartInfo.FileName = exePath;
+                process.StartInfo.UseShellExecute = false;
+                process.StartInfo.RedirectStandardOutput = false;
+                process.StartInfo.RedirectStandardError = false;
+                process.StartInfo.RedirectStandardInput = false;
+
+                Stopwatch stopwatch = new Stopwatch();
+                stopwatch.Start();
+
+                process.Start();
+                process.WaitForExit();
+
+                stopwatch.Stop();
+
+                ConsoleColor.Green.WriteLine($"\nExecution completed in;");
+                ConsoleColor.Green.WriteLine($"Seconds; {(stopwatch.ElapsedMilliseconds) / (double)1000}s");
+                ConsoleColor.Green.WriteLine($"Milliseconds; {stopwatch.ElapsedMilliseconds}ms");
             }
-
-            ConsoleColor.Green.WriteLine($"\nExecution completed in;");
-            ConsoleColor.Green.WriteLine($"Seconds; {(stopwatch.ElapsedMilliseconds) / (double)1000}s");
-            ConsoleColor.Green.WriteLine($"Milliseconds; {stopwatch.ElapsedMilliseconds}ms");
-
-            process.Kill();
         }
     }
 }

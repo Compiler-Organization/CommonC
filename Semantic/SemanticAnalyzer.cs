@@ -34,6 +34,11 @@ namespace CommonC.Semantic
             {
                 if (statement is FunctionDeclarationStatement functionDeclarationStatement)
                 {
+                    if(functionDeclarationStatement.Body == null)
+                    {
+                        continue;
+                    }
+
                     foreach (VariableDeclarationStatement variableDeclarationStatement in functionDeclarationStatement.Body.Statements.OfType<VariableDeclarationStatement>())
                     {
                         functionDeclarationStatement.Body.Locals.Add(variableDeclarationStatement);

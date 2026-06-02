@@ -98,24 +98,48 @@ namespace CommonC.LLVM
 
         ClosureStatement ImportUseFiles(ClosureStatement closure)
         {
-            List<UseStatement> useStatements = closure.Statements.OfType<UseStatement>().ToList();
+            HashSet<string> importedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            for (int i = 0; i < useStatements.Count; i++)
+            while (true)
             {
-                string filePath = Settings.WorkingDirectory + "\\" + useStatements[i].Identifier.Name + ".coc";
-                if (File.Exists(filePath))
+                List<UseStatement> pendingUses = closure.Statements.OfType<UseStatement>().ToList();
+
+                if (pendingUses.Count == 0)
                 {
-                    closure.Statements.InsertRange(0, ParseText(File.ReadAllText(filePath)).Statements);
+                    break;
                 }
-                else
+
+                foreach (UseStatement useStmt in pendingUses)
                 {
-                    throw new FileNotFoundException($"File {filePath} does not exist.");
+                    string fileName = useStmt.Identifier.Name;
+                    string filePath = Path.Combine(Settings.WorkingDirectory, $"{fileName}.coc");
+
+                    if (importedFiles.Contains(filePath))
+                    {
+                        closure.Statements.Remove(useStmt);
+                        continue;
+                    }
+
+                    if (File.Exists(filePath))
+                    {
+                        string fileContent = File.ReadAllText(filePath);
+                        ClosureStatement importedAST = ParseText(fileContent);
+
+                        importedFiles.Add(filePath);
+                        closure.Statements.Remove(useStmt);
+                        closure.Statements.InsertRange(0, importedAST.Statements);
+                    }
+                    else
+                    {
+                        throw new FileNotFoundException($"File {filePath} does not exist.");
+                    }
                 }
             }
 
             closure.Statements.RemoveAll(s => s is UseStatement);
             return closure;
         }
+
 
         ClosureStatement ParseText(string code)
         {

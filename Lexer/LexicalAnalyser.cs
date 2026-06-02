@@ -18,6 +18,8 @@ namespace CommonC.Lexer
             "string",
             "str",
 
+            "ptr",
+
             "i8", // sbyte
             "u8", // byte
 
@@ -37,9 +39,9 @@ namespace CommonC.Lexer
             "f64", // double
 
             "char",
-            
+
             "bool",
-            
+
             "fn",
 
             "struct",
@@ -58,7 +60,10 @@ namespace CommonC.Lexer
 
             "sizeof",
 
-            "use"
+            "use",
+
+            "extern",
+            "null"
         };
 
         string Input { get; set; }
@@ -165,8 +170,6 @@ namespace CommonC.Lexer
                         {
                             kind = LexKinds.Dot;
 
-
-
                             if(Input[i + 1] == '.')
                             {
                                 kind = LexKinds.Range;
@@ -260,11 +263,7 @@ namespace CommonC.Lexer
 
                     case '~':
                         {
-                            if (Input[i + 1] == '=')
-                            {
-                                kind = LexKinds.NotEqualTo;
-                                i++;
-                            }
+                            
                             break;
                         }
 
@@ -283,6 +282,11 @@ namespace CommonC.Lexer
                     case '!':
                         {
                             kind = LexKinds.Exclamation;
+                            if (Input[i + 1] == '=')
+                            {
+                                kind = LexKinds.NotEqualTo;
+                                i++;
+                            }
                             break;
                         }
 
@@ -372,11 +376,11 @@ namespace CommonC.Lexer
 
                     default:
                         {
-                            if (Char.IsLetterOrDigit(Input[i]) || Input[i] == '_')
+                            if (Char.IsLetterOrDigit(Input[i]) || Input[i] == '_' || Input[i] == '@')
                             {
                                 while (Input.Length > i)
                                 {
-                                    if(Char.IsLetterOrDigit(Input[i]) || Input[i] == '_')
+                                    if(Char.IsLetterOrDigit(Input[i]) || Input[i] == '_' || Input[i] == '@')
                                     {
                                         sb.Append(Input[i++]);
                                     }

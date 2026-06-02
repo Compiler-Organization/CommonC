@@ -1,0 +1,95 @@
+// Library for managing and manipulating strings.
+
+use DataConversion
+
+// Returns the length of a null-terminated string.
+i32 GetStringLength(str strBuffer) {
+    i32 length = 0;
+    while (true) {
+            if strBuffer[length] == 0 {
+                    return length;
+            }
+            length = length + 1;
+    }
+    return length;
+}
+
+// Concatenates two strings and returns the result as a new string.
+str ConcatStrings(str str1, str str2) {
+    i32 length1 = GetStringLength(str1);
+    i32 length2 = GetStringLength(str2);
+    i8[] buffer = i8[length1 + length2 + 1] {};
+
+    for 0..length1, i {
+        buffer[i] = str1[i];
+    }
+
+    for 0..length2, j {
+        buffer[length1 + j] = str2[j];
+    }
+
+    buffer[length1 + length2] = 0;
+    return I8ArrayToString(buffer);
+}
+
+// Converts a string to a 32-bit integer. Returns 0 if the string is not a valid integer.
+i32 StringToI32(str strBuffer) {
+    i32 result = 0
+    i32 index = 0
+    i32 isNegative = 0
+    
+    i32 stringLength = GetStringLength(strBuffer)
+
+    if stringLength == 0 {
+        return 0
+    }
+
+    char firstChar = strBuffer[0]
+    if firstChar == '-' {
+        isNegative = 1
+        index = 1
+    } elseif firstChar == '+' {
+        index = 1
+    }
+
+    while (index < stringLength) {
+        char currentChar = strBuffer[index]
+        i32 virtualChar = currentChar - 48
+
+        if virtualChar < 0 {
+            index = stringLength
+        } elseif virtualChar > 9 {
+            index = stringLength
+        } else {
+            result = (result * 10) + virtualChar
+            index = index + 1
+        }
+    }
+
+    if isNegative == 1 {
+        return -result
+    }
+
+    return result
+}
+
+bool StringIsEqual(str str1, str str2) {
+    i32 index = 0
+
+    while (true) {
+        char c1 = str1[index]
+        char c2 = str2[index]
+
+        if !(c1 == c2) {
+            return false
+        }
+
+        if c1 == 0 {
+            return true
+        }
+
+        index = index + 1
+    }
+
+    return true
+}

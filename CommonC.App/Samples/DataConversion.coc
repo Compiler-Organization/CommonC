@@ -1,0 +1,9 @@
+// Data conversion library for transmutating between types.
+
+use Strings
+
+// Converts an array of i8 to a string.
+str I8ArrayToString(i8[] buffer) {
+        str strBuffer = buffer;
+        return strBuffer;
+}

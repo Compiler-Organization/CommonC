@@ -3,6 +3,7 @@ using CommonC.Parser.AST;
 using CommonC.Parser.AST.Expressions;
 using CommonC.Parser.AST.Statements;
 using CommonC.Semantic.Objects;
+using LLVMSharp;
 using LLVMSharp.Interop;
 using System;
 using System.Collections.Generic;
@@ -44,7 +45,6 @@ namespace CommonC.LLVM.CodeGen
             Builder = LLVMBuilderRef.Create(Module.Context);
             Context = Module.Context;
 
-            CreateExtern(name: "printf", returnType: LLVMTypeRef.Int32, parameters: [LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0)], isVarArg: true);
             CreateExtern("llvm.memcpy.p0.p0.i64", LLVMTypeRef.Void, [LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), LLVMTypeRef.Int64, LLVMTypeRef.Int1], isVarArg: false);
             CreateExtern("llvm.ubsantrap", LLVMTypeRef.Void, [LLVMTypeRef.Int8], isVarArg: false);
 
@@ -75,6 +75,17 @@ namespace CommonC.LLVM.CodeGen
         {
             foreach (FunctionDeclarationStatement functionDeclarationStatement in UpperClosure.Statements.OfType<FunctionDeclarationStatement>())
             {
+                if (functionDeclarationStatement.IsExtern)
+                {
+                    CreateExtern(
+                        name: functionDeclarationStatement.Name,
+                        returnType: functionDeclarationStatement.ReturnType.TypeAnnotation.ToLLVMType(),
+                        parameters: functionDeclarationStatement.Parameters.Select(p => p.Type.TypeAnnotation.ToLLVMType()).ToArray(),
+                        isVarArg: functionDeclarationStatement.Parameters.IsVararg
+                    );
+                    continue;
+                }
+
                 LLVMTypeRef returnType = functionDeclarationStatement.ReturnType.TypeAnnotation.ToLLVMType();
                 LLVMTypeRef[] parameterTypes = functionDeclarationStatement.Parameters.Select(p => p.Type.TypeAnnotation.ToLLVMType()).ToArray();
                 LLVMTypeRef functionType = LLVMTypeRef.CreateFunction(returnType, parameterTypes, false);
@@ -104,6 +115,7 @@ namespace CommonC.LLVM.CodeGen
         {
             LLVMTypeRef externFunctionType = LLVMTypeRef.CreateFunction(returnType, parameters, isVarArg);
             LLVMValueRef externFunction = Module.AddFunction(name, externFunctionType);
+
 
             Functions.Add(name, new FunctionDeclarationStatement
             {
@@ -285,20 +297,47 @@ namespace CommonC.LLVM.CodeGen
             LLVMValueRef valueToStore = EmitExpression(assignmentStatement.Expression, variables);
             LLVMValueRef destinationPointer = EmitLValueAddress(assignmentStatement.Variable, variables);
 
-            LLVMTypeRef destType = destinationPointer.TypeOf.ElementType;
-            if (destType.Kind == LLVMTypeKind.LLVMStructTypeKind)
+            // 1. CRITICAL FIX: Resolve the expected type safely using the AST metadata instead of .ElementType
+            LLVMTypeRef targetType;
+            if (assignmentStatement.Variable is IndexExpression indexExpr)
             {
-                uint elementCount = destType.StructElementTypesCount;
+                bool isString = indexExpr.Expression.TypeAnnotation.ReservedType == ReservedTypes.String;
+                targetType = isString ? LLVMTypeRef.Int8 : indexExpr.TypeAnnotation.ToLLVMType(destructArray: true);
+            }
+            else
+            {
+                targetType = assignmentStatement.Variable.TypeAnnotation.ToLLVMType();
+            }
+
+            if (targetType.Kind == LLVMTypeKind.LLVMStructTypeKind)
+            {
+                uint elementCount = targetType.StructElementTypesCount;
                 for (uint i = 0; i < elementCount; i++)
                 {
-                    LLVMValueRef fieldSrcPtr = Builder.BuildGEP2(destType, valueToStore, [LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0), LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, (ulong)i)], $"assign.src.field.{i}".AsSpan());
-                    LLVMValueRef fieldDstPtr = Builder.BuildGEP2(destType, destinationPointer, [LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0), LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, (ulong)i)], $"assign.dst.field.{i}".AsSpan()); 
-                    LLVMValueRef value = Builder.BuildLoad2(destType.StructGetTypeAtIndex(i), fieldSrcPtr, $"assign.ld.{i}"); Builder.BuildStore(value, fieldDstPtr);
+                    LLVMValueRef fieldSrcPtr = Builder.BuildGEP2(targetType, valueToStore, [LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0), LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, (ulong)i)], $"assign.src.field.{i}".AsSpan());
+                    LLVMValueRef fieldDstPtr = Builder.BuildGEP2(targetType, destinationPointer, [LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0), LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, (ulong)i)], $"assign.dst.field.{i}".AsSpan());
+                    LLVMValueRef value = Builder.BuildLoad2(targetType.StructGetTypeAtIndex(i), fieldSrcPtr, $"assign.ld.{i}");
+                    Builder.BuildStore(value, fieldDstPtr);
                 }
             }
-            else 
-            { 
-                Builder.BuildStore(valueToStore, destinationPointer); 
+            else
+            {
+                // 2. CRITICAL FIX: Match the value's bit-width to the target destination
+                if (targetType.Kind == LLVMTypeKind.LLVMIntegerTypeKind && valueToStore.TypeOf.Kind == LLVMTypeKind.LLVMIntegerTypeKind)
+                {
+                    if (targetType.IntWidth < valueToStore.TypeOf.IntWidth)
+                    {
+                        // Truncate the i32 down to i8 (or i16) so it safely fits the targeted slot
+                        valueToStore = Builder.BuildTrunc(valueToStore, targetType, "truncated.assign.val");
+                    }
+                    else if (targetType.IntWidth > valueToStore.TypeOf.IntWidth)
+                    {
+                        // Sign or zero extend if writing a smaller integer to a larger variable slot
+                        valueToStore = Builder.BuildZExt(valueToStore, targetType, "extended.assign.val");
+                    }
+                }
+
+                Builder.BuildStore(valueToStore, destinationPointer);
             }
         }
 
@@ -334,10 +373,13 @@ namespace CommonC.LLVM.CodeGen
             }
         }
 
-
-
         void EmitFunctionDeclarationStatement(FunctionDeclarationStatement functionDeclarationStatement)
         {
+            if(functionDeclarationStatement.Body == null || functionDeclarationStatement.IsExtern)
+            {
+                return;
+            }
+
             LLVMBasicBlockRef startBlock = functionDeclarationStatement.LLVMFunction.EntryBasicBlock;
 
             Builder.PositionAtEnd(startBlock);
@@ -378,52 +420,10 @@ namespace CommonC.LLVM.CodeGen
             }
         }
 
-        void EmitLog(CallStatement callStatement, Variables variables, bool newLine)
-        {
-            FunctionDeclarationStatement printfFunction = Functions["printf"];
-
-            string format = "";
-
-            foreach (Expression expression in callStatement.Arguments)
-            {
-                LLVMTypeRef argumentType = expression.TypeAnnotation.ToLLVMType(true);
-
-                switch (argumentType.ToString())
-                {
-                    case "ptr":
-                        format += "%s";
-                        break;
-
-                    case "float":
-                    case "double":
-                        format += "%g";
-                        break;
-
-                    case "i8":
-                        format += "%c";
-                        break;
-
-                    default:
-                        format += "%d";
-                        break;
-                }
-            }
-
-            List<LLVMValueRef> argRefs = [Builder.BuildGlobalStringPtr($"{format}{(newLine ? "\n" : "")}"), .. EmitExpressions(callStatement.Arguments, variables)];
-            Builder.BuildCall2(printfFunction.LLVMFunctionType, printfFunction.LLVMFunction, argRefs.ToArray(), "");
-            return;
-        }
-
         void EmitCallStatement(CallStatement callStatement, Variables variables)
         {
             if(callStatement.Expression is IdentifierExpression identifierExpression)
             {
-                if (identifierExpression.Name is "log" or "logl")
-                {
-                    EmitLog(callStatement, variables, identifierExpression.Name == "logl");
-                    return;
-                }
-
                 if (!Functions.TryGetValue(identifierExpression.Name, out FunctionDeclarationStatement? functionDecl))
                 {
                     throw new InvalidOperationException($"Function '{identifierExpression.Name}' is not defined.");
@@ -435,7 +435,7 @@ namespace CommonC.LLVM.CodeGen
                         .Select(argExpr => EmitExpression(argExpr, variables))
                         .ToArray();
 
-                Builder.BuildCall2(
+                LLVMValueRef callInst = Builder.BuildCall2(
                     functionDecl.LLVMFunctionType,
                     functionDecl.LLVMFunction,
                     arguments,
@@ -443,6 +443,11 @@ namespace CommonC.LLVM.CodeGen
                         ? "" 
                         : $"{identifierExpression.Name}_call"
                 );
+
+                if (identifierExpression.Name.Contains('@')) // Temporary workaround for 32-bit Win32 API calls
+                {
+                    callInst.InstructionCallConv = 64;
+                }
             }
         }
 
@@ -731,12 +736,19 @@ namespace CommonC.LLVM.CodeGen
                         .Select(argExpr => EmitExpression(argExpr, variables))
                         .ToArray();
 
-                return Builder.BuildCall2(
+                LLVMValueRef callInst = Builder.BuildCall2(
                     functionDecl.LLVMFunctionType,
                     functionDecl.LLVMFunction,
                     arguments,
                     identifierExpression.Name + "_call"
                 );
+
+                if (identifierExpression.Name.Contains('@')) // Temporary workaround for 32-bit Win32 API calls
+                {
+                    callInst.InstructionCallConv = 64;
+                }
+
+                return callInst;
             }
             else
             {
@@ -1282,6 +1294,63 @@ namespace CommonC.LLVM.CodeGen
             return LLVMValueRef.CreateConstInt(LLVMTypeRef.Int8, (ulong)characterExpression.Value, false);
         }
 
+        LLVMValueRef EmitNegateExpression(NegateExpression negateExpression, Variables variables)
+        {
+            LLVMValueRef valueToNegate = EmitExpression(negateExpression.Expression, variables);
+            TypeAnnotation annotation = negateExpression.Expression.TypeAnnotation;
+
+            if (annotation.IsArray || annotation.IsStruct)
+            {
+                throw new InvalidOperationException(
+                    $"Compile Error: Cannot apply negation operator to complex structural type: {annotation}"
+                );
+            }
+
+            if (annotation.IsReservedType)
+            {
+                switch (annotation.ReservedType)
+                {
+                    case ReservedTypes.Bool:
+                        return Builder.BuildNot(valueToNegate, "logical.not");
+
+                    case ReservedTypes.F32:
+                    case ReservedTypes.F64:
+                        return Builder.BuildFNeg(valueToNegate, "fp.neg");
+
+                    case ReservedTypes.I8:
+                    case ReservedTypes.U8:
+                    case ReservedTypes.Char:
+                    case ReservedTypes.I16:
+                    case ReservedTypes.U16:
+                    case ReservedTypes.I32:
+                    case ReservedTypes.U32:
+                    case ReservedTypes.I64:
+                    case ReservedTypes.U64:
+                    case ReservedTypes.I128:
+                    case ReservedTypes.U128:
+                    case ReservedTypes.Ptr:
+                        return Builder.BuildNeg(valueToNegate, "int.neg");
+
+                    case ReservedTypes.String:
+                    case ReservedTypes.Fn:
+                    default:
+                        throw new InvalidOperationException(
+                            $"Compile Error: Negation operator is invalid for type primitive: '{annotation.ReservedType}'"
+                        );
+                }
+            }
+
+            throw new InvalidOperationException($"Compile Error: Unknown type annotation state encountered during negation emission.");
+        }
+
+        LLVMValueRef EmitNullExpression()
+        {
+            LLVMTypeRef opaquePointerType = LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0);
+
+            return LLVMValueRef.CreateConstPointerNull(opaquePointerType);
+        }
+
+
         LLVMValueRef EmitExpression(Expression expression, Variables variables)
         {
             return expression switch
@@ -1302,6 +1371,8 @@ namespace CommonC.LLVM.CodeGen
                 ParenthesizedExpression parenthesizedExpression => EmitParenthesizedExpression(parenthesizedExpression, variables),
                 BooleanExpression booleanExpression => EmitBooleanExpression(booleanExpression),
                 CharacterExpression characterExpression => EmitCharacterExpression(characterExpression),
+                NegateExpression negateExpression => EmitNegateExpression(negateExpression, variables),
+                NullExpression nullExpression => EmitNullExpression(),
                 _ => throw new Exception($"Unsupported expression type: {expression.GetType().Name}")
             };
         }

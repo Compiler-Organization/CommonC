@@ -74,15 +74,6 @@ namespace CommonC.Semantic
                     return expression.TypeAnnotation = ResolveTypeFromExpression(Functions[identifierExpression.Name].ReturnType, variables);
                 }
 
-                if(identifierExpression.Name == "logl" || identifierExpression.Name == "log")
-                {
-                    return expression.TypeAnnotation = new TypeAnnotation
-                    {
-                        IsReservedType = true,
-                        ReservedType = ReservedTypes.Fn
-                    };
-                }
-
                 TypeAnnotation variableAnnotation = ResolveTypeFromExpression(variables.GetVariable(identifierExpression.Name).Type, variables);
                 variableAnnotation.IsVariable = true;
                 return expression.TypeAnnotation = variableAnnotation;
@@ -305,6 +296,18 @@ namespace CommonC.Semantic
                     throw new Exception($"Member expressions accessing field of type {currentStruct.Fields.GetVariable(memberIdentifier.Name).Type} are not supported.");
                 }
             }
+            if(expression is NegateExpression negateExpression)
+            {
+                return expression.TypeAnnotation = ResolveTypeFromExpression(negateExpression.Expression, variables);
+            }
+            if(expression is NullExpression)
+            {
+                return expression.TypeAnnotation = new TypeAnnotation
+                {
+                    IsReservedType = true,
+                    ReservedType = ReservedTypes.Null
+                };
+            }
 
             throw new Exception($"Could not resolve type of expression with type {expression.GetType().Name}");
         }
@@ -350,7 +353,7 @@ namespace CommonC.Semantic
             TrackStatements(closure);
         }
 
-        void TrackTypeForParameters(List<ParameterExpression> parameters, Variables variables)
+        void TrackTypeForParameters(ParameterExpressionList parameters, Variables variables)
         {
             foreach (ParameterExpression parameter in parameters)
             {

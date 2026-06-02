@@ -24,7 +24,7 @@ Other languages are either easy to write, but perform poorly (E.g Python, JavaSc
 
 The philosophy behind the syntax is to be easily readable and writable. Syntax is developed so that the shortest combination of keystrokes produces functionality whilst maintaining readability. We keep in mind that not every developed posesses giant hands that reach across the keyboard.
 
-An example of this is using `log` as the standard output function. C# uses Console.WriteLine and Rust uses println!. Both of these are long to write and require more keystrokes than simply `log`.
+An example of this is using `print` as the standard output function. C# uses Console.WriteLine and Rust uses println!. Both of these are long to write and require more keystrokes than simply `print`.
 
 The grand wish of Common C is to be a language where JavaScript, C#, Lua and developers of other garbage-collected languages can write low-level code without needing to relearn an entirely new language and their mental model. The late-stage of Common C will be a heterogeneous compiler with, for example, an integrated array language interopable and indifferent to the "main" language.
 
@@ -41,14 +41,14 @@ There really is no point in using `var` or equal in a modern language apart from
 
 Semicolon after statements is optional simply because some people prefer it, though it has no real function during compilation and is ignored.
 
-## log and logl
-The standard output function is `log` and `logl`, which writes to console, with logl appending a newline at the end.
+## print and printl
+The standard output function is `print` and `printl`, which writes to console, with printl appending a newline at the end.
 
 These functions wrap printf and takes any input, seperated by commas, determines the type of the input and formats it accordingly.
 
 Example
 ```cs
-logl("String: ", "Hello world!", ", Number: ", 123, ", Boolean: ", true)
+printl("String: ", "Hello world!", ", Number: ", 123, ", Boolean: ", true)
 // String: Hello world!, Number: 123, Boolean: true
 ```
 
@@ -108,6 +108,8 @@ logl("String: ", "Hello world!", ", Number: ", 123, ", Boolean: ", true)
         * Unpacking arrays.
     * [SizeOf](#SizeOf)
         * Size of an expression.
+    * [Null](#Null)
+        * Null pointer.
 * Statements
     * [Assignment](#Assignment)
         * Variable assignments.
@@ -131,6 +133,8 @@ logl("String: ", "Hello world!", ", Number: ", 123, ", Boolean: ", true)
         * Conditional control flow.
     * [Use](#Use)
         * Imports file, parses it into an AST and merges it with the main file.
+    * [Extern](#Extern)
+        * Links to a external function.
 
 # Expressions
 ## String
@@ -180,7 +184,7 @@ someVariable
 
 Example
 ```cs
-logl(yourName)
+printl(yourName)
 ```
 
 ___
@@ -242,12 +246,12 @@ Accessing a multidimensional array is done by chaining indexes.
 
 Example
 ```cs
-logl(arr[1])
+printl(arr[1])
 ```
 
 Multidimensional array example
 ```cs
-logl(arr[1][2])
+printl(arr[1][2])
 ```
 
 ___
@@ -273,7 +277,7 @@ Performs a call on the given function. Arguments are seperated by a comma.
 
 Example
 ```cs
-logl("Hello, world!")
+printl("Hello, world!")
 ```
 
 ___
@@ -457,9 +461,22 @@ sizeof <expr>
 Example
 ```cs
 i32 number = 10;
-logl("Size of i32: ", sizeof number)
+printl("Size of i32: ", sizeof number)
 
 // Size of i32: 4
+```
+
+___
+
+## Null
+A constant null pointer.
+```
+null
+```
+
+Example
+```cs
+ptr unsafePointer = null
 ```
 
 ___
@@ -487,7 +504,7 @@ Calls a function and, if the return type is not `fn`, returns it.
 
 Example
 ```cs
-logl("Hello, world!")
+printl("Hello, world!")
 ```
 
 ___
@@ -500,7 +517,7 @@ Creates a new closure for control flow purposes.
 
 Example
 ```
-{ log("Hello, world!") }
+{ print("Hello, world!") }
 ```
 
 ___
@@ -516,7 +533,7 @@ for <expr | range>, <expr | identifier> {
 Example
 ```cs
 for 0..5, i {
-    logl(i)
+    printl(i)
 }
 ```
 
@@ -533,7 +550,7 @@ Declares a new function with parameters and a return type. Parentheses for param
 Example
 ```rust
 fn testFunc(str message) {
-    logl(message)
+    printl(message)
 }
 
 fn main {
@@ -598,7 +615,7 @@ while <expr> {
 Example
 ```cs
 while true {
-    logl("To infinity...")
+    printl("To infinity...")
 }
 ```
 
@@ -621,7 +638,7 @@ else {
 Example
 ```cs
 if 2 == 2 {
-    logl(4)
+    printl(4)
 }
 ```
 
@@ -629,6 +646,8 @@ ___
 
 ## Use
 Adds a .coc extension, imports the file from the name in the specified working directory, parses its syntax tree and merges it with the main file.
+
+Files are only imported once, regardless of multiple use statements pointing to the same file.
 ```
 use <expr | identifier>
 ```
@@ -636,4 +655,17 @@ use <expr | identifier>
 Example
 ```rust
 use math
+```
+
+___
+
+## Extern
+Links to a external function.
+```
+extern <expr | type> <expr | identifier>(<parameters>);
+```
+
+Example
+```rust
+extern fn ExitProcess@4(i32 uExitCode);
 ```

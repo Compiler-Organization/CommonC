@@ -30,5 +30,9 @@ namespace CommonC.Parser.AST
         Char,
         Bool,
         Fn,
+
+        Ptr,
+
+        Null,
     }
 }

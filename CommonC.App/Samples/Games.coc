@@ -1,0 +1,40 @@
+// Small games written to demonstrate Common C functionality.
+
+use Console
+use Strings
+
+// A simple guessing game using the Common C standard library.
+fn GuessingGame() {
+        printl("Welcome to the guessing game!");
+        printl("Try to guess the number between 1 and 100.");
+        
+        str guess = readl();
+        i32 guessNumber = StringToI32(guess);
+
+        if guessNumber == 42 {
+                printl("Congratulations! You guessed the correct number!");
+        } else {
+                printl("Sorry, that's not the correct number. Try again!");
+        }
+}
+
+fn AuthenticateGame() {
+        printl("Halt! Name and password please!");
+
+        print("Name: ");
+        str name = readl();
+
+        print("Password: ");
+        str pass = readl();
+
+        print("Authenticating ")
+        print(name)
+        printl("...")
+
+        if(StringIsEqual(pass, "okkey")) {
+                printl("Authenticated!")
+        }
+        else {
+                printl("You're banned.")
+        }
+}

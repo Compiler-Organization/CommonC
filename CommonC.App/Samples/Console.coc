@@ -1,0 +1,40 @@
+// Library for interacting with a Windows console.
+
+use DataConversion
+use WinIO
+
+// Converts a I8[] buffer to a string and prints it.
+fn PrintI8Buffer(i8[] buffer) {
+        printl(I8ArrayToString(buffer));
+}
+
+// Prints a string to the console.
+fn print(str text) {
+        __SystemWrite(text);
+}
+
+// Prints a string to the console with a prepending newline.
+fn printl(str text) {
+        __SystemWrite(text);
+        __SystemWrite("\n");
+}
+
+// Reads the console user input and returns it as a string.
+// CAUTION: fixed 256-byte buffer, susceptible to buffer-overflow attacks!
+str readl() {
+        i8[] buffer = i8[256] {};
+        ptr stdinHandle = __GetStdinHandle();
+        
+        i32[] charsRead = i32[1] {};
+        
+        ReadConsoleA@20(stdinHandle, buffer, 255, charsRead, null);
+        
+        i32 actualLength = charsRead[0];
+        
+        for 0..actualLength, i {
+                if buffer[i] == 13 { buffer[i] = 0; }
+                if buffer[i] == 10 { buffer[i] = 0; }
+        }
+        
+        return I8ArrayToString(buffer);
+}

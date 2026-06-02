@@ -62,6 +62,7 @@ namespace CommonC.Semantic.Objects
                     ReservedTypes.Bool => LLVMTypeRef.Int1,
                     ReservedTypes.String => LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),
                     ReservedTypes.Fn => LLVMTypeRef.Void,
+                    ReservedTypes.Ptr => LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),
                     _ => throw new InvalidOperationException($"Unsupported reserved type: {ReservedType}")
                 },
                 { IsStruct: true } => Struct.LLVMStructType,

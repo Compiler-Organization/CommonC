@@ -146,6 +146,10 @@ namespace CommonC.Parser
                     typeExpression.Type = ReservedTypes.Fn;
                     break;
 
+                case "ptr":
+                    typeExpression.Type = ReservedTypes.Ptr;
+                    break;
+
                 default:
                     return false;
             }
@@ -220,6 +224,19 @@ namespace CommonC.Parser
             return false;
         }
 
+        bool ParseNullExpression(out NullExpression nullExpression)
+        {
+            nullExpression = new NullExpression();
+
+            if(TokenReader.Expect(LexKinds.Keyword, "null"))
+            {
+                TokenReader.Consume();
+                return true;
+            }
+
+            return false;
+        }
+
         /// <summary>
         /// Parses expressions without a right hand side
         /// </summary>
@@ -228,6 +245,12 @@ namespace CommonC.Parser
         bool ParseSimpleExpression(out Expression expression)
         {
             expression = new Expression();
+
+            if(ParseNullExpression(out NullExpression nullExpression))
+            {
+                expression = nullExpression;
+                return true;
+            }
 
             if(ParseParenthesizedExpression(out ParenthesizedExpression parenthesizedExpression))
             {
@@ -546,15 +569,22 @@ namespace CommonC.Parser
             return true;
         }
 
-        bool ParseParameterExpressions(out List<ParameterExpression> parameters)
+        bool ParseParameterExpressions(out ParameterExpressionList parameters)
         {
-            parameters = new List<ParameterExpression>();
+            parameters = new ParameterExpressionList();
 
             for (; ; )
             {
                 if (ParseParameterExpression(out ParameterExpression parameter))
                 {
                     parameters.Add(parameter);
+                    continue;
+                }
+
+                if(TokenReader.Expect(LexKinds.Vararg))
+                {
+                    TokenReader.Consume();
+                    parameters.IsVararg = true;
                     continue;
                 }
 
@@ -851,7 +881,7 @@ namespace CommonC.Parser
             return false;
         }
 
-        bool ParseFunctionDeclarationStatement(Expression typeExpression, IdentifierExpression nameExpression, out FunctionDeclarationStatement functionDeclarationStatement)
+        bool ParseFunctionDeclarationStatement(Expression typeExpression, IdentifierExpression nameExpression, bool isExtern, out FunctionDeclarationStatement functionDeclarationStatement)
         {
             functionDeclarationStatement = new FunctionDeclarationStatement() 
             {
@@ -863,7 +893,7 @@ namespace CommonC.Parser
             if (TokenReader.Expect(LexKinds.ParentheseOpen))
             {
                 TokenReader.Consume();
-                if (ParseParameterExpressions(out List<ParameterExpression> parameters))
+                if (ParseParameterExpressions(out ParameterExpressionList parameters))
                 {
                     functionDeclarationStatement.Parameters = parameters;
                 }
@@ -877,6 +907,12 @@ namespace CommonC.Parser
             if (ParseClosureStatement(out ClosureStatement closureStatement))
             {
                 functionDeclarationStatement.Body = closureStatement;
+                return true;
+            }
+
+            if (isExtern)
+            {
+                functionDeclarationStatement.IsExtern = true;
                 return true;
             }
 
@@ -1270,7 +1306,15 @@ namespace CommonC.Parser
                 return true;
             }
 
-            if(ParseExpression(out Expression expression, true))
+            bool isExtern = false;
+
+            if (TokenReader.Expect(LexKinds.Keyword, "extern"))
+            {
+                TokenReader.Consume();
+                isExtern = true;
+            }
+
+            if (ParseExpression(out Expression expression, true))
             {
                 if(ParseCallStatement(expression, out CallStatement callStatement))
                 {
@@ -1286,8 +1330,7 @@ namespace CommonC.Parser
 
                     if(ParseIdentifierExpression(out IdentifierExpression nameExpression))
                     {
-
-                        if (ParseFunctionDeclarationStatement(expression, nameExpression, out FunctionDeclarationStatement functionDeclarationStatement))
+                        if (ParseFunctionDeclarationStatement(expression, nameExpression, isExtern, out FunctionDeclarationStatement functionDeclarationStatement))
                         {
                             statement = functionDeclarationStatement;
                             return true;

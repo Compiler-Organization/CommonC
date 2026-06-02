@@ -21,26 +21,23 @@
 		<None Update="lib\legacy_stdio_definitions.lib">
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
-		<None Update="Samples\arrays.coc">
+		<None Update="Samples\Console.coc">
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
-		<None Update="Samples\compilerobjecttest.coc">
+		<None Update="Samples\DataConversion.coc">
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
-		<None Update="Samples\fibonacci.coc">
+		<None Update="Samples\Games.coc">
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
-		<None Update="Samples\godspeaks.coc">
-			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
-		</None>
-		<None Update="Samples\math.coc">
-			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
-		</None>
-		<None Update="Samples\matrix.coc">
+		<None Update="Samples\Strings.coc">
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
 		<None Update="Samples\test.coc">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Samples\WinIO.coc">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
 		<Content Include="Llvm\**">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

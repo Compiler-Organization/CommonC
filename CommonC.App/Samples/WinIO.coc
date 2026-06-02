@@ -1,0 +1,25 @@
+// Standard library for interacting with the Windows kernel IO.
+
+use Strings
+
+extern ptr GetStdHandle@4(i32 nStdHandle);
+extern i32 WriteConsoleA@20(ptr hConsoleOutput, ptr lpBuffer, i32 nNumberOfCharsToWrite, ptr lpNumberOfCharsWritten, ptr lpReserved);
+extern i32 ReadConsoleA@20(ptr hConsoleInput, ptr lpBuffer, i32 nNumberOfCharsToRead, ptr lpNumberOfCharsRead, ptr pInputControl);
+extern fn ExitProcess@4(i32 uExitCode);
+
+ptr __GetStdoutHandle() {
+        return GetStdHandle@4(-11);
+}
+
+ptr __GetStdinHandle() {
+        return GetStdHandle@4(-10);
+}
+
+fn __SystemWrite(str text) {
+        ptr stdoutHandle = __GetStdoutHandle();
+        i32 length = GetStringLength(text);
+        
+        i32[] charsWritten = i32[1] {}; 
+        
+        WriteConsoleA@20(stdoutHandle, text, length, charsWritten, null);
+}

@@ -12,4 +12,9 @@ namespace CommonC.Parser.AST.Expressions
 
         public string Name { get; set; } = "";
     }
+
+    public class ParameterExpressionList : List<ParameterExpression>
+    {
+        public bool IsVararg { get; set; }
+    }
 }

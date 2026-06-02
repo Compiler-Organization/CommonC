@@ -40,6 +40,11 @@ namespace CommonC.Printer
             Builder.Append(booleanExpression.Value.ToString().ToLower());
         }
 
+        void PrintNullExpression(NullExpression nullExpression)
+        {
+            Builder.Append("null");
+        }
+
         void PrintIdentifierExpression(IdentifierExpression identifierExpression)
         {
             Builder.Append(identifierExpression.Name);
@@ -90,6 +95,10 @@ namespace CommonC.Printer
 
                 case Parser.AST.ReservedTypes.F64:
                     Builder.Append("f64");
+                    break;
+
+                case Parser.AST.ReservedTypes.Ptr:
+                    Builder.Append("ptr");
                     break;
 
                 case Parser.AST.ReservedTypes.String:
@@ -237,7 +246,7 @@ namespace CommonC.Printer
             }
         }
 
-        void PrintParameterExpressions(List<ParameterExpression> parameterExpressions, string indentation)
+        void PrintParameterExpressions(ParameterExpressionList parameterExpressions, string indentation)
         {
             if (parameterExpressions.Count > 0)
             {
@@ -379,6 +388,12 @@ namespace CommonC.Printer
                 return;
             }
 
+            if(expression is NullExpression nullExpression)
+            {
+                PrintNullExpression(nullExpression);
+                return;
+            }
+
             if(expression is IdentifierExpression identifierExpression)
             {
                 PrintIdentifierExpression(identifierExpression);
@@ -507,6 +522,12 @@ namespace CommonC.Printer
         void PrintFunctionDeclarationStatement(FunctionDeclarationStatement functionDeclarationStatement, string indentation)
         {
             Builder.Append(indentation);
+
+            if(functionDeclarationStatement.IsExtern)
+            {
+                Builder.Append("extern ");
+            }
+
             PrintExpression(functionDeclarationStatement.ReturnType, indentation);
             Builder.Append(" ");
             Builder.Append(functionDeclarationStatement.Name);
@@ -514,12 +535,21 @@ namespace CommonC.Printer
             {
                 Builder.Append("(");
                 PrintParameterExpressions(functionDeclarationStatement.Parameters, indentation);
+                if(functionDeclarationStatement.Parameters.IsVararg)
+                {
+                    Builder.Append(", ...");
+                }
                 Builder.Append(")");
             }
 
             if(functionDeclarationStatement.Body != null)
             {
                 PrintClosureStatement(functionDeclarationStatement.Body, " ", indentation);
+            }
+            else
+            {
+                Builder.Append(";");
+                Builder.Append(Settings.NewLine);
             }
         }
 
