@@ -110,6 +110,14 @@ namespace CommonC.Parser
                     typeExpression.Type = ReservedTypes.U8;
                     break;
 
+                case "i16":
+                    typeExpression.Type = ReservedTypes.I16;
+                    break;
+
+                case "u16":
+                    typeExpression.Type = ReservedTypes.U16;
+                    break;
+
                 case "i32":
                     typeExpression.Type = ReservedTypes.I32;
                     break;
@@ -388,6 +396,36 @@ namespace CommonC.Parser
             throw new Exception("Invalid right hand expression when parsing arithemtic expression");
         }
 
+        bool ParseLogicalExpression(Expression leftExpression, out LogicalExpression logicalExpression)
+        {
+            logicalExpression = new LogicalExpression()
+            {
+                Left = leftExpression
+            };
+
+            LexKinds arithmeticKind = TokenReader.Peek().Kind;
+            switch (arithmeticKind)
+            {
+                case LexKinds.And:
+                case LexKinds.Or:
+                    logicalExpression.Operator = (LogicalOperator)arithmeticKind;
+                    break;
+
+                default:
+                    return false;
+            }
+
+            TokenReader.Consume();
+
+            if (ParseExpression(out Expression rightExpression))
+            {
+                logicalExpression.Right = rightExpression;
+                return true;
+            }
+
+            throw new Exception("Invalid right hand expression when parsing logical expression");
+        }
+
         bool ParseRangeExpression(Expression leftExpression, out RangeExpression rangeExpression)
         {
             rangeExpression = new RangeExpression()
@@ -418,8 +456,14 @@ namespace CommonC.Parser
             if (TokenReader.Expect(LexKinds.Dot))
             {
                 TokenReader.Consume();
-                if (ParseExpression(out Expression childExpression))
+                
+                if (ParseSimpleExpression(out Expression childExpression))
                 {
+                    while (ParseIndexExpression(childExpression, out IndexExpression indexExpression))
+                    {
+                        childExpression = indexExpression;
+                    }
+
                     memberExpression.Member = childExpression;
                     return true;
                 }
@@ -766,6 +810,11 @@ namespace CommonC.Parser
                     if (ParseArithmeticExpression(expression, out ArithmeticExpression arithmeticExpression))
                     {
                         expression = arithmeticExpression;
+                        continue;
+                    }
+                    if(ParseLogicalExpression(expression, out LogicalExpression logicalExpression))
+                    {
+                        expression = logicalExpression;
                         continue;
                     }
                     if (ParseRangeExpression(expression, out RangeExpression rangeExpression))

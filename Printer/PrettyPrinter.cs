@@ -324,9 +324,32 @@ namespace CommonC.Printer
             Builder.Append($"'{characterExpression.Value}'");
         }
 
+        void PrintLogicalExpression(LogicalExpression logicalExpression, string indentation)
+        {
+            PrintExpression(logicalExpression.Left, indentation);
+
+            switch (logicalExpression.Operator)
+            {
+                case LogicalOperator.And:
+                    Builder.Append(" and ");
+                    break;
+                case LogicalOperator.Or:
+                    Builder.Append(" or ");
+                    break;
+            }
+
+            PrintExpression(logicalExpression.Right, indentation);
+        }
+
         void PrintExpression(Expression expression, string indentation)
         {
             // Builder.Append($"\n{expression.GetType().Name} - IsReservedType: {expression.TypeAnnotation.IsReservedType}, {expression.TypeAnnotation.ReservedType.ToString()} | IsStruct: {expression.TypeAnnotation.IsStruct}, {(expression.TypeAnnotation.Struct ?? new StructStatement()).Name} | IsArray: {expression.TypeAnnotation.IsArray}, ArrayDepth: {expression.TypeAnnotation.ArrayDepth} \n");
+
+            if(expression is LogicalExpression logicalExpression)
+            {
+                PrintLogicalExpression(logicalExpression, indentation);
+                return;
+            }
 
             if(expression is CharacterExpression characterExpression)
             {

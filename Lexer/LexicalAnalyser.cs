@@ -63,7 +63,13 @@ namespace CommonC.Lexer
             "use",
 
             "extern",
-            "null"
+            "null",
+        };
+
+        readonly Dictionary<string, LexKinds> Operators = new Dictionary<string, LexKinds>()
+        {
+            { "and", LexKinds.And },
+            { "or", LexKinds.Or },
         };
 
         string Input { get; set; }
@@ -84,6 +90,9 @@ namespace CommonC.Lexer
 
             if (Keywords.Contains(Value))
                 return LexKinds.Keyword;
+
+            if(Operators.TryGetValue(Value, out LexKinds _operator))
+                return _operator;
 
             return LexKinds.Identifier;
         }

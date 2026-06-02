@@ -1,0 +1,143 @@
+// Mandelbrot fractral to demonstrate graphics capabilities
+
+use Console
+use Strings
+use GDIDataStructures
+
+fn Mandelbrot {
+    i32 screenWidth = 800
+    i32 screenHeight = 600
+
+    ptr hInstance = GetModuleHandleA@4(null)
+
+    str className = "BlankWindowClass"
+    str windowTitle = "Mandelbrot"
+
+    ptr nullBrush = null
+
+    ptr wndClassPtr = i32[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+    wndClassPtr[0] = 48
+    wndClassPtr[1] = 3
+    wndClassPtr[2] = __WindowProc     
+    wndClassPtr[3] = 0              
+    wndClassPtr[4] = 0              
+    wndClassPtr[5] = hInstance      
+    wndClassPtr[6] = null           
+    wndClassPtr[7] = null           
+    wndClassPtr[8] = nullBrush
+    wndClassPtr[9] = null           
+    wndClassPtr[10] = className  
+    wndClassPtr[11] = null           
+
+    RegisterClassExA@4(wndClassPtr)
+    
+    i32 windowStyle = 268435456 + 13565952 
+
+    ptr windowHandle = CreateWindowExA@48(
+        0, 
+        className, 
+        windowTitle, 
+        windowStyle, 
+        100, 100, screenWidth, screenHeight, 
+        null, null, hInstance, null
+    )
+
+    ShowWindow@8(windowHandle, 1)
+    UpdateWindow@4(windowHandle)
+
+    ptr hdc = GetDC@4(windowHandle)
+
+    ptr msgPtr = i32[] {0, 0, 0, 0, 0, 0, 0, 0}
+    MSG msg = msgPtr
+
+    i32 rendered = 0
+
+    while IsWindow@4(windowHandle) > 0 {
+        
+        while PeekMessageA@20(msgPtr, null, 0, 0, 1) > 0 {
+            TranslateMessage@4(msgPtr)
+            DispatchMessageA@4(msgPtr)
+        }
+
+        i16 escState = GetAsyncKeyState@4(27)
+        if !(escState == 0) {
+            DestroyWindow@4(windowHandle)
+            break
+        }
+
+        if (rendered == 0) {
+            printl("Generating fractal layout...")
+            i32 maxIterations = 32
+            i32 dummy = 0 
+
+            i32 y = 0
+            while (y < screenHeight) {
+                
+                while PeekMessageA@20(msgPtr, null, 0, 0, 1) > 0 {
+                    TranslateMessage@4(msgPtr)
+                    DispatchMessageA@4(msgPtr)
+                }
+
+                i32 x = 0
+                while (x < screenWidth) {
+                    
+                    i32 cx = (x * 3) / 8
+                    cx = cx - 200
+
+                    i32 cy = (y * 3) / 6
+                    cy = cy - 150
+
+                    i32 zx = 0
+                    i32 zy = 0
+                    i32 iteration = 0
+                    
+                    i32 keepRunning = 1
+                    i32 escaped = 0
+
+                    while (keepRunning == 1) {
+                        i32 xSq = zx * zx
+                        i32 ySq = zy * zy
+                        i32 distance = xSq + ySq
+
+                        if (distance > 40000) {
+                            escaped = 1
+                            keepRunning = 0
+                        }
+
+                        if (iteration == maxIterations) {
+                            keepRunning = 0
+                        }
+
+                        if (keepRunning == 1) {
+                            i32 xyProduct = zx * zy
+                            i32 next_zy = ((2 * xyProduct) / 100) + cy
+                            zx = ((xSq - ySq) / 100) + cx
+                            zy = next_zy
+
+                            iteration = iteration + 1
+                        }
+                    }
+
+                    if (escaped == 0) {
+                        dummy = SetPixel@16(hdc, x, y, 0)
+                    } else {
+                        i32 blueIntensity = (iteration * 255) / maxIterations
+                        i32 pixelColor = (blueIntensity * 65536) + (blueIntensity * 256)
+                        
+                        dummy = SetPixel@16(hdc, x, y, pixelColor)
+                    }
+
+                    x = x + 1
+                }
+                y = y + 1
+            }
+            
+            GdiFlush@0()
+            rendered = 1 
+            printl("Mandelbrot generation finished.")
+        }
+    }
+
+    ReleaseDC@8(windowHandle, hdc)
+    printl("Window closed cleanly. Program exit.")
+}

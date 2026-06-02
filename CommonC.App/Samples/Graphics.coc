@@ -1,0 +1,65 @@
+// A graphics library using gdi32 (Graphics Device Interface) to create and draw graphics
+
+use Strings
+use Console
+use GDIDataStructures
+
+struct Window {
+    str Title,
+    str ClassName,
+    i32 Width,
+    i32 Height,
+
+    ptr WindowHandle,
+    ptr DeviceContext
+}
+
+ptr CreateWindow(Window window) {
+    ptr hInstance = GetModuleHandleA@4(null)
+    ptr blackBrush = GetStockObject@4(4)
+
+    ptr wndClassPtr = i32[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+    wndClassPtr[0] = 48
+    wndClassPtr[1] = 3
+    wndClassPtr[2] = __WindowProc
+    wndClassPtr[3] = 0
+    wndClassPtr[4] = 0
+    wndClassPtr[5] = hInstance
+    wndClassPtr[6] = null
+    wndClassPtr[7] = null
+    wndClassPtr[8] = blackBrush
+    wndClassPtr[9] = null
+    wndClassPtr[10] = window.ClassName
+    wndClassPtr[11] = null
+
+    i16 classAtom = RegisterClassExA@4(wndClassPtr)
+    
+    i32 windowStyle = 268435456 + 13565952 // WS_VISIBLE | WS_OVERLAPPEDWINDOW
+
+    ptr windowHandle = CreateWindowExA@48(
+        0, 
+        window.ClassName, 
+        window.Title, 
+        windowStyle, 
+        100, 100, window.Width, window.Height, 
+        null, null, hInstance, null
+    )
+
+    ShowWindow@8(windowHandle, 1)
+    UpdateWindow@4(windowHandle)
+
+    window.WindowHandle = windowHandle
+    window.DeviceContext = GetDC@4(windowHandle)
+
+    return windowHandle
+}
+
+fn ReleaseWindow(Window window) {
+    DestroyWindow@4(window.WindowHandle)
+    ReleaseDC@8(window.WindowHandle, window.DeviceContext)
+}
+
+bool WindowExists(Window window) {
+    
+    return IsWindow@4(window.WindowHandle) > 0
+}

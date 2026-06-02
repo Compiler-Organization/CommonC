@@ -1,0 +1,139 @@
+// Sierpinski Gasket fractral to demonstrate graphics capabilities
+
+use Console
+use Strings
+use GDIDataStructures
+
+fn SierpinskiGasket {
+    i32 screenWidth = 800
+    i32 screenHeight = 600
+
+    ptr hInstance = GetModuleHandleA@4(null)
+    str className = "SierpinskiClass"
+    str windowTitle = "Sierpinski Gasket"
+
+    ptr defaultBlackBrush = GetStockObject@4(4)
+
+    ptr wndClassPtr = i32[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+    wndClassPtr[0] = 48       
+    wndClassPtr[1] = 3        
+    wndClassPtr[2] = __WindowProc     
+    wndClassPtr[3] = 0              
+    wndClassPtr[4] = 0              
+    wndClassPtr[5] = hInstance      
+    wndClassPtr[6] = null           
+    wndClassPtr[7] = null           
+    wndClassPtr[8] = defaultBlackBrush  
+    wndClassPtr[9] = null           
+    wndClassPtr[10] = className  
+    wndClassPtr[11] = null           
+
+    RegisterClassExA@4(wndClassPtr)
+    
+    i32 windowStyle = 268435456 + 13565952 
+
+    ptr windowHandle = CreateWindowExA@48(
+        0, 
+        className, 
+        windowTitle, 
+        windowStyle, 
+        100, 100, screenWidth, screenHeight, 
+        null, null, hInstance, null
+    )
+
+    ShowWindow@8(windowHandle, 1)
+    UpdateWindow@4(windowHandle)
+
+    ptr hdc = GetDC@4(windowHandle)
+
+    ptr msgPtr = i32[] {0, 0, 0, 0, 0, 0, 0, 0}
+    MSG msg = msgPtr
+
+    while PeekMessageA@20(msgPtr, null, 0, 0, 1) > 0 {
+        TranslateMessage@4(msgPtr)
+        DispatchMessageA@4(msgPtr)
+    }
+
+    i32 rendered = 0
+
+    while (IsWindow@4(windowHandle) > 0) {
+        
+        while PeekMessageA@20(msgPtr, null, 0, 0, 1) > 0 {
+            TranslateMessage@4(msgPtr)
+            DispatchMessageA@4(msgPtr)
+        }
+
+        i16 escState = GetAsyncKeyState@4(27)
+        if (!(escState == 0)) {
+            DestroyWindow@4(windowHandle)
+        }
+
+        if (rendered == 0) {
+            printl("Clearing background to black and generating Sierpinski triangle...")
+            i32 dummy = 0
+
+            ptr internalBlackBrush = GetStockObject@4(4)
+            ptr oldBrush = SelectObject@8(hdc, internalBlackBrush)
+
+            dummy = PatBlt@24(hdc, 0, 0, screenWidth, screenHeight, 15728673)
+            SelectObject@8(hdc, oldBrush)
+
+            i32 x1 = 400
+            i32 y1 = 50     
+
+            i32 x2 = 50
+            i32 y2 = 550    
+
+            i32 x3 = 750
+            i32 y3 = 550    
+
+            i32 currentX = 400
+            i32 currentY = 300
+            i32 seed = 12345
+
+            i32 totalPoints = 50000
+            i32 count = 0
+
+            while (count < totalPoints) {
+                if (((count / 1000) * 1000) == count) {
+                    while PeekMessageA@20(msgPtr, null, 0, 0, 1) > 0 {
+                        TranslateMessage@4(msgPtr)
+                        DispatchMessageA@4(msgPtr)
+                    }
+                }
+
+                seed = (seed * 1103515245) + 12345
+                if (seed < 0) {
+                    seed = 0 - seed
+                }
+
+                i32 targetCorner = seed / 3
+                targetCorner = seed - (targetCorner * 3)
+
+                if (targetCorner == 0) {
+                    currentX = (currentX + x1) / 2
+                    currentY = (currentY + y1) / 2
+                }
+                if (targetCorner == 1) {
+                    currentX = (currentX + x2) / 2
+                    currentY = (currentY + y2) / 2
+                }
+                if (targetCorner == 2) {
+                    currentX = (currentX + x3) / 2
+                    currentY = (currentY + y3) / 2
+                }
+
+                dummy = SetPixel@16(hdc, currentX, currentY, 16744448)
+
+                count = count + 1
+            }
+
+            GdiFlush@0()
+            rendered = 1
+            printl("Sierpinski generation finished.")
+        }
+    }
+
+    ReleaseDC@8(windowHandle, hdc)
+    printl("Window closed cleanly. Program exit.")
+}

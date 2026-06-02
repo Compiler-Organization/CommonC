@@ -1,0 +1,61 @@
+// GDI data structures and externs
+
+struct WNDCLASSEXA {
+    i32  cbSize,
+    i32  style,
+    ptr  lpfnWndProc,
+    i32  cbClsExtra,
+    i32  cbWndExtra,
+    ptr  hInstance,
+    ptr  hIcon,
+    ptr  hCursor,
+    ptr  hbrBackground,
+    ptr  lpszMenuName,
+    ptr  lpszClassName,
+    ptr  hIconSm       
+}
+
+struct MSG {
+    ptr  hwnd,
+    i32  message,
+    i32  wParam,
+    i32  lParam,
+    i32  time,
+    i32  ptX,
+    i32  ptY,
+    i32  privateData 
+}
+
+extern ptr GetModuleHandleA@4(ptr lpModuleName)
+extern i16 RegisterClassExA@4(ptr lpWndClass)
+extern ptr CreateWindowExA@48(i32 dwExStyle, ptr lpClassName, ptr lpWindowName, i32 dwStyle, i32 X, i32 Y, i32 nWidth, i32 nHeight, ptr hWndParent, ptr hMenu, ptr hInstance, ptr lpParam)
+extern i32 ShowWindow@8(ptr hWnd, i32 nCmdShow)
+extern i32 UpdateWindow@4(ptr hWnd)
+extern i32 PeekMessageA@20(ptr lpMsg, ptr hWnd, i32 wMsgFilterMin, i32 wMsgFilterMax, i32 wRemoveMsg)
+extern i32 TranslateMessage@4(ptr lpMsg)
+extern i32 DispatchMessageA@4(ptr lpMsg)
+extern ptr DefWindowProcA@16(ptr hWnd, i32 Msg, i32 wParam, i32 lParam) 
+extern ptr GetDC@4(ptr hWnd)
+extern i32 ReleaseDC@8(ptr hWnd, ptr hDC)
+extern i32 DestroyWindow@4(ptr hWnd)
+extern i32 IsWindow@4(ptr hWnd)
+extern i16 GetAsyncKeyState@4(i32 vKey)
+extern i32 SetPixel@16(ptr hDC, i32 x, i32 y, i32 crColor)
+extern ptr GetStockObject@4(i32 fnObject)
+extern ptr SelectObject@8(ptr hDC, ptr hGdiObject)
+extern i32 PatBlt@24(ptr hDC, i32 x, i32 y, i32 width, i32 height, i32 dwRop)
+extern i32 GdiFlush@0()
+extern i32 Sleep@4(i32 dwMilliseconds)
+
+
+ptr __WindowProc(ptr hWnd, i32 Msg, i32 wParam, i32 lParam) {
+    if (Msg == 16) {
+        DestroyWindow@4(hWnd)
+        return null
+    }
+    if (Msg == 2) {
+        return null
+    }
+
+    return DefWindowProcA@16(hWnd, Msg, wParam, lParam)
+}

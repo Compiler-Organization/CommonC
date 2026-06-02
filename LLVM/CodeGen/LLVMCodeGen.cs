@@ -528,21 +528,32 @@ namespace CommonC.LLVM.CodeGen
             }
         }
 
-        // Helper method to resolve casting between types safely
         private LLVMValueRef CoerceType(LLVMValueRef value, LLVMTypeRef targetType, string name)
         {
+            if (value.TypeOf == targetType)
+            {
+                return value;
+            }
+
             if (value.TypeOf.Kind == LLVMTypeKind.LLVMIntegerTypeKind && targetType.Kind == LLVMTypeKind.LLVMIntegerTypeKind)
             {
                 uint sourceWidth = value.TypeOf.IntWidth;
                 uint targetWidth = targetType.IntWidth;
 
                 if (sourceWidth < targetWidth)
-                    return Builder.BuildSExt(value, targetType, name); // Assuming signed by default
+                    return Builder.BuildSExt(value, targetType, name);
                 if (sourceWidth > targetWidth)
                     return Builder.BuildTrunc(value, targetType, name);
             }
+
+            if (value.TypeOf.Kind == LLVMTypeKind.LLVMPointerTypeKind && targetType.Kind == LLVMTypeKind.LLVMStructTypeKind)
+            {
+                return Builder.BuildLoad2(targetType, value, name);
+            }
+
             throw new Exception($"Implicit type conversion from {value.TypeOf} to {targetType} is unsupported.");
         }
+
 
 
 
@@ -586,6 +597,11 @@ namespace CommonC.LLVM.CodeGen
 
         LLVMValueRef EmitIdentifierExpression(IdentifierExpression identifierExpression, Variables variables)
         {
+            if(Functions.TryGetValue(identifierExpression.Name, out FunctionDeclarationStatement function))
+            {
+                return function.LLVMFunction;
+            }
+
             VariableDeclarationStatement variable = variables.GetVariable(identifierExpression.Name);
 
             LLVMValueRef pointer = variable.LLVMAlloca;
@@ -1083,7 +1099,6 @@ namespace CommonC.LLVM.CodeGen
                     }
                     continue;
                 }
-
                 throw new Exception($"Unsupported member expression component type: {member.GetType().Name}");
             }
 
@@ -1346,6 +1361,73 @@ namespace CommonC.LLVM.CodeGen
             return LLVMValueRef.CreateConstPointerNull(opaquePointerType);
         }
 
+        LLVMValueRef EmitLogicalExpression(LogicalExpression logicalExpression, Variables variables)
+        {
+            LLVMValueRef left = EmitExpression(logicalExpression.Left, variables);
+
+            if (left == null)
+            {
+                throw new Exception("Left operand expression evaluated to null.");
+            }
+
+            if (left.TypeOf.Kind != LLVMTypeKind.LLVMIntegerTypeKind)
+            {
+                throw new Exception("Logical operators require boolean operands.");
+            }
+
+            LLVMValueRef currentFunction = Builder.InsertBlock.Parent;
+
+            LLVMBasicBlockRef rhsBlock = currentFunction.AppendBasicBlock("logical.rhs");
+            LLVMBasicBlockRef mergeBlock = currentFunction.AppendBasicBlock("logical.merge");
+
+            switch (logicalExpression.Operator)
+            {
+                case LogicalOperator.And:
+                    Builder.BuildCondBr(left, rhsBlock, mergeBlock);
+                    break;
+
+                case LogicalOperator.Or:
+                    Builder.BuildCondBr(left, mergeBlock, rhsBlock);
+                    break;
+
+                default:
+                    throw new Exception($"Logical operator {logicalExpression.Operator} is not supported when emitting LLVM logical expressions.");
+            }
+
+            Builder.PositionAtEnd(rhsBlock);
+            LLVMValueRef right = EmitExpression(logicalExpression.Right, variables);
+
+            if (right == null)
+            {
+                throw new Exception("Right operand expression evaluated to null.");
+            }
+
+            if (right.TypeOf.Kind != LLVMTypeKind.LLVMIntegerTypeKind)
+            {
+                throw new Exception("Logical operators require boolean operands.");
+            }
+
+            LLVMBasicBlockRef rhsEndBlock = Builder.InsertBlock;
+            Builder.BuildBr(mergeBlock);
+
+            LLVMBasicBlockRef lhsEndBlock = rhsBlock.Previous;
+
+            Builder.PositionAtEnd(mergeBlock);
+            LLVMValueRef phi = Builder.BuildPhi(LLVMTypeRef.Int1, "logical.result");
+
+            if (logicalExpression.Operator == LogicalOperator.And)
+            {
+                phi.AddIncoming(new[] { LLVMValueRef.CreateConstInt(LLVMTypeRef.Int1, 0, false), right }, new[] { lhsEndBlock, rhsEndBlock }, 2);
+            }
+            else
+            {
+                phi.AddIncoming(new[] { LLVMValueRef.CreateConstInt(LLVMTypeRef.Int1, 1, false), right }, new[] { lhsEndBlock, rhsEndBlock }, 2);
+            }
+
+            return phi;
+        }
+
+
 
         LLVMValueRef EmitExpression(Expression expression, Variables variables)
         {
@@ -1369,6 +1451,7 @@ namespace CommonC.LLVM.CodeGen
                 CharacterExpression characterExpression => EmitCharacterExpression(characterExpression),
                 NegateExpression negateExpression => EmitNegateExpression(negateExpression, variables),
                 NullExpression nullExpression => EmitNullExpression(),
+                LogicalExpression logicalExpression => EmitLogicalExpression(logicalExpression, variables),
                 _ => throw new Exception($"Unsupported expression type: {expression.GetType().Name}")
             };
         }

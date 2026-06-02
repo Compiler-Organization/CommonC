@@ -15,7 +15,7 @@ i32 GetStringLength(str strBuffer) {
 }
 
 // Concatenates two strings and returns the result as a new string.
-str ConcatStrings(str str1, str str2) {
+str Concat(str str1, str str2) {
     i32 length1 = GetStringLength(str1);
     i32 length2 = GetStringLength(str2);
     i8[] buffer = i8[length1 + length2 + 1] {};
@@ -92,4 +92,55 @@ bool StringIsEqual(str str1, str str2) {
     }
 
     return true
+}
+
+str I32ToString(i32 num) {
+    if num == 0 {
+        return "0"
+    }
+
+    i32 isNegative = 0
+    i32 absoluteNum = num
+
+    if num < 0 {
+        isNegative = 1
+        absoluteNum = -num
+    }
+
+    // Count required digits
+    i32 length = 0
+    i32 temp = absoluteNum
+    while temp > 0 {
+        length = length + 1
+        temp = temp / 10
+    }
+
+    // Account for the minus sign
+    i32 totalLength = length + isNegative
+    
+    // Allocate buffer (digits + null terminator)
+    i8[] buffer = i8[totalLength + 1] {}
+    buffer[totalLength] = 0
+
+    // Populate buffer backwards
+    i32 index = totalLength - 1
+    temp = absoluteNum
+    while temp > 0 {
+        i32 digit = temp % 10
+        buffer[index] = digit + 48
+        temp = temp / 10
+        index = index - 1
+    }
+
+    // Add negative sign if needed
+    if isNegative == 1 {
+        buffer[0] = '-'
+    }
+
+    return I8ArrayToString(buffer)
+}
+
+str I16ToString(i16 num) {
+    i32 newNum = num
+    return I32ToString(newNum)
 }

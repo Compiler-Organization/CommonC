@@ -137,6 +137,11 @@ namespace CommonC.Semantic
                 ResolveTypeFromExpression(arithmeticExpression.Right, variables);
                 return expression.TypeAnnotation = ResolveTypeFromExpression(arithmeticExpression.Left, variables);
             }
+            if(expression is LogicalExpression logicalExpression)
+            {
+                ResolveTypeFromExpression(logicalExpression.Right, variables);
+                return expression.TypeAnnotation = ResolveTypeFromExpression(logicalExpression.Left, variables);
+            }
             if (expression is ArrayInitializerExpression arrayInitializerExpression)
             {
                 ResolveTypeFromExpression(arrayInitializerExpression.Array, variables);
@@ -305,7 +310,7 @@ namespace CommonC.Semantic
                 return expression.TypeAnnotation = new TypeAnnotation
                 {
                     IsReservedType = true,
-                    ReservedType = ReservedTypes.Null
+                    ReservedType = ReservedTypes.Ptr
                 };
             }
 
@@ -319,6 +324,7 @@ namespace CommonC.Semantic
                 CallExpression expr => GetInnerIdentifierExpression(expr.Expression),
                 IndexExpression expr => GetInnerIdentifierExpression(expr.Expression),
                 ArithmeticExpression expr => GetInnerIdentifierExpression(expr.Left),
+                LogicalExpression expr => GetInnerIdentifierExpression(expr.Left),
                 RelationalExpression expr => GetInnerIdentifierExpression(expr.Left),
                 ArrayExpression expr => GetInnerIdentifierExpression(expr.Expressions.Any() ? expr.Expressions.First() : throw new Exception($"Cannot resolve inner identifier expression of empty array")),
                 LengthExpression expr => GetInnerIdentifierExpression(expr.Expression),

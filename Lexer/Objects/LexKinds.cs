@@ -237,6 +237,16 @@ namespace CommonC.Lexer.Objects
         CompoundExp,
 
         /// <summary>
+        /// E.g 'and'
+        /// </summary>
+        And,
+
+        /// <summary>
+        /// E.g 'or'
+        /// </summary>
+        Or,
+
+        /// <summary>
         /// E.g '...'
         /// </summary>
         Vararg,

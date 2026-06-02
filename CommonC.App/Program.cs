@@ -101,9 +101,12 @@ namespace CommonC.App
                     Version = new Version(1, 0, 0, 0)
                 }
             };
+
+            settings.AddLibrary("gdi32");
+            settings.AddLibrary("user32");
             
             LLVMCommonCCompiler compiler = new LLVMCommonCCompiler(settings);
-            LLVMModuleRef module = compiler.Compile(out bool success);
+            LLVMModuleRef module = compiler.Compile(out string statusMessage);
 
 
             string moduleIR = string.Join(Environment.NewLine,
@@ -113,10 +116,16 @@ namespace CommonC.App
 
             Console.WriteLine($"LLVM IR\n=========\n{moduleIR}");
 
-            if(success)
+            if(string.IsNullOrEmpty(statusMessage))
             {
                 File.WriteAllText($"{appName}.ll", module.ToString());
                 StartApp($"{Environment.CurrentDirectory}\\{appName}");
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"Module failed verification!\n{statusMessage}");
+                Console.ForegroundColor = ConsoleColor.Gray;
             }
         }
 

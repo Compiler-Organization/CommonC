@@ -69,17 +69,14 @@ namespace CommonC.LLVM
         /// Compiles the application to a .exe
         /// </summary>
         /// <returns></returns>
-        public LLVMModuleRef Compile(out bool success)
+        public LLVMModuleRef Compile(out string statusMessage)
         {
             LLVMModuleRef module = BuildLLVMModule();
             module.Target = Settings.TargetTripe;
 
             if(!module.TryVerify(LLVMVerifierFailureAction.LLVMPrintMessageAction, out string message))
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Module failed verification!\n{message}");
-                Console.ForegroundColor = ConsoleColor.Gray;
-                success = false;
+                statusMessage = message;
             }
             else
             {
@@ -88,10 +85,11 @@ namespace CommonC.LLVM
                 ProcessStartInfo clang = new ProcessStartInfo()
                 {
                     FileName = @".\\Llvm\\bin\\clang.exe",
-                    Arguments = $"\"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.ll\" -O3 -o \"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.exe\"",
+                    Arguments = $"\"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.ll\" -luser32 -lgdi32 -O3 -o \"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.exe\"",
                 };
+
                 Process.Start(clang).WaitForExit();
-                success = true;
+                statusMessage = message;
             }
 
             return module;
