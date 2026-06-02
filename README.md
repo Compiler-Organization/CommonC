@@ -19,6 +19,14 @@ The language is currently in a prototype stage, meaning everything is subject to
 
 > Contributions are welcome with open arms!
 ___
+## Demo
+We can now render a mandelbrot fractal! Currently this uses direct GDI externs, but will be ported once a proper graphics library has been developed.
+
+The code can be found [here](https://github.com/Compiler-Organization/CommonC/blob/master/CommonC.App/Samples/Mandelbrot.coc)
+
+<img width="628" height="474" alt="image" src="https://github.com/user-attachments/assets/6ee691a1-6e0b-42cd-b66d-e3272a69d4f4" />
+
+___
 ## Thoughts behind Common C
 Other languages are either easy to write, but perform poorly (E.g Python, JavaScript, etc) or they perform well but are difficult to write (E.g C, C++, Rust, etc). Common C is designed to be easy to write and perform well without workarounds like garbage collection and borrow checkers.
 
