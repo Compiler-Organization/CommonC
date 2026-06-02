@@ -5,6 +5,7 @@ use Strings
 extern ptr GetStdHandle@4(i32 nStdHandle);
 extern i32 WriteConsoleA@20(ptr hConsoleOutput, ptr lpBuffer, i32 nNumberOfCharsToWrite, ptr lpNumberOfCharsWritten, ptr lpReserved);
 extern i32 ReadConsoleA@20(ptr hConsoleInput, ptr lpBuffer, i32 nNumberOfCharsToRead, ptr lpNumberOfCharsRead, ptr pInputControl);
+extern i32 SetConsoleTextAttribute@8(ptr hConsoleOutput, i32 wAttributes);
 extern fn ExitProcess@4(i32 uExitCode);
 
 ptr __GetStdoutHandle() {
@@ -22,4 +23,9 @@ fn __SystemWrite(str text) {
         i32[] charsWritten = i32[1] {}; 
         
         WriteConsoleA@20(stdoutHandle, text, length, charsWritten, null);
+}
+
+fn __SetConsoleColor(i32 colorCode) {
+        ptr stdoutHandle = __GetStdoutHandle();
+        SetConsoleTextAttribute@8(stdoutHandle, colorCode);
 }

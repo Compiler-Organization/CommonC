@@ -93,6 +93,7 @@ namespace CommonC.App
             {
                 MainFilePath = Environment.CurrentDirectory + "\\Samples\\test.coc",
                 WorkingDirectory = Environment.CurrentDirectory + "\\Samples",
+                TargetTripe = "i686-pc-windows-msvc19.50.35730",
                 LLVMCodeGenSettings = new LLVMCodeGenSettings
                 {
                     Name = appName,
@@ -102,9 +103,8 @@ namespace CommonC.App
             };
             
             LLVMCommonCCompiler compiler = new LLVMCommonCCompiler(settings);
-            LLVMModuleRef module = compiler.Compile();
+            LLVMModuleRef module = compiler.Compile(out bool success);
 
-            File.WriteAllText($"{appName}.ll", module.ToString());
 
             string moduleIR = string.Join(Environment.NewLine,
             module.ToString().Split('\n')
@@ -113,7 +113,11 @@ namespace CommonC.App
 
             Console.WriteLine($"LLVM IR\n=========\n{moduleIR}");
 
-            StartApp($"{Environment.CurrentDirectory}\\{appName}");
+            if(success)
+            {
+                File.WriteAllText($"{appName}.ll", module.ToString());
+                StartApp($"{Environment.CurrentDirectory}\\{appName}");
+            }
         }
 
         static void CreateDotNet()

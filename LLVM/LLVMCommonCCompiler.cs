@@ -69,29 +69,30 @@ namespace CommonC.LLVM
         /// Compiles the application to a .exe
         /// </summary>
         /// <returns></returns>
-        public LLVMModuleRef Compile()
+        public LLVMModuleRef Compile(out bool success)
         {
             LLVMModuleRef module = BuildLLVMModule();
+            module.Target = Settings.TargetTripe;
 
-            try
-            {
-                module.Verify(LLVMVerifierFailureAction.LLVMPrintMessageAction);
-            }
-            catch (Exception ex)
+            if(!module.TryVerify(LLVMVerifierFailureAction.LLVMPrintMessageAction, out string message))
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Module failed verification!\n{ex.Message}");
+                Console.WriteLine($"Module failed verification!\n{message}");
                 Console.ForegroundColor = ConsoleColor.Gray;
+                success = false;
             }
-
-            File.WriteAllText($"{Settings.LLVMCodeGenSettings.Name}.ll", module.ToString());
-
-            ProcessStartInfo clang = new ProcessStartInfo()
+            else
             {
-                FileName = @".\\Llvm\\bin\\clang.exe",
-                Arguments = $"\"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.ll\" -L{Environment.CurrentDirectory}\\libs -llegacy_stdio_definitions -O3 -o \"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.exe\"",
-            };
-            Process.Start(clang).WaitForExit();
+                File.WriteAllText($"{Settings.LLVMCodeGenSettings.Name}.ll", module.ToString());
+
+                ProcessStartInfo clang = new ProcessStartInfo()
+                {
+                    FileName = @".\\Llvm\\bin\\clang.exe",
+                    Arguments = $"\"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.ll\" -O3 -o \"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.exe\"",
+                };
+                Process.Start(clang).WaitForExit();
+                success = true;
+            }
 
             return module;
         }

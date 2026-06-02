@@ -19,6 +19,11 @@ namespace CommonC.LLVM
         /// </summary>
         public required string MainFilePath { get; set; }
 
+        /// <summary>
+        /// The compiler backend target
+        /// </summary>
+        public string TargetTripe { get; set; } = "";
+
         public LLVMCodeGenSettings LLVMCodeGenSettings { get; set; } = new LLVMCodeGenSettings
         {
             Name = "app",

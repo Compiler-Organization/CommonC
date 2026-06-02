@@ -297,7 +297,6 @@ namespace CommonC.LLVM.CodeGen
             LLVMValueRef valueToStore = EmitExpression(assignmentStatement.Expression, variables);
             LLVMValueRef destinationPointer = EmitLValueAddress(assignmentStatement.Variable, variables);
 
-            // 1. CRITICAL FIX: Resolve the expected type safely using the AST metadata instead of .ElementType
             LLVMTypeRef targetType;
             if (assignmentStatement.Variable is IndexExpression indexExpr)
             {
@@ -322,17 +321,14 @@ namespace CommonC.LLVM.CodeGen
             }
             else
             {
-                // 2. CRITICAL FIX: Match the value's bit-width to the target destination
                 if (targetType.Kind == LLVMTypeKind.LLVMIntegerTypeKind && valueToStore.TypeOf.Kind == LLVMTypeKind.LLVMIntegerTypeKind)
                 {
                     if (targetType.IntWidth < valueToStore.TypeOf.IntWidth)
                     {
-                        // Truncate the i32 down to i8 (or i16) so it safely fits the targeted slot
                         valueToStore = Builder.BuildTrunc(valueToStore, targetType, "truncated.assign.val");
                     }
                     else if (targetType.IntWidth > valueToStore.TypeOf.IntWidth)
                     {
-                        // Sign or zero extend if writing a smaller integer to a larger variable slot
                         valueToStore = Builder.BuildZExt(valueToStore, targetType, "extended.assign.val");
                     }
                 }
@@ -840,7 +836,7 @@ namespace CommonC.LLVM.CodeGen
         LLVMValueRef EmitIndexExpressionAddress(IndexExpression indexExpression, Variables variables)
         {
             LLVMValueRef arrayPtr;
-            bool isString = indexExpression.Expression.TypeAnnotation.ReservedType == ReservedTypes.String; // Determine if base is 'str'
+            bool isString = indexExpression.Expression.TypeAnnotation.ReservedType == ReservedTypes.String;
 
             if (indexExpression.Expression is IndexExpression nestedIndex)
             {
