@@ -4,6 +4,7 @@ using CommonC.Parser.AST.Statements;
 using CommonC.Semantic.Objects;
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Text;
 
 namespace CommonC.Semantic
@@ -11,7 +12,7 @@ namespace CommonC.Semantic
     internal class TypeTracker
     {
         Dictionary<string, StructStatement> Structs = new Dictionary<string, StructStatement>();
-        Dictionary<string, FunctionDeclarationStatement> Functions = new Dictionary<string, FunctionDeclarationStatement>();
+        Functions Functions = new Functions();
 
         TypeAnnotation ResolveTypeFromExpression(Expression expression, Variables? variables)
         {
@@ -60,23 +61,35 @@ namespace CommonC.Semantic
             }
             if (expression is IdentifierExpression identifierExpression)
             {
-                if (Structs.ContainsKey(identifierExpression.Name))
+                string name = identifierExpression.Name;
+
+                if (Structs.TryGetValue(name, out var structDeclaration))
                 {
                     return expression.TypeAnnotation = new TypeAnnotation
                     {
                         IsStruct = true,
-                        Struct = Structs[identifierExpression.Name]
+                        Struct = structDeclaration
                     };
                 }
 
-                if(Functions.ContainsKey(identifierExpression.Name))
+                if (variables?.Contains(name) == true)
                 {
-                    return expression.TypeAnnotation = ResolveTypeFromExpression(Functions[identifierExpression.Name].ReturnType, variables);
+                    var variable = variables.GetVariable(name);
+                    var variableAnnotation = ResolveTypeFromExpression(variable.Type, variables);
+
+                    variableAnnotation.IsVariable = true;
+                    return expression.TypeAnnotation = variableAnnotation;
                 }
 
-                TypeAnnotation variableAnnotation = ResolveTypeFromExpression(variables.GetVariable(identifierExpression.Name).Type, variables);
-                variableAnnotation.IsVariable = true;
-                return expression.TypeAnnotation = variableAnnotation;
+                List<FunctionDeclarationStatement> matchingFunctions = Functions.Where(f => f.Name == name).ToList();
+
+                if (matchingFunctions.Count > 0)
+                {
+                    FunctionDeclarationStatement function = matchingFunctions[0];
+                    return expression.TypeAnnotation = ResolveTypeFromExpression(function.ReturnType, variables);
+                }
+
+                throw new KeyNotFoundException($"'{name}' does not exist in the current context.");
             }
             if (expression is CallExpression callExpression)
             {
@@ -200,7 +213,7 @@ namespace CommonC.Semantic
                                 VariableDeclarationStatement field = structStatement.GetField(propertyIdentifier.Name);
                                 propertyAssignment.Variable.TypeAnnotation = field.TypeAnnotation;
                                 TrackTypeForExpression(propertyAssignment.Expression, variables);
-                                if (!propertyAssignment.Expression.TypeAnnotation.Match(field.TypeAnnotation))
+                                if (!propertyAssignment.Expression.TypeAnnotation.Match(field.TypeAnnotation, false))
                                 {
                                     throw new Exception($"Type of property assignment for property {propertyIdentifier.Name} ({propertyAssignment.Expression.TypeAnnotation.ToString()}) does not match type of field in struct {structStatement.Name} ({field.TypeAnnotation.ToString()}).");
                                 }
@@ -353,7 +366,8 @@ namespace CommonC.Semantic
             List<FunctionDeclarationStatement> functionDeclarationStatements = closure.Statements.OfType<FunctionDeclarationStatement>().ToList();
             foreach (FunctionDeclarationStatement functionDeclarationStatement in functionDeclarationStatements)
             {
-                Functions.Add(functionDeclarationStatement.Name, functionDeclarationStatement);
+                TrackTypeForParameters(functionDeclarationStatement.Parameters, closure.Locals);
+                Functions.Add(functionDeclarationStatement);
             }
 
             TrackStatements(closure);

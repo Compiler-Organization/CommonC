@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using System.Text;
 
 namespace CommonC.Parser.AST.Expressions
@@ -33,6 +34,17 @@ namespace CommonC.Parser.AST.Expressions
             }
 
             return expressions;
+        }
+
+        public override string PrettyPrint(int indentLevel = 0)
+        {
+            StringBuilder Builder = new StringBuilder();
+
+            Builder.Append(Parent.ToString());
+            Builder.Append(".");
+            Builder.Append(Member.ToString());
+
+            return Builder.ToString();
         }
     }
 }

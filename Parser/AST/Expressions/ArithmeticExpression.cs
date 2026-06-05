@@ -12,6 +12,45 @@ namespace CommonC.Parser.AST.Expressions
         public ArithmeticOperator Operator { get; set; }
 
         public Expression Right { get; set; } = null!;
+
+        public override string PrettyPrint(int indentLevel = 0)
+        {
+            StringBuilder Builder = new StringBuilder();
+
+            Builder.Append(Left.ToString());
+
+            switch (Operator)
+            {
+                case ArithmeticOperator.Addition:
+                    Builder.Append(" + ");
+                    break;
+                case ArithmeticOperator.Subtraction:
+                    Builder.Append(" - ");
+                    break;
+                case ArithmeticOperator.Multiplication:
+                    Builder.Append(" * ");
+                    break;
+                case ArithmeticOperator.Division:
+                    Builder.Append(" / ");
+                    break;
+                case ArithmeticOperator.Modulo:
+                    Builder.Append(" % ");
+                    break;
+                case ArithmeticOperator.Exponentiation:
+                    Builder.Append(" ^ ");
+                    break;
+                case ArithmeticOperator.LeftShift:
+                    Builder.Append(" << ");
+                    break;
+                case ArithmeticOperator.RightShift:
+                    Builder.Append(" >> ");
+                    break;
+            }
+
+            Builder.Append(Right.ToString());
+
+            return Builder.ToString();
+        }
     }
 
     public enum ArithmeticOperator
@@ -21,8 +60,9 @@ namespace CommonC.Parser.AST.Expressions
         Multiplication = LexKinds.Multiplication,
         Division = LexKinds.Division,
         Modulo = LexKinds.Modulus,
-        Exponential = LexKinds.Exponential,
         LeftShift = LexKinds.LeftShift,
         RightShift = LexKinds.RightShift,
+        Xor = LexKinds.Xor,
+        Exponentiation = LexKinds.Exponentiation,
     }
 }

@@ -11,7 +11,7 @@ namespace CommonC.Parser.AST.Statements
     public class VariableDeclarationStatement : Statement
     {
         // Core AST properties
-        public Expression Type { get; set; } = new Expression();
+        public Expression Type { get; set; } = null!;
 
         public string Name { get; set; } = "";
 
@@ -40,5 +40,24 @@ namespace CommonC.Parser.AST.Statements
         internal LLVMValueRef LLVMAlloca;
 
         internal LLVMTypeRef LLVMType;
+
+        public override string PrettyPrint(int indentLevel = 0)
+        {
+            StringBuilder Builder = new StringBuilder();
+
+            Builder.Append(GetIndent(indentLevel));
+            Builder.Append(Type.ToString());
+            Builder.Append(" ");
+            Builder.Append(Name);
+            if (Expression != null)
+            {
+                Builder.Append(" = ");
+                Builder.Append(Expression.PrettyPrint(indentLevel + 1));
+            }
+            Builder.Append(";");
+            Builder.Append(Environment.NewLine);
+
+            return Builder.ToString();
+        }
     }
 }

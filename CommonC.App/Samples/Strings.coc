@@ -73,6 +73,7 @@ i32 StringToI32(str strBuffer) {
     return result
 }
 
+// Determines, character by character, if one string equals another.
 bool StringIsEqual(str str1, str str2) {
     i32 index = 0
 
@@ -94,6 +95,7 @@ bool StringIsEqual(str str1, str str2) {
     return true
 }
 
+// Converts a 32-bit integer to a string.
 str I32ToString(i32 num) {
     if num == 0 {
         return "0"
@@ -107,7 +109,6 @@ str I32ToString(i32 num) {
         absoluteNum = -num
     }
 
-    // Count required digits
     i32 length = 0
     i32 temp = absoluteNum
     while temp > 0 {
@@ -115,14 +116,11 @@ str I32ToString(i32 num) {
         temp = temp / 10
     }
 
-    // Account for the minus sign
     i32 totalLength = length + isNegative
     
-    // Allocate buffer (digits + null terminator)
     i8[] buffer = i8[totalLength + 1] {}
     buffer[totalLength] = 0
 
-    // Populate buffer backwards
     i32 index = totalLength - 1
     temp = absoluteNum
     while temp > 0 {
@@ -132,7 +130,6 @@ str I32ToString(i32 num) {
         index = index - 1
     }
 
-    // Add negative sign if needed
     if isNegative == 1 {
         buffer[0] = '-'
     }
@@ -140,7 +137,19 @@ str I32ToString(i32 num) {
     return I8ArrayToString(buffer)
 }
 
-str I16ToString(i16 num) {
+// Converts a 32-bit integer to a string.
+str ToString(i32 num) {
+    return I32ToString(num)
+}
+
+// Converts a 16-bit integer to a string.
+str ToString(i16 num) {
+    i32 newNum = num
+    return I32ToString(newNum)
+}
+
+// Converts a 8-bit integer to a string.
+str ToString(i8 num) {
     i32 newNum = num
     return I32ToString(newNum)
 }

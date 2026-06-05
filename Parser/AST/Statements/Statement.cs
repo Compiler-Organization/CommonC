@@ -5,10 +5,24 @@ using System.Text;
 
 namespace CommonC.Parser.AST.Statements
 {
-    public class Statement
+    public abstract class Statement
     {
         public TypeAnnotation TypeAnnotation { get; set; } = new TypeAnnotation();
 
-        public bool IsLastReadOrWrite { get; set; } = false;
+        public ulong Line { get; set; }
+
+        
+        public abstract string PrettyPrint(int indentLevel = 0);
+
+        /// <summary>
+        /// Converts the statement to a string
+        /// </summary>
+        /// <returns></returns>
+        public string ToString(bool newLine)
+        {
+            return PrettyPrint(0) + (newLine ? Environment.NewLine : "");
+        }
+
+        protected string GetIndent(int level) => new string(' ', level * 4);
     }
 }

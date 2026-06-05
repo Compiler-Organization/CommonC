@@ -151,7 +151,7 @@ namespace CommonC.Printer
                 case ArithmeticOperator.Modulo:
                     Builder.Append(" % ");
                     break;
-                case ArithmeticOperator.Exponential:
+                case ArithmeticOperator.Exponentiation:
                     Builder.Append(" ^ ");
                     break;
                 case ArithmeticOperator.LeftShift:

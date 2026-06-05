@@ -182,6 +182,11 @@ namespace CommonC.Lexer.Objects
         Division,
 
         /// <summary>
+        /// E.g '**'
+        /// </summary>
+        Exponentiation,
+
+        /// <summary>
         /// E.g '%'
         /// </summary>
         Modulus,
@@ -189,7 +194,7 @@ namespace CommonC.Lexer.Objects
         /// <summary>
         /// E.g '^'
         /// </summary>
-        Exponential,
+        Xor,
 
         /// <summary>
         /// E.g '<<'
@@ -232,9 +237,24 @@ namespace CommonC.Lexer.Objects
         CompoundMod,
 
         /// <summary>
-        /// E.g '^='
+        /// E.g '**='
         /// </summary>
         CompoundExp,
+
+        /// <summary>
+        /// E.g '^='
+        /// </summary>
+        CompoundXor,
+
+        /// <summary>
+        /// E.g '<<='
+        /// </summary>
+        CompoundLeftShift, 
+        
+        /// <summary>
+        /// E.g '>>='
+        /// </summary>
+        CompoundRightShift,
 
         /// <summary>
         /// E.g 'and'

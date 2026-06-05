@@ -48,8 +48,7 @@ namespace CommonC.LLVM
                 ClosureStatement closure = ParseText(File.ReadAllText(Settings.MainFilePath));
                 closure = ImportUseFiles(closure);
 
-                PrettyPrinter prettyPrinter = new PrettyPrinter(closure.Statements, PrettyPrinterSettings.Beautify);
-                Console.WriteLine(prettyPrinter.Print());
+                Console.WriteLine("Statements " + closure.Statements.PrettyPrint(0));
 
                 SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer(closure);
                 semanticAnalyzer.Analyze();

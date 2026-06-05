@@ -9,5 +9,16 @@ namespace CommonC.Parser.AST.Expressions
         public IndexExpression Index { get; set; } = new IndexExpression();
 
         public ArrayExpression Array { get; set; } = new ArrayExpression();
+
+        public override string PrettyPrint(int indentLevel = 0)
+        {
+            StringBuilder Builder = new StringBuilder();
+
+            Builder.Append(Index.PrettyPrint(indentLevel));
+            Builder.Append(" ");
+            Builder.Append(Array.PrettyPrint(indentLevel + 1));
+
+            return Builder.ToString();
+        }
     }
 }

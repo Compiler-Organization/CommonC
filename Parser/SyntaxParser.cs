@@ -26,7 +26,10 @@ namespace CommonC.Parser
 
         bool ParseStringExpression(out StringExpression stringExpression)
         {
-            stringExpression = new StringExpression();
+            stringExpression = new StringExpression()
+            {
+                Line = TokenReader.Peek().Line
+            };
 
             if(TokenReader.Expect(LexKinds.String))
             {
@@ -39,7 +42,11 @@ namespace CommonC.Parser
 
         bool ParseCharacterExpression(out CharacterExpression characterExpression)
         {
-            characterExpression = new CharacterExpression();
+            characterExpression = new CharacterExpression()
+            {
+                Line = TokenReader.Peek().Line
+            };
+
             if (TokenReader.Expect(LexKinds.Char))
             {
                 characterExpression.Value = TokenReader.Consume().Value[0];
@@ -50,7 +57,10 @@ namespace CommonC.Parser
 
         bool ParseNumberExpression(out NumberExpression numberExpression)
         {
-            numberExpression = new NumberExpression();
+            numberExpression = new NumberExpression()
+            {
+                Line = TokenReader.Peek().Line
+            };
 
             if (TokenReader.Expect(LexKinds.Number))
             {
@@ -68,7 +78,10 @@ namespace CommonC.Parser
 
         bool ParseBooleanExpression(out BooleanExpression booleanExpression)
         {
-            booleanExpression = new BooleanExpression();
+            booleanExpression = new BooleanExpression()
+            {
+                Line = TokenReader.Peek().Line
+            };
 
             if (TokenReader.Expect(LexKinds.Boolean))
             {
@@ -82,7 +95,11 @@ namespace CommonC.Parser
 
         bool ParseIdentifierExpression(out IdentifierExpression identifierExpression)
         {
-            identifierExpression = new IdentifierExpression();
+            identifierExpression = new IdentifierExpression()
+            {
+                Line = TokenReader.Peek().Line
+            };
+
             if (TokenReader.Peek().Kind == LexKinds.Identifier)
             {
                 identifierExpression.Name = TokenReader.Consume().Value;
@@ -93,7 +110,10 @@ namespace CommonC.Parser
 
         bool ParseTypeExpression(out TypeExpression typeExpression)
         {
-            typeExpression = new TypeExpression();
+            typeExpression = new TypeExpression()
+            {
+                Line = TokenReader.Peek().Line
+            };
 
             switch(TokenReader.Peek().Value)
             {
@@ -168,7 +188,10 @@ namespace CommonC.Parser
 
         bool ParseArrayExpression(out ArrayExpression arrayExpression)
         {
-            arrayExpression = new ArrayExpression();
+            arrayExpression = new ArrayExpression()
+            {
+                Line = TokenReader.Peek().Line
+            };
             if (TokenReader.Expect(LexKinds.BraceOpen))
             {
                 TokenReader.Consume();
@@ -187,7 +210,10 @@ namespace CommonC.Parser
 
         bool ParseLengthExpression(out LengthExpression lengthExpression)
         {
-            lengthExpression = new LengthExpression();
+            lengthExpression = new LengthExpression()
+            {
+                Line = TokenReader.Peek().Line
+            };
 
             if(TokenReader.Expect(LexKinds.Hashtag))
             {
@@ -208,7 +234,10 @@ namespace CommonC.Parser
 
         bool ParseParenthesizedExpression(out ParenthesizedExpression parenthesizedExpression)
         {
-            parenthesizedExpression = new ParenthesizedExpression();
+            parenthesizedExpression = new ParenthesizedExpression()
+            {
+                Line = TokenReader.Peek().Line
+            };
 
             if(TokenReader.Expect(LexKinds.ParentheseOpen))
             {
@@ -234,7 +263,10 @@ namespace CommonC.Parser
 
         bool ParseNullExpression(out NullExpression nullExpression)
         {
-            nullExpression = new NullExpression();
+            nullExpression = new NullExpression()
+            {
+                Line = TokenReader.Peek().Line
+            };
 
             if(TokenReader.Expect(LexKinds.Keyword, "null"))
             {
@@ -252,8 +284,6 @@ namespace CommonC.Parser
         /// <returns></returns>
         bool ParseSimpleExpression(out Expression expression)
         {
-            expression = new Expression();
-
             if(ParseNullExpression(out NullExpression nullExpression))
             {
                 expression = nullExpression;
@@ -329,7 +359,7 @@ namespace CommonC.Parser
                 return true;
             }
 
-
+            expression = null;
             return false;
         }
 
@@ -340,7 +370,8 @@ namespace CommonC.Parser
         {
             callExpression = new CallExpression()
             {
-                Expression = expression
+                Expression = expression,
+                Line = TokenReader.Peek().Line
             };
 
             if (TokenReader.Expect(LexKinds.ParentheseOpen))
@@ -364,26 +395,18 @@ namespace CommonC.Parser
         {
             arithmeticExpression = new ArithmeticExpression()
             {
-                Left = leftExpression
+                Left = leftExpression,
+                Line = TokenReader.Peek().Line
             };
 
-            LexKinds arithmeticKind = TokenReader.Peek().Kind;
-            switch (arithmeticKind)
-            {
-                case LexKinds.Addition:
-                case LexKinds.Subtraction:
-                case LexKinds.Multiplication:
-                case LexKinds.Division:
-                case LexKinds.Modulus:
-                case LexKinds.Exponential:
-                case LexKinds.LeftShift:
-                case LexKinds.RightShift:
-                    arithmeticExpression.Operator = (ArithmeticOperator)arithmeticKind;
-                    break;
+            var kind = TokenReader.Peek().Kind;
 
-                default:
-                    return false;
+            if (!Enum.IsDefined(typeof(ArithmeticOperator), (int)kind))
+            {
+                return false;
             }
+
+            arithmeticExpression.Operator = (ArithmeticOperator)kind;
 
             TokenReader.Consume();
 
@@ -400,7 +423,8 @@ namespace CommonC.Parser
         {
             logicalExpression = new LogicalExpression()
             {
-                Left = leftExpression
+                Left = leftExpression,
+                Line = TokenReader.Peek().Line
             };
 
             LexKinds arithmeticKind = TokenReader.Peek().Kind;
@@ -430,7 +454,8 @@ namespace CommonC.Parser
         {
             rangeExpression = new RangeExpression()
             {
-                Start = leftExpression
+                Start = leftExpression,
+                Line = TokenReader.Peek().Line
             };
 
             if (TokenReader.Expect(LexKinds.Range))
@@ -450,7 +475,8 @@ namespace CommonC.Parser
         {
             memberExpression = new MemberExpression()
             {
-                Parent = parentExpression
+                Parent = parentExpression,
+                Line = TokenReader.Peek().Line
             };
 
             if (TokenReader.Expect(LexKinds.Dot))
@@ -476,7 +502,8 @@ namespace CommonC.Parser
         {
             indexExpression = new IndexExpression()
             {
-                Expression = expression
+                Expression = expression,
+                Line = TokenReader.Peek().Line
             };
 
             if (TokenReader.Expect(LexKinds.BracketOpen))
@@ -499,7 +526,8 @@ namespace CommonC.Parser
         {
             unpackExpression = new UnpackExpression()
             {
-                Left = leftExpression
+                Left = leftExpression,
+                Line = TokenReader.Peek().Line
             };
 
             if(TokenReader.Expect(LexKinds.Subtraction) && TokenReader.Expect(LexKinds.ChevronClose, 1))
@@ -517,8 +545,11 @@ namespace CommonC.Parser
 
         bool ParseRelationalExpression(Expression leftExpression, out RelationalExpression relationalExpression)
         {
-            relationalExpression = new RelationalExpression();
-            relationalExpression.Left = leftExpression;
+            relationalExpression = new RelationalExpression
+            {
+                Left = leftExpression,
+                Line = TokenReader.Peek().Line
+            };
 
             switch (TokenReader.Peek().Kind)
             {
@@ -554,7 +585,10 @@ namespace CommonC.Parser
 
         bool ParseParameterExpression(out ParameterExpression parameterExpression)
         {
-            parameterExpression = new ParameterExpression();
+            parameterExpression = new ParameterExpression()
+            {
+                Line = TokenReader.Peek().Line
+            };
 
             if(ParseTypeExpression(out TypeExpression typeExpression))
             {
@@ -648,7 +682,8 @@ namespace CommonC.Parser
         {
             arrayInitializerExpression = new ArrayInitializerExpression() 
             {
-                Index = indexExpression
+                Index = indexExpression,
+                Line = TokenReader.Peek().Line
             };
 
             if(ParseArrayExpression(out ArrayExpression arrayExpression))
@@ -662,7 +697,10 @@ namespace CommonC.Parser
 
         bool ParseNotExpression(out NotExpression notExpression)
         {
-            notExpression = new NotExpression();
+            notExpression = new NotExpression()
+            {
+                Line = TokenReader.Peek().Line
+            };
 
             if(TokenReader.Expect(LexKinds.Exclamation))
             {
@@ -683,7 +721,10 @@ namespace CommonC.Parser
 
         bool ParseNegateExpression(out NegateExpression negateExpression)
         {
-            negateExpression = new NegateExpression();
+            negateExpression = new NegateExpression()
+            {
+                Line = TokenReader.Peek().Line
+            };
 
             if(TokenReader.Expect(LexKinds.Subtraction))
             {
@@ -760,7 +801,11 @@ namespace CommonC.Parser
 
         bool ParseSizeOfExpression(out SizeOfExpression sizeOfExpression)
         {
-            sizeOfExpression = new SizeOfExpression();
+            sizeOfExpression = new SizeOfExpression()
+            {
+                Line = TokenReader.Peek().Line
+            };
+
             if (TokenReader.Expect(LexKinds.Keyword, "sizeof"))
             {
                 TokenReader.Skip(1);
@@ -780,14 +825,13 @@ namespace CommonC.Parser
 
         bool ParseExpression(out Expression expression, bool parseSimple = false)
         {
-            expression = new Expression();
-
             if (ParseSimpleExpression(out Expression simpleExpression))
             {
                 expression = simpleExpression;
             }
             else
             {
+                expression = null;
                 return false;
             }
 
@@ -886,7 +930,10 @@ namespace CommonC.Parser
 
         bool ParseClosureStatement(out ClosureStatement closureStatement)
         {
-            closureStatement = new ClosureStatement();
+            closureStatement = new ClosureStatement()
+            {
+                Line = TokenReader.Peek().Line
+            };
 
             if(TokenReader.Expect(LexKinds.BraceOpen))
             {
@@ -910,7 +957,8 @@ namespace CommonC.Parser
         {
             callStatement = new CallStatement()
             {
-                Expression = expression
+                Expression = expression,
+                Line = TokenReader.Peek().Line
             };
 
             if (TokenReader.Expect(LexKinds.ParentheseOpen))
@@ -934,7 +982,8 @@ namespace CommonC.Parser
         {
             functionDeclarationStatement = new FunctionDeclarationStatement() 
             {
-                ReturnType = typeExpression
+                ReturnType = typeExpression,
+                Line = TokenReader.Peek().Line
             };
 
             functionDeclarationStatement.Name = nameExpression.Name;
@@ -973,7 +1022,8 @@ namespace CommonC.Parser
             variableDeclarationStatement = new VariableDeclarationStatement()
             {
                 Type = typeExpression,
-                Name = nameExpression.Name
+                Name = nameExpression.Name,
+                Line = TokenReader.Peek().Line
             };
             if (TokenReader.Expect(LexKinds.Equals))
             {
@@ -991,7 +1041,10 @@ namespace CommonC.Parser
 
         bool ParseIfStatement(out IfStatement ifStatement)
         {
-            ifStatement = new IfStatement();
+            ifStatement = new IfStatement()
+            {
+                Line = TokenReader.Peek().Line
+            };
 
             if (TokenReader.Expect(LexKinds.Keyword, "if"))
             {
@@ -1024,7 +1077,10 @@ namespace CommonC.Parser
                 {
                     if(TokenReader.Expect(LexKinds.Keyword, "elseif"))
                     {
-                        IfStatement elseIfStatement = new IfStatement();
+                        IfStatement elseIfStatement = new IfStatement()
+                        {
+                            Line = TokenReader.Peek().Line
+                        };
 
                         TokenReader.Skip(1);
                         if (ParseExpression(out Expression elseIfConditionExpression))
@@ -1089,38 +1145,23 @@ namespace CommonC.Parser
 
         bool ParseAssignmentStatement(Expression variable, out AssignmentStatement assignmentStatement)
         {
-            assignmentStatement = new AssignmentStatement()
-            {
-                Variable = variable
+            assignmentStatement = new AssignmentStatement 
+            { 
+                Variable = variable,
+                Line = TokenReader.Peek().Line
             };
 
-            switch(TokenReader.Peek().Kind)
+            var peekedToken = TokenReader.Peek();
+            var kind = peekedToken.Kind;
+
+            if (!Enum.IsDefined(typeof(AssignmentOperator), (int)kind))
             {
-                case LexKinds.Equals:
-                    assignmentStatement.Operator = AssignmentOperator.Equals;
-                    break;
-                case LexKinds.CompoundAdd:
-                    assignmentStatement.Operator = AssignmentOperator.CompoundAdd;
-                    break;
-                case LexKinds.CompoundSub:
-                    assignmentStatement.Operator = AssignmentOperator.CompoundSubtract;
-                    break;
-                case LexKinds.CompoundMul:
-                    assignmentStatement.Operator = AssignmentOperator.CompoundMultiply;
-                    break;
-                case LexKinds.CompoundDiv:
-                    assignmentStatement.Operator = AssignmentOperator.CompoundDivide;
-                    break;
-                case LexKinds.CompoundMod:
-                    assignmentStatement.Operator = AssignmentOperator.CompoundModulo;
-                    break;
-                case LexKinds.CompoundExp:
-                    throw new Exception("Compound exponentiation assignment operator is not supported");
-                default:
-                    return false;
+                return false;
             }
 
+            assignmentStatement.Operator = (AssignmentOperator)kind;
             TokenReader.Consume();
+
             if (ParseExpression(out Expression valueExpression))
             {
                 assignmentStatement.Expression = valueExpression;
@@ -1130,9 +1171,14 @@ namespace CommonC.Parser
             throw new Exception($"Line {TokenReader.Peek().Line}: Invalid assignment statement, expected an expression after the equals sign");
         }
 
+
         bool ParseForStatement(out ForStatement forStatement)
         {
-            forStatement = new ForStatement();
+            forStatement = new ForStatement()
+            {
+                Line = TokenReader.Peek().Line
+            };
+
             if (TokenReader.Expect(LexKinds.Keyword, "for"))
             {
                 TokenReader.Skip(1);
@@ -1164,7 +1210,8 @@ namespace CommonC.Parser
                     {
                         Name = identifierExpression.Name,
                         Expression = new NumberExpression { Value = "0" },
-                        Type = new TypeExpression { Type = ReservedTypes.I32 }
+                        Type = new TypeExpression { Type = ReservedTypes.I32 },
+                        Line = TokenReader.Peek().Line
                     };
                 }
                 else
@@ -1192,7 +1239,10 @@ namespace CommonC.Parser
 
         bool ParseReturnStatement(out ReturnStatement returnStatement)
         {
-            returnStatement = new ReturnStatement();
+            returnStatement = new ReturnStatement()
+            {
+                Line = TokenReader.Peek().Line
+            };
             if (TokenReader.Expect(LexKinds.Keyword, "return")
                 || TokenReader.Expect(LexKinds.Keyword, "ret"))
             {
@@ -1208,7 +1258,10 @@ namespace CommonC.Parser
 
         bool ParseWhileStatement(out WhileStatement whileStatement)
         {
-            whileStatement = new WhileStatement();
+            whileStatement = new WhileStatement()
+            {
+                Line = TokenReader.Peek().Line
+            }; ;
 
             if(TokenReader.Expect(LexKinds.Keyword, "while"))
             {
@@ -1239,7 +1292,10 @@ namespace CommonC.Parser
 
         bool ParseStructStatement(out StructStatement structStatement)
         {
-            structStatement = new StructStatement();
+            structStatement = new StructStatement()
+            {
+                Line = TokenReader.Peek().Line
+            };
 
             if(TokenReader.Expect(LexKinds.Keyword, "struct"))
             {
@@ -1302,7 +1358,11 @@ namespace CommonC.Parser
 
         bool ParseUseStatement(out UseStatement useStatement)
         {
-            useStatement = new UseStatement();
+            useStatement = new UseStatement()
+            {
+                Line = TokenReader.Peek().Line
+            };
+
             if (TokenReader.Expect(LexKinds.Keyword, "use"))
             {
                 TokenReader.Skip(1);
@@ -1317,8 +1377,6 @@ namespace CommonC.Parser
 
         bool ParseStatement(out Statement statement)
         {
-            statement = new Statement();
-
             if(ParseStructStatement(out StructStatement structStatement))
             {
                 statement = structStatement;
@@ -1402,6 +1460,7 @@ namespace CommonC.Parser
                 }
             }
 
+            statement = null;
             return false;
         }
 

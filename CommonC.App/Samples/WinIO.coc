@@ -3,8 +3,8 @@
 use Strings
 
 extern ptr GetStdHandle@4(i32 nStdHandle);
-extern i32 WriteConsoleA@20(ptr hConsoleOutput, ptr lpBuffer, i32 nNumberOfCharsToWrite, ptr lpNumberOfCharsWritten, ptr lpReserved);
-extern i32 ReadConsoleA@20(ptr hConsoleInput, ptr lpBuffer, i32 nNumberOfCharsToRead, ptr lpNumberOfCharsRead, ptr pInputControl);
+extern i32 WriteConsoleA@20(ptr hConsoleOutput, str lpBuffer, i32 nNumberOfCharsToWrite, i32[] lpNumberOfCharsWritten, ptr lpReserved);
+extern i32 ReadConsoleA@20(ptr hConsoleInput, i8[] lpBuffer, i32 nNumberOfCharsToRead, i32[] lpNumberOfCharsRead, ptr pInputControl);
 extern i32 SetConsoleTextAttribute@8(ptr hConsoleOutput, i32 wAttributes);
 extern fn ExitProcess@4(i32 uExitCode);
 

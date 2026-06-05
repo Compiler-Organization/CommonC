@@ -101,7 +101,7 @@ namespace CommonC.Lexer
         {
             LexTokenList LexTokens = new LexTokenList();
             StringBuilder sb = new StringBuilder();
-            int Line = 1;
+            ulong Line = 1;
 
             for (int i = 0; i < Input.Length; i++)
             {
@@ -128,6 +128,11 @@ namespace CommonC.Lexer
                             else if (Input[i + 1] == '<')
                             {
                                 kind = LexKinds.LeftShift;
+                                if (Input[i + 2] == '=')
+                                {
+                                    kind = LexKinds.CompoundLeftShift;
+                                    i++;
+                                }
                                 i++;
                             }
                             else
@@ -146,6 +151,11 @@ namespace CommonC.Lexer
                             else if (Input[i + 1] == '>')
                             {
                                 kind = LexKinds.RightShift;
+                                if (Input[i + 2] == '=')
+                                {
+                                    kind = LexKinds.CompoundRightShift;
+                                    i++;
+                                }
                                 i++;
                             }
                             else
@@ -327,6 +337,16 @@ namespace CommonC.Lexer
                                 kind = LexKinds.CompoundMul;
                                 i++;
                             }
+                            else if (Input[i + 1] == '*')
+                            {
+                                kind = LexKinds.Exponentiation;
+                                if (Input[i + 2] == '=')
+                                {
+                                    kind = LexKinds.CompoundExp;
+                                    i++;
+                                }
+                                i++;
+                            }
                             break;
                         }
                     case '/':
@@ -368,10 +388,10 @@ namespace CommonC.Lexer
                         }
                     case '^':
                         {
-                            kind = LexKinds.Exponential;
+                            kind = LexKinds.Xor;
                             if (Input[i + 1] == '=')
                             {
-                                kind = LexKinds.CompoundExp;
+                                kind = LexKinds.CompoundXor;
                                 i++;
                             }
                             break;

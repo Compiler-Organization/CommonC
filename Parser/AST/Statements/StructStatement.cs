@@ -27,5 +27,39 @@ namespace CommonC.Parser.AST.Statements
         {
             return Fields.GetVariable(fieldName) ?? throw new Exception($"Field {fieldName} does not exist in struct {Name}");
         }
+
+        public override string PrettyPrint(int indentLevel = 0)
+        {
+            StringBuilder Builder = new StringBuilder();
+
+            Builder.Append(GetIndent(indentLevel));
+            Builder.Append("struct ");
+            Builder.Append(Name);
+            Builder.Append(" {");
+            Builder.Append(Environment.NewLine);
+            foreach (VariableDeclarationStatement variableDeclarationStatement in Fields)
+            {
+                Builder.Append(GetIndent(indentLevel + 1));
+
+                Builder.Append(variableDeclarationStatement.Type.PrettyPrint(indentLevel + 1));
+                Builder.Append(" ");
+                Builder.Append(variableDeclarationStatement.Name);
+                if (variableDeclarationStatement.Expression != null)
+                {
+                    Builder.Append(": ");
+                    Builder.Append(variableDeclarationStatement.Expression.PrettyPrint(indentLevel + 1));
+                }
+                if (Fields.IndexOf(variableDeclarationStatement) != Fields.Count - 1)
+                {
+                    Builder.Append(",");
+                }
+                Builder.Append(Environment.NewLine);
+            }
+            Builder.Append(GetIndent(indentLevel));
+            Builder.Append("}");
+            Builder.Append(Environment.NewLine);
+
+            return Builder.ToString();
+        }
     }
 }

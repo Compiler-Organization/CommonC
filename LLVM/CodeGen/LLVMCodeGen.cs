@@ -36,7 +36,7 @@ namespace CommonC.LLVM.CodeGen
 
         FunctionDeclarationStatement? CurrentFunction { get; set; }
 
-        Dictionary<string, FunctionDeclarationStatement> Functions = new Dictionary<string, FunctionDeclarationStatement>();
+        Functions Functions = new Functions();
         Dictionary<string, StructStatement> Structs = new Dictionary<string, StructStatement>();
 
         public LLVMModuleRef GenerateLLVMModule()
@@ -44,9 +44,6 @@ namespace CommonC.LLVM.CodeGen
             Module = LLVMModuleRef.CreateWithName(Settings.Name);
             Builder = LLVMBuilderRef.Create(Module.Context);
             Context = Module.Context;
-
-            CreateExtern("llvm.memcpy.p0.p0.i64", LLVMTypeRef.Void, [LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), LLVMTypeRef.Int64, LLVMTypeRef.Int1], isVarArg: false);
-            CreateExtern("llvm.ubsantrap", LLVMTypeRef.Void, [LLVMTypeRef.Int8], isVarArg: false);
 
             CreateStructReferences();
             CreateFunctionReferences();
@@ -80,7 +77,7 @@ namespace CommonC.LLVM.CodeGen
                     CreateExtern(
                         name: functionDeclarationStatement.Name,
                         returnType: functionDeclarationStatement.ReturnType.TypeAnnotation.ToLLVMType(),
-                        parameters: functionDeclarationStatement.Parameters.Select(p => p.Type.TypeAnnotation.ToLLVMType()).ToArray(),
+                        parameters: functionDeclarationStatement.Parameters,
                         isVarArg: functionDeclarationStatement.Parameters.IsVararg
                     );
                     continue;
@@ -97,7 +94,7 @@ namespace CommonC.LLVM.CodeGen
                 functionDeclarationStatement.LLVMFunction = function;
                 functionDeclarationStatement.LLVMFunctionType = functionType;
 
-                Functions.Add(functionDeclarationStatement.Name, functionDeclarationStatement);
+                Functions.Add(functionDeclarationStatement);
             }
         }
 
@@ -111,15 +108,18 @@ namespace CommonC.LLVM.CodeGen
             }
         }
 
-        LLVMValueRef CreateExtern(string name, LLVMTypeRef returnType, LLVMTypeRef[] parameters, bool isVarArg = false)
+        LLVMValueRef CreateExtern(string name, LLVMTypeRef returnType, ParameterExpressionList parameters, bool isVarArg = false)
         {
-            LLVMTypeRef externFunctionType = LLVMTypeRef.CreateFunction(returnType, parameters, isVarArg);
+            LLVMTypeRef[] param = parameters.Select(p => p.TypeAnnotation.ToLLVMType()).ToArray();
+
+            LLVMTypeRef externFunctionType = LLVMTypeRef.CreateFunction(returnType, param, isVarArg);
             LLVMValueRef externFunction = Module.AddFunction(name, externFunctionType);
 
 
-            Functions.Add(name, new FunctionDeclarationStatement
+            Functions.Add(new FunctionDeclarationStatement
             {
                 Name = name,
+                Parameters = parameters,
 
                 LLVMFunction = externFunction,
                 LLVMFunctionType = externFunctionType
@@ -308,6 +308,114 @@ namespace CommonC.LLVM.CodeGen
                 targetType = assignmentStatement.Variable.TypeAnnotation.ToLLVMType();
             }
 
+            if (assignmentStatement.Operator != AssignmentOperator.Equals)
+            {
+                LLVMValueRef currentValue = Builder.BuildLoad2(targetType, destinationPointer, "compound.load");
+
+                // 1. Determine Type Categories Robustly
+                bool isFloatingPoint = targetType.Kind == LLVMTypeKind.LLVMFloatTypeKind ||
+                                      targetType.Kind == LLVMTypeKind.LLVMDoubleTypeKind ||
+                                      targetType.Kind == LLVMTypeKind.LLVMHalfTypeKind ||
+                                      targetType.Kind == LLVMTypeKind.LLVMFP128TypeKind;
+
+                bool isInteger = targetType.Kind == LLVMTypeKind.LLVMIntegerTypeKind;
+
+                // Determine signedness based on your compiler context (defaulting to signed for standard safety)
+                bool isSigned = true;
+
+                // 2. Type Alignment / Broadening
+                if (isInteger && valueToStore.TypeOf.Kind == LLVMTypeKind.LLVMIntegerTypeKind)
+                {
+                    if (currentValue.TypeOf.IntWidth < valueToStore.TypeOf.IntWidth)
+                    {
+                        currentValue = isSigned
+                            ? Builder.BuildSExt(currentValue, valueToStore.TypeOf, "compound.sext")
+                            : Builder.BuildZExt(currentValue, valueToStore.TypeOf, "compound.zext");
+                    }
+                    else if (currentValue.TypeOf.IntWidth > valueToStore.TypeOf.IntWidth)
+                    {
+                        valueToStore = isSigned
+                            ? Builder.BuildSExt(valueToStore, currentValue.TypeOf, "compound.rhs.sext")
+                            : Builder.BuildZExt(valueToStore, currentValue.TypeOf, "compound.rhs.zext");
+                    }
+                }
+                // FIX: Corrected comparison syntax here to check against enum kinds
+                else if (isFloatingPoint && (valueToStore.TypeOf.Kind == LLVMTypeKind.LLVMFloatTypeKind ||
+                                             valueToStore.TypeOf.Kind == LLVMTypeKind.LLVMDoubleTypeKind ||
+                                             valueToStore.TypeOf.Kind == LLVMTypeKind.LLVMHalfTypeKind ||
+                                             valueToStore.TypeOf.Kind == LLVMTypeKind.LLVMFP128TypeKind))
+                {
+                    // Internal local function used to resolve ordering without needing an external method
+                    int GetFPOrder(LLVMTypeKind kind) => kind switch
+                    {
+                        LLVMTypeKind.LLVMHalfTypeKind => 1,
+                        LLVMTypeKind.LLVMFloatTypeKind => 2,
+                        LLVMTypeKind.LLVMDoubleTypeKind => 3,
+                        LLVMTypeKind.LLVMFP128TypeKind => 4,
+                        _ => 0
+                    };
+
+                    if (GetFPOrder(targetType.Kind) < GetFPOrder(valueToStore.TypeOf.Kind))
+                        currentValue = Builder.BuildFPExt(currentValue, valueToStore.TypeOf, "compound.fpext");
+                    else if (GetFPOrder(targetType.Kind) > GetFPOrder(valueToStore.TypeOf.Kind))
+                        valueToStore = Builder.BuildFPExt(valueToStore, currentValue.TypeOf, "compound.rhs.fpext");
+                }
+
+                // 3. Mathematical Operations
+                valueToStore = assignmentStatement.Operator switch
+                {
+                    AssignmentOperator.CompoundAdd => isFloatingPoint
+                        ? Builder.BuildFAdd(currentValue, valueToStore, "compound.fadd")
+                        : Builder.BuildAdd(currentValue, valueToStore, "compound.add"),
+
+                    AssignmentOperator.CompoundSubtract => isFloatingPoint
+                        ? Builder.BuildFSub(currentValue, valueToStore, "compound.fsub")
+                        : Builder.BuildSub(currentValue, valueToStore, "compound.sub"),
+
+                    AssignmentOperator.CompoundMultiply => isFloatingPoint
+                        ? Builder.BuildFMul(currentValue, valueToStore, "compound.fmul")
+                        : Builder.BuildMul(currentValue, valueToStore, "compound.mul"),
+
+                    AssignmentOperator.CompoundDivide => isFloatingPoint
+                        ? Builder.BuildFDiv(currentValue, valueToStore, "compound.fdiv")
+                        : (isSigned ? Builder.BuildSDiv(currentValue, valueToStore, "compound.sdiv")
+                                    : Builder.BuildUDiv(currentValue, valueToStore, "compound.udiv")),
+
+                    AssignmentOperator.CompoundModulo => isFloatingPoint
+                        ? Builder.BuildFRem(currentValue, valueToStore, "compound.frem")
+                        : (isSigned ? Builder.BuildSRem(currentValue, valueToStore, "compound.srem")
+                                    : Builder.BuildURem(currentValue, valueToStore, "compound.urem")),
+
+                    AssignmentOperator.CompoundXor when isInteger =>
+                        Builder.BuildXor(currentValue, valueToStore, "compound.xor"),
+
+                    AssignmentOperator.CompoundLeftShift when isInteger =>
+                        Builder.BuildShl(currentValue, valueToStore, "compound.shl"),
+
+                    AssignmentOperator.CompoundRightShift when isInteger => isSigned
+                        ? Builder.BuildAShr(currentValue, valueToStore, "compound.ashr")
+                        : Builder.BuildLShr(currentValue, valueToStore, "compound.lshr"),
+
+                    AssignmentOperator.CompoundExp => throw new NotSupportedException("Exponentiation requires runtime library call (e.g., llvm.pow)."),
+
+                    _ => throw new InvalidOperationException($"Unsupported or invalid compound assignment operator: {assignmentStatement.Operator}")
+                };
+
+                // 4. Downcast / Truncate Safely back to Target Type
+                if (valueToStore.TypeOf != targetType)
+                {
+                    if (isInteger)
+                    {
+                        valueToStore = Builder.BuildTrunc(valueToStore, targetType, "compound.trunc");
+                    }
+                    else if (isFloatingPoint)
+                    {
+                        valueToStore = Builder.BuildFPTrunc(valueToStore, targetType, "compound.fptrunc");
+                    }
+                }
+            }
+
+
             if (targetType.Kind == LLVMTypeKind.LLVMStructTypeKind)
             {
                 uint elementCount = targetType.StructElementTypesCount;
@@ -336,6 +444,7 @@ namespace CommonC.LLVM.CodeGen
                 Builder.BuildStore(valueToStore, destinationPointer);
             }
         }
+
 
 
         void EmitFreeStatement(FreeStatement freeStatement, Variables variables)
@@ -393,10 +502,14 @@ namespace CommonC.LLVM.CodeGen
             {
                 foreach (VariableDeclarationStatement parameter in functionDeclarationStatement.Body.Locals.Where(local => local.IsParameter))
                 {
-                    LLVMTypeRef parameterType = parameter.Type.TypeAnnotation.ToLLVMType();
+                    LLVMTypeRef parameterType = parameter.Type.TypeAnnotation.IsStruct 
+                        ? LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0) 
+                        : parameter.Type.TypeAnnotation.ToLLVMType();
+
                     parameter.LLVMType = parameterType;
                     parameter.LLVMAlloca = Builder.BuildAlloca(parameterType, $"{parameter.Name}.addr");
                     Builder.BuildStore(CurrentFunction.LLVMFunction.GetParam((uint)parameter.ParameterIndex), parameter.LLVMAlloca);
+                    //parameter.LLVMAlloca = CurrentFunction.LLVMFunction.GetParam((uint)parameter.ParameterIndex);
                 }
 
                 EmitStatements(functionDeclarationStatement.Body.Statements, functionDeclarationStatement.Body.Locals);
@@ -420,10 +533,7 @@ namespace CommonC.LLVM.CodeGen
         {
             if(callStatement.Expression is IdentifierExpression identifierExpression)
             {
-                if (!Functions.TryGetValue(identifierExpression.Name, out FunctionDeclarationStatement? functionDecl))
-                {
-                    throw new InvalidOperationException($"Function '{identifierExpression.Name}' is not defined.");
-                }
+                FunctionDeclarationStatement functionDecl = Functions.GetFunction(identifierExpression.Name, callStatement.Arguments);
 
                 LLVMValueRef[] arguments = callStatement.Arguments == null 
                     ? Array.Empty<LLVMValueRef>() 
@@ -462,14 +572,14 @@ namespace CommonC.LLVM.CodeGen
 
                 if (variableDeclaration.Expression != null)
                 {
-                    if (!Functions.ContainsKey(Settings.EntryPoint))
+                    if (!Functions.Contains(Settings.EntryPoint))
                     {
                         throw new Exception($"Entry point function {Settings.EntryPoint} does not exist!");
                     }
 
                     LLVMBasicBlockRef previousBlock = Builder.InsertBlock;
 
-                    FunctionDeclarationStatement entryPointFunction = Functions[Settings.EntryPoint];
+                    FunctionDeclarationStatement entryPointFunction = Functions.GetFunction(Settings.EntryPoint);
 
                     Builder.PositionAtEnd(entryPointFunction.LLVMFunction.EntryBasicBlock);
 
@@ -510,8 +620,19 @@ namespace CommonC.LLVM.CodeGen
                 Builder.PositionAtEnd(entryBlock);
             }
 
-            LLVMValueRef allocaPtr = Builder.BuildAlloca(varType, variableDeclaration.Name);
-            variableDeclaration.LLVMAlloca = allocaPtr;
+            LLVMValueRef allocaPtr = null;
+            if (variableDeclaration.Type.TypeAnnotation.IsStruct)
+            {
+                allocaPtr = Builder.BuildMalloc(varType, variableDeclaration.Name);
+                variableDeclaration.LLVMAlloca = allocaPtr;
+            }
+            else
+            {
+                allocaPtr = Builder.BuildAlloca(varType, variableDeclaration.Name);
+                variableDeclaration.LLVMAlloca = allocaPtr;
+            }
+
+            
 
             Builder.PositionAtEnd(currentBlock);
 
@@ -597,10 +718,8 @@ namespace CommonC.LLVM.CodeGen
 
         LLVMValueRef EmitIdentifierExpression(IdentifierExpression identifierExpression, Variables variables)
         {
-            if(Functions.TryGetValue(identifierExpression.Name, out FunctionDeclarationStatement function))
-            {
-                return function.LLVMFunction;
-            }
+            if (Functions.Contains(identifierExpression.Name))
+                return Functions.GetFunction(identifierExpression.Name).LLVMFunction;
 
             VariableDeclarationStatement variable = variables.GetVariable(identifierExpression.Name);
 
@@ -650,7 +769,11 @@ namespace CommonC.LLVM.CodeGen
                     if (isFloat) throw new Exception("Right shift operator is not supported on floating-point types.");
                     return Builder.BuildAShr(left, right, "ashr");
 
-                case ArithmeticOperator.Exponential:
+                case ArithmeticOperator.Xor:
+                    if (isFloat) throw new Exception("XOR operator is not supported on floating-point types.");
+                    return Builder.BuildXor(left, right, "xor");
+
+                case ArithmeticOperator.Exponentiation:
                     return EmitPowerExpression(left, right, commonType);
 
                 default:
@@ -705,7 +828,9 @@ namespace CommonC.LLVM.CodeGen
 
         private LLVMValueRef EmitPowerExpression(LLVMValueRef left, LLVMValueRef right, LLVMTypeRef targetType)
         {
-            bool wasInteger = targetType.Kind == LLVMTypeKind.LLVMIntegerTypeKind;
+            LLVMTypeRef originalType = targetType;
+            bool wasInteger = originalType.Kind == LLVMTypeKind.LLVMIntegerTypeKind;
+
             if (wasInteger)
             {
                 left = Builder.BuildSIToFP(left, LLVMTypeRef.Double, "pow.cast.left");
@@ -716,31 +841,30 @@ namespace CommonC.LLVM.CodeGen
             string intrinsicName = targetType.Kind == LLVMTypeKind.LLVMFloatTypeKind ? "llvm.pow.f32" : "llvm.pow.f64";
             LLVMValueRef powFunc = Module.GetNamedFunction(intrinsicName);
 
+            LLVMTypeRef funcType = LLVMTypeRef.CreateFunction(targetType, [targetType, targetType], false);
+
             if (powFunc == default)
             {
-                LLVMTypeRef funcType = LLVMTypeRef.CreateFunction(targetType, [targetType, targetType], false);
                 powFunc = Module.AddFunction(intrinsicName, funcType);
             }
 
-            LLVMValueRef result = Builder.BuildCall2(targetType, powFunc, [left, right], "pow.res".AsSpan());
+            LLVMValueRef result = Builder.BuildCall2(funcType, powFunc, [left, right], "pow.res".AsSpan());
 
             if (wasInteger)
             {
-                result = Builder.BuildFPToSI(result, LLVMTypeRef.Int32, "pow.cast.back");
+                result = Builder.BuildFPToSI(result, originalType, "pow.cast.back");
             }
 
             return result;
         }
 
 
+
         LLVMValueRef EmitCallExpression(CallExpression callExpression, Variables variables)
         {
             if (callExpression.Expression is IdentifierExpression identifierExpression)
             {
-                if (!Functions.TryGetValue(identifierExpression.Name, out FunctionDeclarationStatement? functionDecl))
-                {
-                    throw new InvalidOperationException($"Function '{identifierExpression.Name}' is not defined.");
-                }
+                FunctionDeclarationStatement functionDecl = Functions.GetFunction(identifierExpression.Name, callExpression.Arguments);
 
                 LLVMValueRef[] arguments = callExpression.Arguments == null
                     ? Array.Empty<LLVMValueRef>()
@@ -958,10 +1082,7 @@ namespace CommonC.LLVM.CodeGen
                 IdentifierExpression? callIdentifier = GetInnerIdentifierExpression(firstMemberCall)
                     ?? throw new Exception("Could not resolve inner identifier of call in member expression.");
 
-                if (!Functions.TryGetValue(callIdentifier.Name, out var function))
-                {
-                    throw new Exception($"Function {callIdentifier.Name} does not exist");
-                }
+                FunctionDeclarationStatement function = Functions.GetFunction(callIdentifier.Name, firstMemberCall.Arguments);
 
                 if (function.ReturnType is IdentifierExpression funcIdentifier)
                 {
@@ -1129,7 +1250,7 @@ namespace CommonC.LLVM.CodeGen
                 StructStatement structStatement = Structs[identifier.Name];
                 LLVMTypeRef structType = structStatement.LLVMStructType;
 
-                LLVMValueRef structPtr = Builder.BuildAlloca(structType, $"{identifier.Name}_struct_instance");
+                LLVMValueRef structPtr = Builder.BuildMalloc(structType, $"{identifier.Name}_struct_instance");
 
                 foreach (AssignmentStatement propertyAssignment in objectInitializerExpression.Fields)
                 {

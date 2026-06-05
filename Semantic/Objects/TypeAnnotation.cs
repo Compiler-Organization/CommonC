@@ -23,24 +23,27 @@ namespace CommonC.Semantic.Objects
 
         public bool IsVariable { get; set; } = false;
 
-        public bool Match(TypeAnnotation other)
+        public bool Match(TypeAnnotation typeAnnotation, bool ignorePointerTypes)
         {
-            if (other == null)
+            if (typeAnnotation == null)
                 return false;
 
-            if (IsReservedType != other.IsReservedType)
+            if(!ignorePointerTypes)
+            {
+                if (IsStruct != typeAnnotation.IsStruct)
+                    return false;
+
+                if (IsStruct && Struct.Name != typeAnnotation.Struct.Name)
+                    return false;
+
+                if (IsArray != typeAnnotation.IsArray)
+                    return false;
+            }
+
+            if (IsReservedType != typeAnnotation.IsReservedType)
                 return false;
 
-            if (IsReservedType && ReservedType != other.ReservedType)
-                return false;
-
-            if (IsStruct != other.IsStruct)
-                return false;
-
-            if (IsStruct && Struct.Name != other.Struct.Name)
-                return false;
-
-            if (IsArray != other.IsArray)
+            if (IsReservedType && ReservedType != typeAnnotation.ReservedType)
                 return false;
 
             return true;

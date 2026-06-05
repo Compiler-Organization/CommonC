@@ -9,7 +9,7 @@ namespace CommonC.Parser.AST.Statements
 {
     public class FunctionDeclarationStatement : Statement
     {
-        public Expression ReturnType { get; set; } = new Expression();
+        public Expression ReturnType { get; set; } = null!;
 
         public string Name { get; set; } = "";
 
@@ -28,5 +28,44 @@ namespace CommonC.Parser.AST.Statements
         internal LLVMValueRef ReturnReference { get; set; }
 
         internal LLVMBasicBlockRef ReturnBlock { get; set; }
+
+        public override string PrettyPrint(int indentLevel = 0)
+        {
+            StringBuilder Builder = new StringBuilder();
+
+            Builder.Append(GetIndent(indentLevel));
+
+            if (IsExtern)
+            {
+                Builder.Append("extern ");
+            }
+
+            Builder.Append(ReturnType.PrettyPrint());
+            Builder.Append(" ");
+            Builder.Append(Name);
+            if (Parameters != null && Parameters.Count > 0)
+            {
+                Builder.Append("(");
+                Builder.Append(Parameters.PrettyPrint(indentLevel));
+                if (Parameters.IsVararg)
+                {
+                    Builder.Append(", ...");
+                }
+                Builder.Append(")");
+            }
+
+            if (Body != null)
+            {
+                Builder.Append(Environment.NewLine);
+                Builder.Append(Body.PrettyPrint(indentLevel));
+            }
+            else
+            {
+                Builder.Append(";");
+                Builder.Append(Environment.NewLine);
+            }
+
+            return Builder.ToString();
+        }
     }
 }

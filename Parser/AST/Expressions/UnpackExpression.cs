@@ -11,8 +11,19 @@ namespace CommonC.Parser.AST.Expressions
     /// </summary>
     public class UnpackExpression : Expression
     {
-        public Expression Left { get; set; } = new Expression();
+        public Expression Left { get; set; } = null!;
 
-        public Expression Right { get; set; } = new Expression();
+        public Expression Right { get; set; } = null!;
+
+        public override string PrettyPrint(int indentLevel = 0)
+        {
+            StringBuilder Builder = new StringBuilder();
+
+            Builder.Append(Left.PrettyPrint(indentLevel));
+            Builder.Append("->");
+            Builder.Append(Right.PrettyPrint(indentLevel));
+
+            return Builder.ToString();
+        }
     }
 }

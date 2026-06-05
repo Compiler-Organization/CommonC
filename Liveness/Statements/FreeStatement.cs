@@ -13,5 +13,17 @@ namespace CommonC.Liveness.Statements
     public class FreeStatement : Statement
     {
         public Expression Expression;
+
+        public override string PrettyPrint(int indentLevel = 0)
+        {
+            StringBuilder Builder = new StringBuilder();
+
+            Builder.Append(GetIndent(indentLevel));
+            Builder.Append("#free ");
+            Builder.Append(Expression.PrettyPrint(indentLevel));
+            Builder.Append(Environment.NewLine);
+
+            return Builder.ToString();
+        }
     }
 }

@@ -21,6 +21,6 @@ namespace CommonC.Lexer.Objects
         /// <summary>
         /// Line info
         /// </summary>
-        public int Line { get; set; }
+        public ulong Line { get; set; }
     }
 }

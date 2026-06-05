@@ -1143,7 +1143,7 @@ namespace CommonC.DotNet.CodeGen
                     body.Instructions.Add(CilOpCodes.Rem);
                     break;
 
-                case ArithmeticOperator.Exponential:
+                case ArithmeticOperator.Exponentiation:
                     throw new Exception("Exponential operations is not yet implemented");
 
                 case ArithmeticOperator.LeftShift:

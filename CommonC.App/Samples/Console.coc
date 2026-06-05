@@ -3,22 +3,6 @@
 use DataConversion
 use WinIO
 
-// Converts a I8[] buffer to a string and prints it.
-fn PrintI8Buffer(i8[] buffer) {
-        printl(I8ArrayToString(buffer));
-}
-
-// Prints a string to the console.
-fn print(str text) {
-        __SystemWrite(text);
-}
-
-// Prints a string to the console with a prepending newline.
-fn printl(str text) {
-        __SystemWrite(text);
-        __SystemWrite("\n");
-}
-
 fn error(str message) {
         __SetConsoleColor(12)
         printl(message)
@@ -43,4 +27,35 @@ str readl() {
         }
         
         return I8ArrayToString(buffer);
+}
+
+// Converts a I8[] buffer to a string and prints it.
+fn PrintI8Buffer(i8[] buffer) {
+        printl(I8ArrayToString(buffer));
+}
+
+// Prints a string to the console.
+fn print(str text) {
+        __SystemWrite(text);
+}
+
+// Prints a string to the console with a prepending newline.
+fn printl(str text) {
+        __SystemWrite(text);
+        __SystemWrite("\n");
+}
+
+// Converts a 32-bit integer to a string, then prints it to the console with a prepending newline.
+fn printl(i32 num) {
+        printl(ToString(num))
+}
+
+// Converts a 16-bit integer to a string, then prints it to the console with a prepending newline.
+fn printl(i16 num) {
+        printl(ToString(num))
+}
+
+// Converts a 8-bit integer to a string, then prints it to the console with a prepending newline.
+fn printl(i8 num) {
+        printl(ToString(num))
 }
