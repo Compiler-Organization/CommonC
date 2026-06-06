@@ -1,5 +1,8 @@
-use Mandelbrot
+use Console
 
-fn main {
-    Mandelbrot()
-}
+
+
+fn main() {
+    if() {
+        printl("He")
+    }

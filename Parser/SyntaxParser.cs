@@ -1,4 +1,5 @@
-﻿using CommonC.Lexer;
+﻿using CommonC.Error;
+using CommonC.Lexer;
 using CommonC.Lexer.Objects;
 using CommonC.Parser.AST;
 using CommonC.Parser.AST.Expressions;
@@ -225,7 +226,7 @@ namespace CommonC.Parser
                 }
                 else
                 {
-                    throw new Exception("Expression expected after length symbol");
+                    throw ErrorHandler.CreateError("Expression expected after length symbol", lengthExpression);
                 }
             }
 
@@ -254,7 +255,7 @@ namespace CommonC.Parser
                 }
                 else
                 {
-                    throw new Exception("Expression expected in parenthesized expression");
+                    throw ErrorHandler.CreateError("Expression expected in parenthesized expression", parenthesizedExpression);
                 }
             }
 
@@ -416,7 +417,7 @@ namespace CommonC.Parser
                 return true;
             }
 
-            throw new Exception("Invalid right hand expression when parsing arithemtic expression");
+            throw ErrorHandler.CreateError("Invalid right hand expression when parsing arithemtic expression", leftExpression);
         }
 
         bool ParseLogicalExpression(Expression leftExpression, out LogicalExpression logicalExpression)
@@ -447,7 +448,7 @@ namespace CommonC.Parser
                 return true;
             }
 
-            throw new Exception("Invalid right hand expression when parsing logical expression");
+            throw ErrorHandler.CreateError("Invalid right hand expression when parsing logical expression", leftExpression);
         }
 
         bool ParseRangeExpression(Expression leftExpression, out RangeExpression rangeExpression)
@@ -466,7 +467,7 @@ namespace CommonC.Parser
                     rangeExpression.End = rightExpression;
                     return true;
                 }
-                throw new Exception("Invalid right hand expression when parsing range expression");
+                throw ErrorHandler.CreateError("Invalid right hand expression when parsing range expression", leftExpression);
             }
             return false;
         }
@@ -493,7 +494,7 @@ namespace CommonC.Parser
                     memberExpression.Member = childExpression;
                     return true;
                 }
-                throw new Exception("Invalid member expression, expected an identifier after the dot");
+                throw ErrorHandler.CreateError("Invalid member expression, expected a simple expression after the punctation", parentExpression);
             }
             return false;
         }
@@ -538,7 +539,7 @@ namespace CommonC.Parser
                     unpackExpression.Right = rightExpression;
                     return true;
                 }
-                throw new Exception("Invalid right hand expression when parsing unpack expression");
+                throw ErrorHandler.CreateError("Invalid right hand expression when parsing unpack expression", leftExpression);
             }
             return false;
         }
@@ -576,7 +577,7 @@ namespace CommonC.Parser
                             relationalExpression.Right = right;
                             return true;
                         }
-                        throw new Exception("Invalid right hand expression when parsing relational expression");
+                        throw ErrorHandler.CreateError("Invalid right hand expression when parsing relational expression", leftExpression);
                     }
             }
 
@@ -632,7 +633,7 @@ namespace CommonC.Parser
             }
             else
             {
-                throw new Exception("Invalid parameter expression, expected an identifier after the type expression");
+                throw ErrorHandler.CreateError("Invalid parameter expression, expected an identifier after the type expression", parameterExpression);
             }
 
             if(TokenReader.Expect(LexKinds.Equals))
@@ -712,7 +713,7 @@ namespace CommonC.Parser
                 }
                 else
                 {
-                    throw new Exception("Expression expected when parsing not expression");
+                    throw ErrorHandler.CreateError("Expression expected when parsing not expression", notExpression);
                 }
             }
 
@@ -736,7 +737,7 @@ namespace CommonC.Parser
                 }
                 else
                 {
-                    throw new Exception("Expression expected when parsing negate expression");
+                    throw ErrorHandler.CreateError("Expression expected when parsing negate expression", negateExpression);
                 }
             }
 
@@ -774,7 +775,7 @@ namespace CommonC.Parser
                                 }
                                 else
                                 {
-                                    throw new Exception("Failed to read property assignment expression in object initializer");
+                                    throw ErrorHandler.CreateError("Failed to read property assignment expression in object initializer", assignmentVariableExpression);
                                 }
                             }
                         }
@@ -816,7 +817,8 @@ namespace CommonC.Parser
                 }
                 else
                 {
-                    throw new Exception("Expression expected after sizeof keyword");
+                    
+                    throw ErrorHandler.CreateError("Expression expected after sizeof keyword", sizeOfExpression);
                 }
             }
 
@@ -1033,7 +1035,7 @@ namespace CommonC.Parser
                     variableDeclarationStatement.Expression = valueExpression;
                     return true;
                 }
-                throw new Exception($"Line {TokenReader.Peek().Line}: Invalid variable declaration statement");
+                throw ErrorHandler.CreateError($"Invalid variable declaration statement", variableDeclarationStatement);
             }
 
             return true;
@@ -1056,7 +1058,7 @@ namespace CommonC.Parser
                 }
                 else
                 {
-                    throw new Exception($"Line {TokenReader.Peek().Line}: Invalid if statement, expected a condition expression");
+                    throw ErrorHandler.CreateError($"Invalid if statement, expected a condition expression", ifStatement);
                 }
 
                 // Parse if closure
@@ -1089,7 +1091,7 @@ namespace CommonC.Parser
                         }
                         else
                         {
-                            throw new Exception($"Line {TokenReader.Peek().Line}: Invalid elseif statement, expected a condition expression");
+                            throw ErrorHandler.CreateError($"Invalid elseif statement, expected a condition expression", elseIfStatement);
                         }
 
                         if (TokenReader.Expect(LexKinds.BraceOpen))
@@ -1101,7 +1103,7 @@ namespace CommonC.Parser
                             }
                             else
                             {
-                                throw new Exception($"Line {TokenReader.Peek().Line}: Invalid elseif statement, expected a complete closure");
+                                throw ErrorHandler.CreateError($"Invalid elseif statement, expected a complete closure", elseIfStatement);
                             }
 
                             continue;
@@ -1114,7 +1116,7 @@ namespace CommonC.Parser
                         }
 
 
-                        throw new Exception($"Line {TokenReader.Peek().Line}: Invalid elseif statement, could not parse elseif");
+                        throw ErrorHandler.CreateError($"Invalid elseif statement, could not parse elseif", elseIfStatement);
                     }
 
                     break;
@@ -1168,7 +1170,7 @@ namespace CommonC.Parser
                 return true;
             }
 
-            throw new Exception($"Line {TokenReader.Peek().Line}: Invalid assignment statement, expected an expression after the equals sign");
+            throw ErrorHandler.CreateError($"Invalid assignment statement, expected an expression after the equals sign", assignmentStatement);
         }
 
 
@@ -1191,12 +1193,12 @@ namespace CommonC.Parser
                     }
                     else
                     {
-                        throw new Exception($"Line {TokenReader.Peek().Line}: Invalid for statement, expected a range expression after the 'for' keyword, got {expression.GetType().FullName} ({TokenReader.Peek().Kind}, {TokenReader.Peek().Value})");
+                        throw ErrorHandler.CreateError($"Invalid for statement, expected a range expression after the 'for' keyword, got {expression.GetType().FullName} ({TokenReader.Peek().Kind}, {TokenReader.Peek().Value})", forStatement);
                     }
                 }
                 else
                 {
-                    throw new Exception($"Line {TokenReader.Peek().Line}: Invalid for statement, expected expression after the 'for' keyword");
+                    throw ErrorHandler.CreateError($"Line {TokenReader.Peek().Line}: Invalid for statement, expected expression after the 'for' keyword", forStatement);
                 }
 
                 if (TokenReader.ExpectFatal(LexKinds.Comma))
@@ -1216,7 +1218,7 @@ namespace CommonC.Parser
                 }
                 else
                 {
-                    throw new Exception($"Line {TokenReader.Peek().Line}: Invalid for statement, expected an identifier after the range expression and comma");
+                    throw ErrorHandler.CreateError($"Line {TokenReader.Peek().Line}: Invalid for statement, expected an identifier after the range expression and comma", identifierExpression);
                 }
 
                 // Parse body
@@ -1272,7 +1274,7 @@ namespace CommonC.Parser
                 }
                 else
                 {
-                    throw new Exception("Expression expected after while keyword");
+                    throw ErrorHandler.CreateError("Expression expected after while keyword", whileStatement);
                 }
 
                 if(ParseClosureStatement(out ClosureStatement closureStatement))
@@ -1332,7 +1334,7 @@ namespace CommonC.Parser
                         }
                         else
                         {
-                            throw new Exception($"Line {TokenReader.Peek().Line}: Type / identifier / member expected when parsing field in struct declaration.");
+                            throw ErrorHandler.CreateError($"Line {TokenReader.Peek().Line}: Type / identifier / member expected when parsing field in struct declaration.", structStatement);
                         }
                     }
 
@@ -1505,7 +1507,7 @@ namespace CommonC.Parser
                 };
             }
 
-            throw new Exception("Failed to parse the lex token list, is code valid?");
+            throw ErrorHandler.CreateError("Failed to parse the lex token list, is code valid?");
         }
     }
 }

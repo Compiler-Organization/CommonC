@@ -13,7 +13,10 @@ namespace CommonC.Parser.AST.Expressions
             StringBuilder Builder = new();
 
             Builder.Append("(");
-            Builder.Append(this.Expression.PrettyPrint(indentLevel));
+
+            if(Expression != null) 
+                Builder.Append(this.Expression.PrettyPrint(indentLevel));
+
             Builder.Append(")");
 
             return Builder.ToString();

@@ -1,4 +1,5 @@
-﻿using CommonC.Liveness.Statements;
+﻿using CommonC.Error;
+using CommonC.Liveness.Statements;
 using CommonC.Parser.AST;
 using CommonC.Parser.AST.Expressions;
 using CommonC.Parser.AST.Statements;
@@ -128,11 +129,6 @@ namespace CommonC.LLVM.CodeGen
             return externFunction;
         }
 
-        void EmitClosure(ClosureStatement closure)
-        {
-            EmitStatements(closure.Statements, closure.Locals);
-        }
-
         void EmitStatements(List<Statement> statements, Variables variables)
         {
             foreach (Statement statement in statements)
@@ -175,7 +171,7 @@ namespace CommonC.LLVM.CodeGen
                     EmitIfStatement(ifStatement, variables);
                     break;
                 default:
-                    throw new Exception($"Unsupported statement type: {statement.GetType().Name}");
+                    throw ErrorHandler.CreateError($"Unsupported statement type: {statement.GetType().Name}");
             }
         }
 
@@ -183,7 +179,7 @@ namespace CommonC.LLVM.CodeGen
         {
             if (CurrentFunction == null)
             {
-                throw new Exception("Current function is not set when emitting if statement.");
+                throw ErrorHandler.CreateError("Current function is not set when emitting if statement.", ifStatement);
             }
 
             LLVMValueRef condition = EmitExpression(ifStatement.Condition, variables);
@@ -229,7 +225,7 @@ namespace CommonC.LLVM.CodeGen
         {
             if (CurrentFunction == null)
             {
-                throw new Exception("Current function is not set when emitting for statement.");
+                throw ErrorHandler.CreateError("Current function is not set when emitting for statement.", forStatement);
             }
 
             LLVMBasicBlockRef loopConditionBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("for.cond");
@@ -274,7 +270,7 @@ namespace CommonC.LLVM.CodeGen
         {
             if (CurrentFunction == null)
             {
-                throw new Exception("Current function is not set when emitting while statement.");
+                throw ErrorHandler.CreateError("Current function is not set when emitting while statement.", whileStatement);
             }
             LLVMBasicBlockRef loopConditionBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("while.cond");
             LLVMBasicBlockRef loopBodyBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("while.body");
@@ -312,7 +308,6 @@ namespace CommonC.LLVM.CodeGen
             {
                 LLVMValueRef currentValue = Builder.BuildLoad2(targetType, destinationPointer, "compound.load");
 
-                // 1. Determine Type Categories Robustly
                 bool isFloatingPoint = targetType.Kind == LLVMTypeKind.LLVMFloatTypeKind ||
                                       targetType.Kind == LLVMTypeKind.LLVMDoubleTypeKind ||
                                       targetType.Kind == LLVMTypeKind.LLVMHalfTypeKind ||
@@ -320,10 +315,8 @@ namespace CommonC.LLVM.CodeGen
 
                 bool isInteger = targetType.Kind == LLVMTypeKind.LLVMIntegerTypeKind;
 
-                // Determine signedness based on your compiler context (defaulting to signed for standard safety)
                 bool isSigned = true;
 
-                // 2. Type Alignment / Broadening
                 if (isInteger && valueToStore.TypeOf.Kind == LLVMTypeKind.LLVMIntegerTypeKind)
                 {
                     if (currentValue.TypeOf.IntWidth < valueToStore.TypeOf.IntWidth)
@@ -339,13 +332,12 @@ namespace CommonC.LLVM.CodeGen
                             : Builder.BuildZExt(valueToStore, currentValue.TypeOf, "compound.rhs.zext");
                     }
                 }
-                // FIX: Corrected comparison syntax here to check against enum kinds
+
                 else if (isFloatingPoint && (valueToStore.TypeOf.Kind == LLVMTypeKind.LLVMFloatTypeKind ||
                                              valueToStore.TypeOf.Kind == LLVMTypeKind.LLVMDoubleTypeKind ||
                                              valueToStore.TypeOf.Kind == LLVMTypeKind.LLVMHalfTypeKind ||
                                              valueToStore.TypeOf.Kind == LLVMTypeKind.LLVMFP128TypeKind))
                 {
-                    // Internal local function used to resolve ordering without needing an external method
                     int GetFPOrder(LLVMTypeKind kind) => kind switch
                     {
                         LLVMTypeKind.LLVMHalfTypeKind => 1,
@@ -361,7 +353,6 @@ namespace CommonC.LLVM.CodeGen
                         valueToStore = Builder.BuildFPExt(valueToStore, currentValue.TypeOf, "compound.rhs.fpext");
                 }
 
-                // 3. Mathematical Operations
                 valueToStore = assignmentStatement.Operator switch
                 {
                     AssignmentOperator.CompoundAdd => isFloatingPoint
@@ -396,12 +387,11 @@ namespace CommonC.LLVM.CodeGen
                         ? Builder.BuildAShr(currentValue, valueToStore, "compound.ashr")
                         : Builder.BuildLShr(currentValue, valueToStore, "compound.lshr"),
 
-                    AssignmentOperator.CompoundExp => throw new NotSupportedException("Exponentiation requires runtime library call (e.g., llvm.pow)."),
+                    AssignmentOperator.CompoundExp => throw ErrorHandler.CreateError("Exponentiation requires runtime library call (e.g., llvm.pow).", assignmentStatement),
 
-                    _ => throw new InvalidOperationException($"Unsupported or invalid compound assignment operator: {assignmentStatement.Operator}")
+                    _ => throw ErrorHandler.CreateError($"Unsupported or invalid compound assignment operator: {assignmentStatement.Operator}")
                 };
 
-                // 4. Downcast / Truncate Safely back to Target Type
                 if (valueToStore.TypeOf != targetType)
                 {
                     if (isInteger)
@@ -468,9 +458,7 @@ namespace CommonC.LLVM.CodeGen
                     LLVMTypeRef expectedReturnType = CurrentFunction.ReturnType.TypeAnnotation.ToLLVMType();
                     if (expectedReturnType != LLVMTypeRef.Void)
                     {
-                        throw new InvalidOperationException(
-                            $"Cannot return void from function '{CurrentFunction.Name}' which expects a {expectedReturnType} return type."
-                        );
+                        throw ErrorHandler.CreateError($"Cannot return void from function '{CurrentFunction.Name}' which expects a {expectedReturnType} return type.", returnStatement);
                     }
                 }
 
@@ -533,7 +521,7 @@ namespace CommonC.LLVM.CodeGen
         {
             if(callStatement.Expression is IdentifierExpression identifierExpression)
             {
-                FunctionDeclarationStatement functionDecl = Functions.GetFunction(identifierExpression.Name, callStatement.Arguments);
+                FunctionDeclarationStatement functionDecl = Functions.GetFunction(identifierExpression.Name, callStatement.Arguments, callStatement);
 
                 LLVMValueRef[] arguments = callStatement.Arguments == null 
                     ? Array.Empty<LLVMValueRef>() 
@@ -574,7 +562,7 @@ namespace CommonC.LLVM.CodeGen
                 {
                     if (!Functions.Contains(Settings.EntryPoint))
                     {
-                        throw new Exception($"Entry point function {Settings.EntryPoint} does not exist!");
+                        throw ErrorHandler.CreateError($"Entry point function {Settings.EntryPoint} does not exist!");
                     }
 
                     LLVMBasicBlockRef previousBlock = Builder.InsertBlock;
@@ -603,7 +591,7 @@ namespace CommonC.LLVM.CodeGen
 
             if (CurrentFunction == null)
             {
-                throw new Exception($"Cannot declare local variable '{variableDeclaration.Name}' outside of a function context.");
+                throw ErrorHandler.CreateError($"Cannot declare local variable '{variableDeclaration.Name}' outside of a function context.", variableDeclaration);
             }
 
             LLVMTypeRef varType = variableDeclaration.Type.TypeAnnotation.ToLLVMType();
@@ -672,7 +660,7 @@ namespace CommonC.LLVM.CodeGen
                 return Builder.BuildLoad2(targetType, value, name);
             }
 
-            throw new Exception($"Implicit type conversion from {value.TypeOf} to {targetType} is unsupported.");
+            throw ErrorHandler.CreateError($"Implicit type conversion from {value.TypeOf} to {targetType} is unsupported."); // add errorObject to this method
         }
 
 
@@ -712,7 +700,7 @@ namespace CommonC.LLVM.CodeGen
                 return LLVMValueRef.CreateConstInt(integerType, unsignedValue, isSigned);
             }
 
-            throw new FormatException($"Invalid literal numeric format encountered: '{numberExpression.Value}'");
+            throw ErrorHandler.CreateError($"Invalid literal numeric format encountered: '{numberExpression.Value}'", numberExpression);
         }
 
 
@@ -736,10 +724,10 @@ namespace CommonC.LLVM.CodeGen
 
             if (left == null || right == null)
             {
-                throw new Exception("Left or right operand expression evaluated to null.");
+                throw ErrorHandler.CreateError("Left or right operand expression evaluated to null.", arithmeticExpression);
             }
 
-            UnifyArithmeticOperands(ref left, ref right);
+            UnifyArithmeticOperands(ref left, ref right, arithmeticExpression);
 
             LLVMTypeRef commonType = left.TypeOf;
             bool isFloat = commonType.Kind == LLVMTypeKind.LLVMFloatTypeKind || commonType.Kind == LLVMTypeKind.LLVMDoubleTypeKind;
@@ -762,26 +750,26 @@ namespace CommonC.LLVM.CodeGen
                     return isFloat ? Builder.BuildFRem(left, right, "frem") : Builder.BuildSRem(left, right, "srem");
 
                 case ArithmeticOperator.LeftShift:
-                    if (isFloat) throw new Exception("Left shift operator is not supported on floating-point types.");
+                    if (isFloat) throw ErrorHandler.CreateError("Left shift operator is not supported on floating-point types.", arithmeticExpression);
                     return Builder.BuildShl(left, right, "shl");
 
                 case ArithmeticOperator.RightShift:
-                    if (isFloat) throw new Exception("Right shift operator is not supported on floating-point types.");
+                    if (isFloat) throw ErrorHandler.CreateError("Right shift operator is not supported on floating-point types.", arithmeticExpression);
                     return Builder.BuildAShr(left, right, "ashr");
 
                 case ArithmeticOperator.Xor:
-                    if (isFloat) throw new Exception("XOR operator is not supported on floating-point types.");
+                    if (isFloat) throw ErrorHandler.CreateError("XOR operator is not supported on floating-point types.", arithmeticExpression);
                     return Builder.BuildXor(left, right, "xor");
 
                 case ArithmeticOperator.Exponentiation:
                     return EmitPowerExpression(left, right, commonType);
 
                 default:
-                    throw new Exception($"Arithmetic operator {arithmeticExpression.Operator} is not supported when emitting LLVM arithmetic expressions.");
+                    throw ErrorHandler.CreateError($"Arithmetic operator {arithmeticExpression.Operator} is not supported when emitting LLVM arithmetic expressions.", arithmeticExpression);
             }
         }
 
-        private void UnifyArithmeticOperands(ref LLVMValueRef left, ref LLVMValueRef right)
+        private void UnifyArithmeticOperands(ref LLVMValueRef left, ref LLVMValueRef right, Expression errorObject)
         {
             LLVMTypeRef leftType = left.TypeOf;
             LLVMTypeRef rightType = right.TypeOf;
@@ -820,7 +808,7 @@ namespace CommonC.LLVM.CodeGen
                 return;
             }
 
-            throw new Exception($"Cannot implicitly unify operand types: {leftType} and {rightType}.");
+            throw ErrorHandler.CreateError($"Cannot implicitly unify operand types: {leftType} and {rightType}.", errorObject);
         }
 
         private bool IsFloatType(LLVMTypeRef type) =>
@@ -864,7 +852,7 @@ namespace CommonC.LLVM.CodeGen
         {
             if (callExpression.Expression is IdentifierExpression identifierExpression)
             {
-                FunctionDeclarationStatement functionDecl = Functions.GetFunction(identifierExpression.Name, callExpression.Arguments);
+                FunctionDeclarationStatement functionDecl = Functions.GetFunction(identifierExpression.Name, callExpression.Arguments, callExpression);
 
                 LLVMValueRef[] arguments = callExpression.Arguments == null
                     ? Array.Empty<LLVMValueRef>()
@@ -888,7 +876,7 @@ namespace CommonC.LLVM.CodeGen
             }
             else
             {
-                throw new Exception("Unsupported function expression type in call: " + callExpression.Expression.GetType().Name);
+                throw ErrorHandler.CreateError("Unsupported function expression type in call: " + callExpression.Expression.GetType().Name, callExpression);
             }
         }
 
@@ -1052,7 +1040,7 @@ namespace CommonC.LLVM.CodeGen
                 IndexExpression expr => GetInnerIdentifierExpression(expr.Expression),
                 ArithmeticExpression expr => GetInnerIdentifierExpression(expr.Left),
                 RelationalExpression expr => GetInnerIdentifierExpression(expr.Left),
-                ArrayExpression expr => GetInnerIdentifierExpression(expr.Expressions.Any() ? expr.Expressions.First() : throw new Exception($"Cannot resolve inner identifier expression of empty array")),
+                ArrayExpression expr => GetInnerIdentifierExpression(expr.Expressions.Any() ? expr.Expressions.First() : throw ErrorHandler.CreateError($"Cannot resolve inner identifier expression of empty array", expression)),
                 LengthExpression expr => GetInnerIdentifierExpression(expr.Expression),
                 MemberExpression expr => GetInnerIdentifierExpression(expr.Parent),
                 NegateExpression expr => GetInnerIdentifierExpression(expr.Expression),
@@ -1064,7 +1052,7 @@ namespace CommonC.LLVM.CodeGen
                 UnpackExpression expr => GetInnerIdentifierExpression(expr.Left),
                 TypeExpression => null,
                 IdentifierExpression expr => expr,
-                _ => throw new Exception($"Inner identifier expression of type {expression.GetType().Name} is not supported.")
+                _ => throw ErrorHandler.CreateError($"Inner identifier expression of type {expression.GetType().Name} is not supported.", expression)
             };
         }
 
@@ -1080,15 +1068,15 @@ namespace CommonC.LLVM.CodeGen
             if (firstMember is CallExpression firstMemberCall)
             {
                 IdentifierExpression? callIdentifier = GetInnerIdentifierExpression(firstMemberCall)
-                    ?? throw new Exception("Could not resolve inner identifier of call in member expression.");
+                    ?? throw ErrorHandler.CreateError("Could not resolve inner identifier of call in member expression.", memberExpression);
 
-                FunctionDeclarationStatement function = Functions.GetFunction(callIdentifier.Name, firstMemberCall.Arguments);
+                FunctionDeclarationStatement function = Functions.GetFunction(callIdentifier.Name, firstMemberCall.Arguments, memberExpression);
 
                 if (function.ReturnType is IdentifierExpression funcIdentifier)
                 {
                     if (!Structs.ContainsKey(funcIdentifier.Name))
                     {
-                        throw new Exception($"Struct {funcIdentifier.Name} does not exist.");
+                        throw ErrorHandler.CreateError($"Struct {funcIdentifier.Name} does not exist.", memberExpression);
                     }
 
                     currentStruct = Structs[funcIdentifier.Name];
@@ -1099,13 +1087,13 @@ namespace CommonC.LLVM.CodeGen
                 }
                 else
                 {
-                    throw new Exception($"Cannot access member of parent with type {function.ReturnType.GetType().Name}");
+                    throw ErrorHandler.CreateError($"Cannot access member of parent with type {function.ReturnType.GetType().Name}", memberExpression);
                 }
             }
             else if (firstMember is IndexExpression firstMemberIndex)
             {
                 IdentifierExpression? indexIdentifier = GetInnerIdentifierExpression(firstMemberIndex)
-                    ?? throw new Exception("Could not resolve inner identifier of index in member expression.");
+                    ?? throw ErrorHandler.CreateError("Could not resolve inner identifier of index in member expression.", memberExpression);
 
                 VariableDeclarationStatement matchingVariable = variables.GetVariable(indexIdentifier.Name);
                 IdentifierExpression? typeIdentifier = matchingVariable.Type as IdentifierExpression
@@ -1113,7 +1101,7 @@ namespace CommonC.LLVM.CodeGen
 
                 if (typeIdentifier == null || !Structs.ContainsKey(typeIdentifier.Name))
                 {
-                    throw new Exception($"Struct or underlying matrix type does not exist.");
+                    throw ErrorHandler.CreateError($"Struct or underlying matrix type does not exist.", memberExpression);
                 }
 
                 currentStruct = Structs[typeIdentifier.Name];
@@ -1128,7 +1116,7 @@ namespace CommonC.LLVM.CodeGen
                 {
                     if (!Structs.ContainsKey(variableIdentifier.Name))
                     {
-                        throw new Exception($"Struct {variableIdentifier.Name} does not exist.");
+                        throw ErrorHandler.CreateError($"Struct {variableIdentifier.Name} does not exist.", memberExpression);
                     }
 
                     currentStruct = Structs[variableIdentifier.Name];
@@ -1136,13 +1124,13 @@ namespace CommonC.LLVM.CodeGen
                 }
                 else
                 {
-                    throw new Exception($"Cannot access member of parent with type {matchingVariable.Type.GetType().Name}");
+                    throw ErrorHandler.CreateError($"Cannot access member of parent with type {matchingVariable.Type.GetType().Name}", memberExpression);
                 }
             }
 
             if (currentStruct == null || currentPointer == null)
             {
-                throw new Exception($"Cannot access member of parent with type {firstMember.GetType().Name}");
+                throw ErrorHandler.CreateError($"Cannot access member of parent with type {firstMember.GetType().Name}", memberExpression);
             }
 
             foreach (Expression member in memberChain.Skip(1))
@@ -1220,7 +1208,7 @@ namespace CommonC.LLVM.CodeGen
                     }
                     continue;
                 }
-                throw new Exception($"Unsupported member expression component type: {member.GetType().Name}");
+                throw ErrorHandler.CreateError($"Unsupported member expression component type: {member.GetType().Name}", memberExpression);
             }
 
 
@@ -1245,7 +1233,7 @@ namespace CommonC.LLVM.CodeGen
             if (objectInitializerExpression.Expression is IdentifierExpression identifier)
             {
                 if (!Structs.ContainsKey(identifier.Name))
-                    throw new Exception($"Could not initialize object {identifier.Name} as it does not exist.");
+                    throw ErrorHandler.CreateError($"Could not initialize object {identifier.Name} as it does not exist.", objectInitializerExpression);
 
                 StructStatement structStatement = Structs[identifier.Name];
                 LLVMTypeRef structType = structStatement.LLVMStructType;
@@ -1272,7 +1260,7 @@ namespace CommonC.LLVM.CodeGen
 
                 return Builder.BuildLoad2(structType, structPtr, $"{identifier.Name.ToLower()}_val");
             }
-            throw new Exception("Unsupported object initializer syntax.");
+            throw ErrorHandler.CreateError("Unsupported object initializer syntax.", objectInitializerExpression);
         }
 
         LLVMValueRef EmitRelationalExpression(RelationalExpression relationalExpression, Variables variables)
@@ -1282,7 +1270,7 @@ namespace CommonC.LLVM.CodeGen
 
             if (left == null || right == null)
             {
-                throw new Exception("Left or right operand expression evaluated to null.");
+                throw ErrorHandler.CreateError("Left or right operand expression evaluated to null.", relationalExpression);
             }
 
             LLVMTypeKind leftKind = left.TypeOf.Kind;
@@ -1307,7 +1295,7 @@ namespace CommonC.LLVM.CodeGen
                     case RelationalOperators.LessThan: return Builder.BuildFCmp(LLVMRealPredicate.LLVMRealOLT, left, right, "fcmp");
                     case RelationalOperators.GreaterThanOrEqual: return Builder.BuildFCmp(LLVMRealPredicate.LLVMRealOGE, left, right, "fcmp");
                     case RelationalOperators.LessThanOrEqual: return Builder.BuildFCmp(LLVMRealPredicate.LLVMRealOLE, left, right, "fcmp");
-                    default: throw new Exception($"Unsupported float relational operator: {relationalExpression.Operator}");
+                    default: throw ErrorHandler.CreateError($"Unsupported float relational operator: {relationalExpression.Operator}", relationalExpression);
                 }
             }
 
@@ -1320,14 +1308,14 @@ namespace CommonC.LLVM.CodeGen
 
                 if (left.TypeOf != right.TypeOf)
                 {
-                    throw new Exception($"Type mismatch: Cannot compare pointer types {left.TypeOf} and {right.TypeOf}.");
+                    throw ErrorHandler.CreateError($"Type mismatch: Cannot compare pointer types {left.TypeOf} and {right.TypeOf}.", relationalExpression);
                 }
 
                 switch (relationalExpression.Operator)
                 {
                     case RelationalOperators.Equal: return Builder.BuildICmp(LLVMIntPredicate.LLVMIntEQ, left, right, "ptr.icmp");
                     case RelationalOperators.NotEqual: return Builder.BuildICmp(LLVMIntPredicate.LLVMIntNE, left, right, "ptr.icmp");
-                    default: throw new Exception($"Operator {relationalExpression.Operator} is invalid for pointer types.");
+                    default: throw ErrorHandler.CreateError($"Operator {relationalExpression.Operator} is invalid for pointer types.", relationalExpression);
                 }
             }
 
@@ -1352,11 +1340,11 @@ namespace CommonC.LLVM.CodeGen
                     case RelationalOperators.LessThan: return Builder.BuildICmp(LLVMIntPredicate.LLVMIntSLT, left, right, "icmp");
                     case RelationalOperators.GreaterThanOrEqual: return Builder.BuildICmp(LLVMIntPredicate.LLVMIntSGE, left, right, "icmp");
                     case RelationalOperators.LessThanOrEqual: return Builder.BuildICmp(LLVMIntPredicate.LLVMIntSLE, left, right, "icmp");
-                    default: throw new Exception($"Unsupported integer relational operator: {relationalExpression.Operator}");
+                    default: throw ErrorHandler.CreateError($"Unsupported integer relational operator: {relationalExpression.Operator}", relationalExpression);
                 }
             }
 
-            throw new Exception($"Cannot emit comparison between unhandled types: {leftKind} and {rightKind}.");
+            throw ErrorHandler.CreateError($"Cannot emit comparison between unhandled types: {leftKind} and {rightKind}.", relationalExpression);
         }
 
         LLVMValueRef EmitSizeOfExpression(SizeOfExpression sizeOfExpression, Variables variables)
@@ -1376,7 +1364,7 @@ namespace CommonC.LLVM.CodeGen
             LLVMValueRef value = EmitExpression(notExpression.Expression, variables);
             if (value == null)
             {
-                throw new Exception("Expression inside logical/bitwise 'Not' statement evaluated to null.");
+                throw ErrorHandler.CreateError("Expression inside logical/bitwise 'Not' statement evaluated to null.", notExpression);
             }
 
             LLVMTypeRef valType = value.TypeOf;
@@ -1392,14 +1380,14 @@ namespace CommonC.LLVM.CodeGen
                 return Builder.BuildNot(value, "bitwise.not");
             }
 
-            throw new Exception($"The 'Not' unary operation is invalid for type kind: {valType.Kind}");
+            throw ErrorHandler.CreateError($"The 'Not' unary operation is invalid for type kind: {valType.Kind}", notExpression);
         }
 
         LLVMValueRef EmitParenthesizedExpression(ParenthesizedExpression parenthesizedExpression, Variables variables)
         {
             if (parenthesizedExpression?.Expression == null)
             {
-                throw new Exception("Parenthesized expression context contains no underlying target AST node.");
+                throw ErrorHandler.CreateError("Parenthesized expression context contains no underlying target AST node.", parenthesizedExpression);
             }
 
             return EmitExpression(parenthesizedExpression.Expression, variables);
@@ -1407,11 +1395,6 @@ namespace CommonC.LLVM.CodeGen
 
         LLVMValueRef EmitBooleanExpression(BooleanExpression booleanExpression)
         {
-            if (booleanExpression == null)
-            {
-                throw new ArgumentNullException(nameof(booleanExpression), "Boolean expression node cannot be null.");
-            }
-
             return booleanExpression.Value
                 ? LLVMValueRef.CreateConstInt(LLVMTypeRef.Int1, 1, false)
                 : LLVMValueRef.CreateConstNull(LLVMTypeRef.Int1);
@@ -1419,10 +1402,6 @@ namespace CommonC.LLVM.CodeGen
 
         LLVMValueRef EmitCharacterExpression(CharacterExpression characterExpression)
         {
-            if (characterExpression == null)
-            {
-                throw new ArgumentNullException(nameof(characterExpression), "Character expression node cannot be null.");
-            }
             return LLVMValueRef.CreateConstInt(LLVMTypeRef.Int8, (ulong)characterExpression.Value, false);
         }
 
@@ -1433,9 +1412,7 @@ namespace CommonC.LLVM.CodeGen
 
             if (annotation.IsArray || annotation.IsStruct)
             {
-                throw new InvalidOperationException(
-                    $"Compile Error: Cannot apply negation operator to complex structural type: {annotation}"
-                );
+                throw ErrorHandler.CreateError($"Compile Error: Cannot apply negation operator to complex structural type: {annotation}", negateExpression);
             }
 
             if (annotation.IsReservedType)
@@ -1466,13 +1443,11 @@ namespace CommonC.LLVM.CodeGen
                     case ReservedTypes.String:
                     case ReservedTypes.Fn:
                     default:
-                        throw new InvalidOperationException(
-                            $"Compile Error: Negation operator is invalid for type primitive: '{annotation.ReservedType}'"
-                        );
+                        throw ErrorHandler.CreateError($"Compile Error: Negation operator is invalid for type primitive: '{annotation.ReservedType}'", negateExpression);
                 }
             }
 
-            throw new InvalidOperationException($"Compile Error: Unknown type annotation state encountered during negation emission.");
+            throw ErrorHandler.CreateError($"Compile Error: Unknown type annotation state encountered during negation emission.", negateExpression);
         }
 
         LLVMValueRef EmitNullExpression()
@@ -1488,12 +1463,12 @@ namespace CommonC.LLVM.CodeGen
 
             if (left == null)
             {
-                throw new Exception("Left operand expression evaluated to null.");
+                throw ErrorHandler.CreateError("Left operand expression evaluated to null.", logicalExpression);
             }
 
             if (left.TypeOf.Kind != LLVMTypeKind.LLVMIntegerTypeKind)
             {
-                throw new Exception("Logical operators require boolean operands.");
+                throw ErrorHandler.CreateError("Logical operators require boolean operands.", logicalExpression);
             }
 
             LLVMValueRef currentFunction = Builder.InsertBlock.Parent;
@@ -1512,7 +1487,7 @@ namespace CommonC.LLVM.CodeGen
                     break;
 
                 default:
-                    throw new Exception($"Logical operator {logicalExpression.Operator} is not supported when emitting LLVM logical expressions.");
+                    throw ErrorHandler.CreateError($"Logical operator {logicalExpression.Operator} is not supported when emitting LLVM logical expressions.", logicalExpression);
             }
 
             Builder.PositionAtEnd(rhsBlock);
@@ -1520,12 +1495,12 @@ namespace CommonC.LLVM.CodeGen
 
             if (right == null)
             {
-                throw new Exception("Right operand expression evaluated to null.");
+                throw ErrorHandler.CreateError("Right operand expression evaluated to null.", logicalExpression);
             }
 
             if (right.TypeOf.Kind != LLVMTypeKind.LLVMIntegerTypeKind)
             {
-                throw new Exception("Logical operators require boolean operands.");
+                throw ErrorHandler.CreateError("Logical operators require boolean operands.", logicalExpression);
             }
 
             LLVMBasicBlockRef rhsEndBlock = Builder.InsertBlock;
@@ -1573,7 +1548,7 @@ namespace CommonC.LLVM.CodeGen
                 NegateExpression negateExpression => EmitNegateExpression(negateExpression, variables),
                 NullExpression nullExpression => EmitNullExpression(),
                 LogicalExpression logicalExpression => EmitLogicalExpression(logicalExpression, variables),
-                _ => throw new Exception($"Unsupported expression type: {expression.GetType().Name}")
+                _ => throw ErrorHandler.CreateError($"Unsupported expression type: {expression.GetType().Name}", expression)
             };
         }
 

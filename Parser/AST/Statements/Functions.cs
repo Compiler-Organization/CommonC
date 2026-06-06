@@ -1,4 +1,5 @@
-﻿using CommonC.Parser.AST.Expressions;
+﻿using CommonC.Error;
+using CommonC.Parser.AST.Expressions;
 using CommonC.Semantic.Objects;
 using System;
 using System.Collections.Generic;
@@ -51,7 +52,7 @@ namespace CommonC.Parser.AST.Statements
             return functions.First();
         }
 
-        public FunctionDeclarationStatement GetFunction(string name, ExpressionList? arguments)
+        public FunctionDeclarationStatement GetFunction(string name, ExpressionList? arguments, object errorObject)
         {
             List<FunctionDeclarationStatement> functions = [.. this.Where(f => f.Name == name)];
 
@@ -75,7 +76,7 @@ namespace CommonC.Parser.AST.Statements
             }
 
             if (function == null)
-                throw new Exception($"No overload found for function '{name}({string.Join(", ", arguments.Select(a => a.TypeAnnotation.ToString()))})'");
+                throw ErrorHandler.CreateError($"No overload found for function '{name}({string.Join(", ", arguments.Select(a => a.TypeAnnotation.ToString()))})'", errorObject);
 
             return function;
         }

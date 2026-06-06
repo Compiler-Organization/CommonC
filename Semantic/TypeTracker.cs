@@ -1,4 +1,5 @@
-﻿using CommonC.Parser.AST;
+﻿using CommonC.Error;
+using CommonC.Parser.AST;
 using CommonC.Parser.AST.Expressions;
 using CommonC.Parser.AST.Statements;
 using CommonC.Semantic.Objects;
@@ -89,7 +90,7 @@ namespace CommonC.Semantic
                     return expression.TypeAnnotation = ResolveTypeFromExpression(function.ReturnType, variables);
                 }
 
-                throw new KeyNotFoundException($"'{name}' does not exist in the current context.");
+                throw ErrorHandler.CreateError($"'{name}' does not exist in the current context.", identifierExpression);
             }
             if (expression is CallExpression callExpression)
             {
