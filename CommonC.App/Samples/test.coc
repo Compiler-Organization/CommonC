@@ -1,13 +1,66 @@
 use Console
+use Graphics
 
-fn Change(i32[] t) {
-    t[1] = 42
-} 
 
 fn main {
-    i32[] test = i32[] {5, 10, 15}
+    Window window = Window {
+        Title: "Test",
+        ClassName: "Test",
+        Width: 500,
+        Height: 500
+    }
 
-    Change(test)
+    CreateWindow(window)
 
-    printl(test)
+    MSG msg = MSG {}
+
+    printl(ToString(IsWindow@4(window.WindowHandle)))
+
+    i32 UpDownModulation = 0
+    i32 LeftRightModulation = 0
+    i32 Step = 25
+
+    while WindowExists(window)
+    {
+        
+        i16 escState = GetAsyncKeyState@4(27)
+
+        while PeekMessageA@20(msg, null, 0, 0, 1) > 0 {
+            TranslateMessage@4(msg)
+            DispatchMessageA@4(msg)
+
+            i32 key = msg.wParam
+
+            if(key == 40)
+            {
+                UpDownModulation += Step
+            }
+
+            if(key == 38)
+            {
+                UpDownModulation -= Step
+            }
+
+            if(key == 39)
+            {
+                LeftRightModulation += Step
+            }
+
+            if(key == 37)
+            {
+                LeftRightModulation -= Step
+            }
+
+        }
+
+        if !(escState == 0) {
+            DestroyWindow@4(window.WindowHandle)
+            break
+        }
+
+        Ellipse@20(window.Device, 250 + LeftRightModulation, 150 + UpDownModulation, 550 + LeftRightModulation, 450 + UpDownModulation)
+    }
+
+    ReleaseDC@8(window.WindowHandle, window.Device)
+    printl("Window closed cleanly. Program exit.")
 }

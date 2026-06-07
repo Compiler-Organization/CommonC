@@ -11,7 +11,7 @@ struct WNDCLASSEXA {
     ptr  hCursor,
     ptr  hbrBackground,
     ptr  lpszMenuName,
-    ptr  lpszClassName,
+    str  lpszClassName,
     ptr  hIconSm       
 }
 
@@ -27,13 +27,13 @@ struct MSG {
 }
 
 extern ptr GetModuleHandleA@4(ptr lpModuleName)
-extern i16 RegisterClassExA@4(ptr lpWndClass)
+extern i16 RegisterClassExA@4(WNDCLASSEXA lpWndClass)
 extern ptr CreateWindowExA@48(i32 dwExStyle, str lpClassName, str lpWindowName, i32 dwStyle, i32 X, i32 Y, i32 nWidth, i32 nHeight, ptr hWndParent, ptr hMenu, ptr hInstance, ptr lpParam)
 extern i32 ShowWindow@8(ptr hWnd, i32 nCmdShow)
 extern i32 UpdateWindow@4(ptr hWnd)
-extern i32 PeekMessageA@20(ptr lpMsg, ptr hWnd, i32 wMsgFilterMin, i32 wMsgFilterMax, i32 wRemoveMsg)
-extern i32 TranslateMessage@4(ptr lpMsg)
-extern i32 DispatchMessageA@4(ptr lpMsg)
+extern i32 PeekMessageA@20(MSG lpMsg, ptr hWnd, i32 wMsgFilterMin, i32 wMsgFilterMax, i32 wRemoveMsg)
+extern i32 TranslateMessage@4(MSG lpMsg)
+extern i32 DispatchMessageA@4(MSG lpMsg)
 extern ptr DefWindowProcA@16(ptr hWnd, i32 Msg, i32 wParam, i32 lParam) 
 extern ptr GetDC@4(ptr hWnd)
 extern i32 ReleaseDC@8(ptr hWnd, ptr hDC)
@@ -46,6 +46,7 @@ extern ptr SelectObject@8(ptr hDC, ptr hGdiObject)
 extern i32 PatBlt@24(ptr hDC, i32 x, i32 y, i32 width, i32 height, i32 dwRop)
 extern i32 GdiFlush@0()
 extern i32 Sleep@4(i32 dwMilliseconds)
+extern i32 Ellipse@20(ptr hDC, i32 left, i32 top, i32 right, i32 bottom)
 
 
 ptr __WindowProc(ptr hWnd, i32 Msg, i32 wParam, i32 lParam) {

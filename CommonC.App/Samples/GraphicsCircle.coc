@@ -1,48 +1,8 @@
 use Console
 use Strings
+use GDIDataStructures
 
-struct WNDCLASSEXA {
-    i32  cbSize,        
-    i32  style,         
-    ptr  lpfnWndProc,   
-    i32  cbClsExtra,    
-    i32  cbWndExtra,    
-    ptr  hInstance,     
-    ptr  hIcon,         
-    ptr  hCursor,       
-    ptr  hbrBackground, 
-    ptr  lpszMenuName,  
-    ptr  lpszClassName, 
-    ptr  hIconSm        
-}
 
-struct MSG {
-    ptr  hwnd,          
-    i32  message,       
-    i32  wParam,       
-    i32  lParam,        
-    i32  time,          
-    i32  ptX,           
-    i32  ptY,           
-    i32  privateData    
-}
-
-extern ptr GetModuleHandleA@4(ptr lpModuleName)
-extern i16 RegisterClassExA@4(ptr lpWndClass)
-extern ptr CreateWindowExA@48(i32 dwExStyle, ptr lpClassName, ptr lpWindowName, i32 dwStyle, i32 X, i32 Y, i32 nWidth, i32 nHeight, ptr hWndParent, ptr hMenu, ptr hInstance, ptr lpParam)
-extern i32 ShowWindow@8(ptr hWnd, i32 nCmdShow)
-extern i32 UpdateWindow@4(ptr hWnd)
-extern i32 PeekMessageA@20(ptr lpMsg, ptr hWnd, i32 wMsgFilterMin, i32 wMsgFilterMax, i32 wRemoveMsg)
-extern i32 TranslateMessage@4(ptr lpMsg)
-extern i32 DispatchMessageA@4(ptr lpMsg)
-extern ptr DefWindowProcA@16(ptr hWnd, i32 Msg, i32 wParam, i32 lParam)
-extern ptr GetDC@4(ptr hWnd)
-extern i32 ReleaseDC@8(ptr hWnd, ptr hDC)
-extern i32 Ellipse@20(ptr hDC, i32 left, i32 top, i32 right, i32 bottom)
-extern i32 DestroyWindow@4(ptr hWnd)
-extern i32 IsWindow@4(ptr hWnd)
-extern i16 GetAsyncKeyState@4(i32 vKey)
-extern ptr GetStockObject@4(i32 fnObject)
 
 ptr WindowProc(ptr hWnd, i32 Msg, i32 wParam, i32 lParam) {
     if Msg == 16 {
@@ -56,7 +16,7 @@ ptr WindowProc(ptr hWnd, i32 Msg, i32 wParam, i32 lParam) {
     return DefWindowProcA@16(hWnd, Msg, wParam, lParam)
 }
 
-fn main {
+fn GenCircle {
     i32 screenWidth = 800
     i32 screenHeight = 600
 
@@ -67,22 +27,23 @@ fn main {
 
     ptr blackBrush = GetStockObject@4(4)
 
-    ptr wndClassPtr = i32[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
-    wndClassPtr[0] = 48             
-    wndClassPtr[1] = 3            
-    wndClassPtr[2] = WindowProc   
-    wndClassPtr[3] = 0           
-    wndClassPtr[4] = 0            
-    wndClassPtr[5] = hInstance    
-    wndClassPtr[6] = null         
-    wndClassPtr[7] = null         
-    wndClassPtr[8] = blackBrush  
-    wndClassPtr[9] = null  
-    wndClassPtr[10] = className 
-    wndClassPtr[11] = null 
+    WNDCLASSEXA wndClassPtr = WNDCLASSEXA {
+        cbSize: 48,
+        style: 3,
+        lpfnWndProc: WindowProc,
+        cbClsExtra: 0,
+        cbWndExtra: 0,
+        hInstance: hInstance,
+        hIcon: null,
+        hCursor: null,
+        hbrBackground: blackBrush,
+        lpszMenuName: null,
+        lpszClassName: className,
+        hIconSm: null
+    }
 
     i16 classAtom = RegisterClassExA@4(wndClassPtr)
-    printl(Concat("Class Atom: ", I16ToString(classAtom)))
+    printl(Concat("Class Atom: ", ToString(classAtom)))
     
     i32 windowStyle = 268435456 + 13565952
 
@@ -102,8 +63,7 @@ fn main {
 
     ptr hdc = GetDC@4(windowHandle)
 
-    i32[] msgPtr = i32[] {0, 0, 0, 0, 0, 0, 0, 0}
-    MSG msg = msgPtr
+    MSG msg = MSG {}
 
     printl(I32ToString(IsWindow@4(windowHandle)))
 
@@ -116,11 +76,11 @@ fn main {
         
         i16 escState = GetAsyncKeyState@4(27)
 
-        while PeekMessageA@20(msgPtr, null, 0, 0, 1) > 0 {
-            TranslateMessage@4(msgPtr)
-            DispatchMessageA@4(msgPtr)
+        while PeekMessageA@20(msg, null, 0, 0, 1) > 0 {
+            TranslateMessage@4(msg)
+            DispatchMessageA@4(msg)
 
-            i32 key = msgPtr[2]
+            i32 key = msg.wParam
 
             if(key == 40)
             {

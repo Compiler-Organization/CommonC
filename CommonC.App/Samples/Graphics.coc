@@ -11,26 +11,27 @@ struct Window {
     i32 Height,
 
     ptr WindowHandle,
-    ptr DeviceContext
+    ptr Device
 }
 
-ptr CreateWindow(Window window) {
+fn CreateWindow(Window window) {
     ptr hInstance = GetModuleHandleA@4(null)
     ptr blackBrush = GetStockObject@4(4)
 
-    ptr wndClassPtr = i32[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
-    wndClassPtr[0] = 48
-    wndClassPtr[1] = 3
-    wndClassPtr[2] = __WindowProc
-    wndClassPtr[3] = 0
-    wndClassPtr[4] = 0
-    wndClassPtr[5] = hInstance
-    wndClassPtr[6] = null
-    wndClassPtr[7] = null
-    wndClassPtr[8] = blackBrush
-    wndClassPtr[9] = null
-    wndClassPtr[10] = window.ClassName
-    wndClassPtr[11] = null
+    WNDCLASSEXA wndClassPtr = WNDCLASSEXA {
+        cbSize: 48,
+        style: 3,
+        lpfnWndProc: __WindowProc,
+        cbClsExtra: 0,
+        cbWndExtra: 0,
+        hInstance: hInstance,
+        hIcon: null,
+        hCursor: null,
+        hbrBackground: blackBrush,
+        lpszMenuName: null,
+        lpszClassName: window.ClassName,
+        hIconSm: null
+    }
 
     i16 classAtom = RegisterClassExA@4(wndClassPtr)
     
@@ -49,14 +50,12 @@ ptr CreateWindow(Window window) {
     UpdateWindow@4(windowHandle)
 
     window.WindowHandle = windowHandle
-    window.DeviceContext = GetDC@4(windowHandle)
-
-    return windowHandle
+    window.Device = GetDC@4(windowHandle)
 }
 
 fn ReleaseWindow(Window window) {
     DestroyWindow@4(window.WindowHandle)
-    ReleaseDC@8(window.WindowHandle, window.DeviceContext)
+    ReleaseDC@8(window.WindowHandle, window.Device)
 }
 
 bool WindowExists(Window window) {

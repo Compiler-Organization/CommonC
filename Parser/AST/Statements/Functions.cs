@@ -32,7 +32,7 @@ namespace CommonC.Parser.AST.Statements
                     if (function.Parameters.Count == functionDeclarationStatement.Parameters.Count
                     && function.Parameters.MatchTypes(functionDeclarationStatement.Parameters, false))
                     {
-                        throw new Exception($"Function '{functionDeclarationStatement.Name}' already exists with overload ({string.Join(", ", function.Parameters.Select(p => p.TypeAnnotation.ToString() + " " + p.Name))})");
+                        throw ErrorHandler.CreateError($"Function '{functionDeclarationStatement.Name}' already exists with overload ({string.Join(", ", function.Parameters.Select(p => p.TypeAnnotation.ToString() + " " + p.Name))})", functionDeclarationStatement);
                     }
                 }
             }
