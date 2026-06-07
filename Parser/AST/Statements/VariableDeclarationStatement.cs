@@ -52,7 +52,7 @@ namespace CommonC.Parser.AST.Statements
             if (Expression != null)
             {
                 Builder.Append(" = ");
-                Builder.Append(Expression.PrettyPrint(indentLevel + 1));
+                Builder.Append(Expression.PrettyPrint(indentLevel));
             }
             Builder.Append(";");
             Builder.Append(Environment.NewLine);

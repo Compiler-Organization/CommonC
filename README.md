@@ -332,8 +332,10 @@ Performs an arithmetic operation on two expressions.
 * `-` - Subtraction.
 * `*` - Multiplication.
 * `/` - Division.
-* `^` - Power.
+* `**` - Power.
 * `%` - Modulus.
+* `<<` - Left bit shift.
+* `>>` - Right bit shift.
 ```
 <expr> <operator> <expr>
 ```
@@ -493,6 +495,17 @@ ___
 
 ## Assignment
 Assigns an expression to a local, global or property
+
+**Compound assignments** are also supported.
+* `+=` - Addition.
+* `-=` - Subtraction.
+* `*=` - Multiplication.
+* `/=` - Division.
+* `**=` - Power.
+* `%=` - Modulus.
+* `<<=` - Left bit shift.
+* `>>=` - Right bit shift.
+
 ```
 <expr> = <expr>
 ```

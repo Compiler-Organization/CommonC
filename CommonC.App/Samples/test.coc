@@ -1,8 +1,16 @@
 use Console
 
+struct Test {
+    i32 Ah,
+    i32 Beh
+}
 
 
 fn main() {
-    if() {
-        printl("He")
+    Test test = Test {
+        Ah: 5,
+        Beh: 15
     }
+
+    printl(test.Ah ** 3)
+}

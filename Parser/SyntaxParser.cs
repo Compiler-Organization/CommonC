@@ -364,6 +364,42 @@ namespace CommonC.Parser
             return false;
         }
 
+        /*
+         
+bool ParseSimpleExpression(out Expression expression)
+{
+    Expression result = true switch
+    {
+        _ when ParseNullExpression(out var expr)          => expr,
+        _ when ParseParenthesizedExpression(out var expr) => expr,
+        _ when ParseIdentifierExpression(out var expr)    => expr,
+        _ when ParseTypeExpression(out var expr)          => expr,
+        _ when ParseStringExpression(out var expr)        => expr,
+        _ when ParseCharacterExpression(out var expr)     => expr,
+        _ when ParseNumberExpression(out var expr)        => expr,
+        _ when ParseBooleanExpression(out var expr)       => expr,
+        _ when ParseArrayExpression(out var expr)         => expr,
+        _ when ParseLengthExpression(out var expr)        => expr,
+        _ when ParseNotExpression(out var expr)           => expr,
+        _ when ParseNegateExpression(out var expr)        => expr,
+        _ when ParseSizeOfExpression(out var expr)        => expr,
+        _                                                 => null
+    };
+
+    if (result != null)
+    {
+        result.YourProperty = yourValue; //
+        expression = result;
+        return true;
+    }
+
+    expression = null;
+    return false;
+}
+
+
+         */
+
 
         // -- Complex Expressions -- //
 
