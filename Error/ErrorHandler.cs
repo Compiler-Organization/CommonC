@@ -58,7 +58,7 @@ namespace CommonC.Error
             string fullCaretOutput = string.Join(Environment.NewLine, caretLines);
 
             string finalCaretLinePadding = new string(' ', caretLines[^1].TakeWhile(c => c == ' ').Count());
-            string messageOutput = $"{finalCaretLinePadding}{message}";
+            string messageOutput = $"{finalCaretLinePadding}{statement.FileName}: {message}";
 
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine(fullCodeOutput);
@@ -103,7 +103,7 @@ namespace CommonC.Error
             string fullCaretOutput = string.Join(Environment.NewLine, caretLines);
 
             string finalCaretLinePadding = new string(' ', caretLines[^1].TakeWhile(c => c == ' ').Count());
-            string messageOutput = $"{finalCaretLinePadding}{message}";
+            string messageOutput = $"{finalCaretLinePadding}{expression.FileName}: {message}";
 
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine(fullCodeOutput);

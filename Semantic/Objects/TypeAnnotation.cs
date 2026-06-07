@@ -17,6 +17,10 @@ namespace CommonC.Semantic.Objects
 
         public StructStatement Struct { get; set; }
 
+        public bool IsClass { get; set; }
+
+        public ClassStatement Class { get; set; }
+
         public bool IsArray { get; set; }
 
         public int ArrayDepth { get; set; }
@@ -34,6 +38,12 @@ namespace CommonC.Semantic.Objects
                     return false;
 
                 if (IsStruct && Struct.Name != typeAnnotation.Struct.Name)
+                    return false;
+
+                if (IsClass != typeAnnotation.IsClass)
+                    return false;
+
+                if (IsClass && Class.Name != typeAnnotation.Class.Name)
                     return false;
 
                 if (IsArray != typeAnnotation.IsArray)
@@ -68,12 +78,17 @@ namespace CommonC.Semantic.Objects
                     ReservedTypes.Ptr => LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),
                     _ => throw new InvalidOperationException($"Unsupported reserved type: {ReservedType}")
                 },
-                { IsStruct: true } => Struct.LLVMStructType,
+                //{ IsStruct: true } => Struct.LLVMStructType,
+                //{ IsClass: true } => Class.LLVMStructType,
+                { IsStruct: true } => LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),
+                { IsClass: true } => LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),
                 _ => throw new InvalidOperationException($"Type annotation does not have a valid LLVM type: {ToString()}")
             };
 
             return !destructArray && IsArray ? LLVMTypeRef.CreatePointer(baseType, 0) : baseType;
         }
+
+        public bool IsPointerType() => IsStruct || IsArray || IsClass;
 
         /// <summary>
         /// Creates a deep copy of the type annotation.
@@ -88,6 +103,8 @@ namespace CommonC.Semantic.Objects
                 ReservedType = ReservedType,
                 IsStruct = IsStruct,
                 Struct = Struct,
+                IsClass = IsClass,
+                Class = Class,
                 IsArray = IsArray,
                 ArrayDepth = ArrayDepth,
                 IsVariable = IsVariable
@@ -100,7 +117,7 @@ namespace CommonC.Semantic.Objects
         /// <returns></returns>
         public override string ToString()
         {
-            return $"{(IsReservedType ? ReservedType.ToString() : IsStruct ? Struct.Name : "Unknown")}{(IsArray ? string.Concat(Enumerable.Repeat("[]", ArrayDepth)) : "")}";
+            return $"{(IsReservedType ? ReservedType.ToString() : IsStruct ? Struct.Name : IsClass ? Class.Name : "<Unknown!>")}{(IsArray ? string.Concat(Enumerable.Repeat("[]", ArrayDepth)) : "")}";
         }
     }
 }

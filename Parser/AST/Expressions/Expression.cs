@@ -11,6 +11,8 @@ namespace CommonC.Parser.AST.Expressions
 
         public ulong Line { get; set; }
 
+        public string FileName { get; set; } = "unspecified";
+
         public abstract string PrettyPrint(int indentLevel = 0);
 
         /// <summary>

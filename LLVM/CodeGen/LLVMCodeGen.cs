@@ -8,6 +8,7 @@ using LLVMSharp;
 using LLVMSharp.Interop;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Text;
 using System.Xml.Linq;
 
@@ -170,9 +171,17 @@ namespace CommonC.LLVM.CodeGen
                 case IfStatement ifStatement:
                     EmitIfStatement(ifStatement, variables);
                     break;
+                case ClassStatement classStatement:
+                    EmitClassStatement(classStatement, variables);
+                    break;
                 default:
                     throw ErrorHandler.CreateError($"Unsupported statement type: {statement.GetType().Name}");
             }
+        }
+
+        void EmitClassStatement(ClassStatement classStatement, Variables variables)
+        {
+
         }
 
         void EmitIfStatement(IfStatement ifStatement, Variables variables)
@@ -387,7 +396,7 @@ namespace CommonC.LLVM.CodeGen
                         ? Builder.BuildAShr(currentValue, valueToStore, "compound.ashr")
                         : Builder.BuildLShr(currentValue, valueToStore, "compound.lshr"),
 
-                    AssignmentOperator.CompoundExp => throw ErrorHandler.CreateError("Exponentiation requires runtime library call (e.g., llvm.pow).", assignmentStatement),
+                    AssignmentOperator.CompoundExp => EmitPowerExpression(currentValue, valueToStore, currentValue.TypeOf),
 
                     _ => throw ErrorHandler.CreateError($"Unsupported or invalid compound assignment operator: {assignmentStatement.Operator}")
                 };
@@ -490,14 +499,21 @@ namespace CommonC.LLVM.CodeGen
             {
                 foreach (VariableDeclarationStatement parameter in functionDeclarationStatement.Body.Locals.Where(local => local.IsParameter))
                 {
-                    LLVMTypeRef parameterType = parameter.Type.TypeAnnotation.IsStruct 
-                        ? LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0) 
-                        : parameter.Type.TypeAnnotation.ToLLVMType();
+                    if(parameter.Type.TypeAnnotation.IsPointerType())
+                    {
+                        parameter.LLVMAlloca = CurrentFunction.LLVMFunction.GetParam((uint)parameter.ParameterIndex);
+                    }
+                    else
+                    {
+                        LLVMTypeRef parameterType = parameter.Type.TypeAnnotation.IsStruct
+                            ? LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0)
+                            : parameter.Type.TypeAnnotation.ToLLVMType();
 
-                    parameter.LLVMType = parameterType;
-                    parameter.LLVMAlloca = Builder.BuildAlloca(parameterType, $"{parameter.Name}.addr");
-                    Builder.BuildStore(CurrentFunction.LLVMFunction.GetParam((uint)parameter.ParameterIndex), parameter.LLVMAlloca);
-                    //parameter.LLVMAlloca = CurrentFunction.LLVMFunction.GetParam((uint)parameter.ParameterIndex);
+                        parameter.LLVMType = parameterType;
+                        parameter.LLVMAlloca = Builder.BuildAlloca(parameterType, $"{parameter.Name}.addr");
+                        Builder.BuildStore(CurrentFunction.LLVMFunction.GetParam((uint)parameter.ParameterIndex), parameter.LLVMAlloca);
+                    }
+                    
                 }
 
                 EmitStatements(functionDeclarationStatement.Body.Statements, functionDeclarationStatement.Body.Locals);
@@ -575,7 +591,7 @@ namespace CommonC.LLVM.CodeGen
 
                     if (val.TypeOf != globalType)
                     {
-                        val = CoerceType(val, globalType, "global.init.cast");
+                        val = CoerceType(val, globalType, "global.init.cast", variableDeclaration);
                     }
 
                     Builder.BuildStore(val, global);
@@ -608,36 +624,32 @@ namespace CommonC.LLVM.CodeGen
                 Builder.PositionAtEnd(entryBlock);
             }
 
-            LLVMValueRef allocaPtr = null;
-            if (variableDeclaration.Type.TypeAnnotation.IsStruct)
-            {
-                allocaPtr = Builder.BuildMalloc(varType, variableDeclaration.Name);
-                variableDeclaration.LLVMAlloca = allocaPtr;
-            }
-            else
-            {
-                allocaPtr = Builder.BuildAlloca(varType, variableDeclaration.Name);
-                variableDeclaration.LLVMAlloca = allocaPtr;
-            }
-
-            
-
             Builder.PositionAtEnd(currentBlock);
 
             if (variableDeclaration.Expression != null)
             {
                 LLVMValueRef initValue = EmitExpression(variableDeclaration.Expression, variables);
+                LLVMValueRef allocaPtr = null;
 
-                if (initValue.TypeOf != varType)
+                if (variableDeclaration.Type.TypeAnnotation.IsPointerType())
                 {
-                    initValue = CoerceType(initValue, varType, "local.init.cast");
+                    variableDeclaration.LLVMAlloca = initValue;
                 }
+                else
+                {
+                    if (initValue.TypeOf != varType)
+                    {
+                        initValue = CoerceType(initValue, varType, "local.init.cast", variableDeclaration);
+                    }
 
-                Builder.BuildStore(initValue, allocaPtr);
+                    allocaPtr = Builder.BuildAlloca(varType, variableDeclaration.Name);
+                    variableDeclaration.LLVMAlloca = allocaPtr;
+                    Builder.BuildStore(initValue, allocaPtr);
+                }
             }
         }
 
-        private LLVMValueRef CoerceType(LLVMValueRef value, LLVMTypeRef targetType, string name)
+        private LLVMValueRef CoerceType(LLVMValueRef value, LLVMTypeRef targetType, string name, object errorObject)
         {
             if (value.TypeOf == targetType)
             {
@@ -660,7 +672,7 @@ namespace CommonC.LLVM.CodeGen
                 return Builder.BuildLoad2(targetType, value, name);
             }
 
-            throw ErrorHandler.CreateError($"Implicit type conversion from {value.TypeOf} to {targetType} is unsupported."); // add errorObject to this method
+            throw ErrorHandler.CreateError($"Implicit type conversion from {value.TypeOf} to {targetType} is unsupported.", errorObject); // add errorObject to this method
         }
 
 
@@ -714,7 +726,14 @@ namespace CommonC.LLVM.CodeGen
             LLVMValueRef pointer = variable.LLVMAlloca;
             LLVMTypeRef valueType = variable.Type.TypeAnnotation.ToLLVMType();
 
-            return Builder.BuildLoad2(valueType, pointer, $"{identifierExpression.Name}_val");
+            if(variable.Type.TypeAnnotation.IsPointerType())
+            {
+                return pointer;
+            }
+            else
+            {
+                return Builder.BuildLoad2(valueType, pointer, $"{identifierExpression.Name}_val");
+            }
         }
 
         LLVMValueRef EmitArithmeticExpression(ArithmeticExpression arithmeticExpression, Variables variables)
@@ -1150,7 +1169,12 @@ namespace CommonC.LLVM.CodeGen
 
                 if (memberIdentifier != null)
                 {
-                    VariableDeclarationStatement field = currentStruct.GetField(memberIdentifier.Name);
+                    VariableDeclarationStatement? field = currentStruct.GetField(memberIdentifier.Name);
+
+                    if(field == null)
+                    {
+                        throw ErrorHandler.CreateError($"Field '{memberIdentifier.Name}' does not exist in struct '{currentStruct.Name}'", memberExpression);
+                    }
 
                     var indices = new LLVMValueRef[] {
                         LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0),
@@ -1258,7 +1282,8 @@ namespace CommonC.LLVM.CodeGen
                     }
                 }
 
-                return Builder.BuildLoad2(structType, structPtr, $"{identifier.Name.ToLower()}_val");
+                // return Builder.BuildLoad2(structType, structPtr, $"{identifier.Name.ToLower()}_val");
+                return structPtr;
             }
             throw ErrorHandler.CreateError("Unsupported object initializer syntax.", objectInitializerExpression);
         }

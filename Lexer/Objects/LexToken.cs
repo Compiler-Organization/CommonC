@@ -22,5 +22,10 @@ namespace CommonC.Lexer.Objects
         /// Line info
         /// </summary>
         public ulong Line { get; set; }
+
+        /// <summary>
+        /// The index of the token on the current line.
+        /// </summary>
+        public ulong IndexInLine { get; set; }
     }
 }

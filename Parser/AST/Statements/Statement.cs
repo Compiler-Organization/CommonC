@@ -10,8 +10,7 @@ namespace CommonC.Parser.AST.Statements
         public TypeAnnotation TypeAnnotation { get; set; } = new TypeAnnotation();
 
         public ulong Line { get; set; }
-
-        
+        public string FileName { get; set; } = "unspecified";
         public abstract string PrettyPrint(int indentLevel = 0);
 
         /// <summary>

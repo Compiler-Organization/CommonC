@@ -45,7 +45,7 @@ namespace CommonC.LLVM
         {
             if (File.Exists(Settings.MainFilePath))
             {
-                ClosureStatement closure = ParseText(File.ReadAllText(Settings.MainFilePath));
+                ClosureStatement closure = ParseText(File.ReadAllText(Settings.MainFilePath), Path.GetFileName(Settings.MainFilePath));
                 closure = ImportUseFiles(closure);
 
                 Console.WriteLine("Statements " + closure.Statements.PrettyPrint(0));
@@ -121,7 +121,7 @@ namespace CommonC.LLVM
                     if (File.Exists(filePath))
                     {
                         string fileContent = File.ReadAllText(filePath);
-                        ClosureStatement importedAST = ParseText(fileContent);
+                        ClosureStatement importedAST = ParseText(fileContent, Path.GetFileName(filePath));
 
                         importedFiles.Add(filePath);
                         closure.Statements.Remove(useStmt);
@@ -139,12 +139,12 @@ namespace CommonC.LLVM
         }
 
 
-        ClosureStatement ParseText(string code)
+        ClosureStatement ParseText(string code, string fileName)
         {
             LexicalAnalyser lexicalAnalyser = new LexicalAnalyser(code);
             LexTokenList lexTokens = lexicalAnalyser.Analyze();
 
-            SyntaxParser parser = new SyntaxParser(lexTokens);
+            SyntaxParser parser = new SyntaxParser(lexTokens, fileName);
 
             return parser.ParseLexTokenList();
         }

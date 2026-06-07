@@ -15,10 +15,13 @@ namespace CommonC.Parser
     public class SyntaxParser
     {
         LexTokenReader TokenReader { get; set; }
+        string FileName { get; set; } = "unspecified";
 
-        public SyntaxParser(LexTokenList lexTokenList)
+
+        public SyntaxParser(LexTokenList lexTokenList, string fileName = "")
         {
             TokenReader = new LexTokenReader(lexTokenList);
+            FileName = fileName;
         }
 
         // -- Expressions -- //
@@ -29,7 +32,7 @@ namespace CommonC.Parser
         {
             stringExpression = new StringExpression()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if(TokenReader.Expect(LexKinds.String))
@@ -45,7 +48,7 @@ namespace CommonC.Parser
         {
             characterExpression = new CharacterExpression()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if (TokenReader.Expect(LexKinds.Char))
@@ -60,7 +63,7 @@ namespace CommonC.Parser
         {
             numberExpression = new NumberExpression()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if (TokenReader.Expect(LexKinds.Number))
@@ -81,7 +84,7 @@ namespace CommonC.Parser
         {
             booleanExpression = new BooleanExpression()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if (TokenReader.Expect(LexKinds.Boolean))
@@ -98,7 +101,7 @@ namespace CommonC.Parser
         {
             identifierExpression = new IdentifierExpression()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if (TokenReader.Peek().Kind == LexKinds.Identifier)
@@ -113,7 +116,7 @@ namespace CommonC.Parser
         {
             typeExpression = new TypeExpression()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             switch(TokenReader.Peek().Value)
@@ -191,7 +194,7 @@ namespace CommonC.Parser
         {
             arrayExpression = new ArrayExpression()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
             if (TokenReader.Expect(LexKinds.BraceOpen))
             {
@@ -213,7 +216,7 @@ namespace CommonC.Parser
         {
             lengthExpression = new LengthExpression()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if(TokenReader.Expect(LexKinds.Hashtag))
@@ -237,7 +240,7 @@ namespace CommonC.Parser
         {
             parenthesizedExpression = new ParenthesizedExpression()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if(TokenReader.Expect(LexKinds.ParentheseOpen))
@@ -266,7 +269,7 @@ namespace CommonC.Parser
         {
             nullExpression = new NullExpression()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if(TokenReader.Expect(LexKinds.Keyword, "null"))
@@ -408,7 +411,7 @@ bool ParseSimpleExpression(out Expression expression)
             callExpression = new CallExpression()
             {
                 Expression = expression,
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if (TokenReader.Expect(LexKinds.ParentheseOpen))
@@ -433,7 +436,7 @@ bool ParseSimpleExpression(out Expression expression)
             arithmeticExpression = new ArithmeticExpression()
             {
                 Left = leftExpression,
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             var kind = TokenReader.Peek().Kind;
@@ -461,7 +464,7 @@ bool ParseSimpleExpression(out Expression expression)
             logicalExpression = new LogicalExpression()
             {
                 Left = leftExpression,
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             LexKinds arithmeticKind = TokenReader.Peek().Kind;
@@ -492,7 +495,7 @@ bool ParseSimpleExpression(out Expression expression)
             rangeExpression = new RangeExpression()
             {
                 Start = leftExpression,
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if (TokenReader.Expect(LexKinds.Range))
@@ -513,7 +516,7 @@ bool ParseSimpleExpression(out Expression expression)
             memberExpression = new MemberExpression()
             {
                 Parent = parentExpression,
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if (TokenReader.Expect(LexKinds.Dot))
@@ -540,7 +543,7 @@ bool ParseSimpleExpression(out Expression expression)
             indexExpression = new IndexExpression()
             {
                 Expression = expression,
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if (TokenReader.Expect(LexKinds.BracketOpen))
@@ -564,7 +567,7 @@ bool ParseSimpleExpression(out Expression expression)
             unpackExpression = new UnpackExpression()
             {
                 Left = leftExpression,
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if(TokenReader.Expect(LexKinds.Subtraction) && TokenReader.Expect(LexKinds.ChevronClose, 1))
@@ -585,7 +588,7 @@ bool ParseSimpleExpression(out Expression expression)
             relationalExpression = new RelationalExpression
             {
                 Left = leftExpression,
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             switch (TokenReader.Peek().Kind)
@@ -624,7 +627,7 @@ bool ParseSimpleExpression(out Expression expression)
         {
             parameterExpression = new ParameterExpression()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if(ParseTypeExpression(out TypeExpression typeExpression))
@@ -720,7 +723,7 @@ bool ParseSimpleExpression(out Expression expression)
             arrayInitializerExpression = new ArrayInitializerExpression() 
             {
                 Index = indexExpression,
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if(ParseArrayExpression(out ArrayExpression arrayExpression))
@@ -736,7 +739,7 @@ bool ParseSimpleExpression(out Expression expression)
         {
             notExpression = new NotExpression()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if(TokenReader.Expect(LexKinds.Exclamation))
@@ -760,7 +763,7 @@ bool ParseSimpleExpression(out Expression expression)
         {
             negateExpression = new NegateExpression()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if(TokenReader.Expect(LexKinds.Subtraction))
@@ -840,7 +843,7 @@ bool ParseSimpleExpression(out Expression expression)
         {
             sizeOfExpression = new SizeOfExpression()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if (TokenReader.Expect(LexKinds.Keyword, "sizeof"))
@@ -970,7 +973,7 @@ bool ParseSimpleExpression(out Expression expression)
         {
             closureStatement = new ClosureStatement()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if(TokenReader.Expect(LexKinds.BraceOpen))
@@ -996,7 +999,7 @@ bool ParseSimpleExpression(out Expression expression)
             callStatement = new CallStatement()
             {
                 Expression = expression,
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if (TokenReader.Expect(LexKinds.ParentheseOpen))
@@ -1021,7 +1024,7 @@ bool ParseSimpleExpression(out Expression expression)
             functionDeclarationStatement = new FunctionDeclarationStatement() 
             {
                 ReturnType = typeExpression,
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             functionDeclarationStatement.Name = nameExpression.Name;
@@ -1061,7 +1064,7 @@ bool ParseSimpleExpression(out Expression expression)
             {
                 Type = typeExpression,
                 Name = nameExpression.Name,
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
             if (TokenReader.Expect(LexKinds.Equals))
             {
@@ -1081,7 +1084,7 @@ bool ParseSimpleExpression(out Expression expression)
         {
             ifStatement = new IfStatement()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if (TokenReader.Expect(LexKinds.Keyword, "if"))
@@ -1117,7 +1120,7 @@ bool ParseSimpleExpression(out Expression expression)
                     {
                         IfStatement elseIfStatement = new IfStatement()
                         {
-                            Line = TokenReader.Peek().Line
+                            Line = TokenReader.Peek().Line, FileName = FileName
                         };
 
                         TokenReader.Skip(1);
@@ -1186,7 +1189,7 @@ bool ParseSimpleExpression(out Expression expression)
             assignmentStatement = new AssignmentStatement 
             { 
                 Variable = variable,
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             var peekedToken = TokenReader.Peek();
@@ -1214,7 +1217,7 @@ bool ParseSimpleExpression(out Expression expression)
         {
             forStatement = new ForStatement()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if (TokenReader.Expect(LexKinds.Keyword, "for"))
@@ -1249,7 +1252,7 @@ bool ParseSimpleExpression(out Expression expression)
                         Name = identifierExpression.Name,
                         Expression = new NumberExpression { Value = "0" },
                         Type = new TypeExpression { Type = ReservedTypes.I32 },
-                        Line = TokenReader.Peek().Line
+                        Line = TokenReader.Peek().Line, FileName = FileName
                     };
                 }
                 else
@@ -1279,7 +1282,7 @@ bool ParseSimpleExpression(out Expression expression)
         {
             returnStatement = new ReturnStatement()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
             if (TokenReader.Expect(LexKinds.Keyword, "return")
                 || TokenReader.Expect(LexKinds.Keyword, "ret"))
@@ -1298,7 +1301,7 @@ bool ParseSimpleExpression(out Expression expression)
         {
             whileStatement = new WhileStatement()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             }; ;
 
             if(TokenReader.Expect(LexKinds.Keyword, "while"))
@@ -1332,7 +1335,7 @@ bool ParseSimpleExpression(out Expression expression)
         {
             structStatement = new StructStatement()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if(TokenReader.Expect(LexKinds.Keyword, "struct"))
@@ -1394,11 +1397,38 @@ bool ParseSimpleExpression(out Expression expression)
             return false;
         }
 
+        bool ParseClassStatement(out ClassStatement classStatement)
+        {
+            classStatement = new ClassStatement()
+            {
+                Line = TokenReader.Peek().Line, FileName = FileName
+            };
+
+            if (TokenReader.Expect(LexKinds.Keyword, "class"))
+            {
+                TokenReader.Consume();
+                if (TokenReader.ExpectFatal(LexKinds.Identifier))
+                {
+                    classStatement.Name = TokenReader.Consume().Value;
+                }
+
+                if (ParseClosureStatement(out ClosureStatement closureStatement))
+                {
+                    classStatement.Body = closureStatement;
+                    return true;
+                }
+
+                throw ErrorHandler.CreateError("Could not parse body of class statement", classStatement);
+            }
+
+            return false;
+        }
+
         bool ParseUseStatement(out UseStatement useStatement)
         {
             useStatement = new UseStatement()
             {
-                Line = TokenReader.Peek().Line
+                Line = TokenReader.Peek().Line, FileName = FileName
             };
 
             if (TokenReader.Expect(LexKinds.Keyword, "use"))
@@ -1415,6 +1445,12 @@ bool ParseSimpleExpression(out Expression expression)
 
         bool ParseStatement(out Statement statement)
         {
+            if(ParseClassStatement(out ClassStatement classStatement))
+            {
+                statement = classStatement;
+                return true;
+            }
+
             if(ParseStructStatement(out StructStatement structStatement))
             {
                 statement = structStatement;

@@ -64,6 +64,7 @@ namespace CommonC.Lexer
 
             "extern",
             "null",
+            "class",
         };
 
         readonly Dictionary<string, LexKinds> Operators = new Dictionary<string, LexKinds>()
@@ -102,6 +103,7 @@ namespace CommonC.Lexer
             LexTokenList LexTokens = new LexTokenList();
             StringBuilder sb = new StringBuilder();
             ulong Line = 1;
+            ulong Character = 0;
 
             for (int i = 0; i < Input.Length; i++)
             {
@@ -373,6 +375,7 @@ namespace CommonC.Lexer
                                         i++;
                                     }
                                 }
+                                Line++;
                             }
                             break;
                         }

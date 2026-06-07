@@ -107,6 +107,18 @@ namespace CommonC.Semantic
                     continue;
                 }
 
+                if(statement is ClassStatement classStatement)
+                {
+                    foreach (VariableDeclarationStatement variableDeclarationStatement in classStatement.Body.Statements.OfType<VariableDeclarationStatement>())
+                    {
+                        classStatement.Body.Locals.Add(variableDeclarationStatement);
+                    }
+
+                    classStatement.Body.Locals.AddRange(variableDeclarationStatements);
+                    PassVariablesToInnerScope(classStatement.Body.Statements, classStatement.Body.Locals);
+                    continue;
+                }
+
                 if (statement is WhileStatement whileStatement)
                 {
                     foreach (VariableDeclarationStatement variableDeclarationStatement in whileStatement.Body.Statements.OfType<VariableDeclarationStatement>())

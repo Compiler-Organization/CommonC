@@ -1,16 +1,13 @@
 use Console
 
-struct Test {
-    i32 Ah,
-    i32 Beh
-}
+fn Change(i32[] t) {
+    t[1] = 42
+} 
 
+fn main {
+    i32[] test = i32[] {5, 10, 15}
 
-fn main() {
-    Test test = Test {
-        Ah: 5,
-        Beh: 15
-    }
+    Change(test)
 
-    printl(test.Ah ** 3)
+    printl(test)
 }
