@@ -160,8 +160,6 @@ namespace CommonC.LLVM.CodeGen
                 case AssignmentStatement assignmentStatement:
                     EmitAssignmentStatement(assignmentStatement, variables);
                     break;
-                case StructStatement structStatement:
-                    break;
                 case WhileStatement whileStatement:
                     EmitWhileStatement(whileStatement, variables);
                     break;
@@ -174,6 +172,12 @@ namespace CommonC.LLVM.CodeGen
                 case ClassStatement classStatement:
                     EmitClassStatement(classStatement, variables);
                     break;
+
+                case EnumStatement enumStatement:
+                    break;
+                case StructStatement structStatement:
+                    break;
+
                 default:
                     throw ErrorHandler.CreateError($"Unsupported statement type: {statement.GetType().Name}");
             }
@@ -974,7 +978,7 @@ namespace CommonC.LLVM.CodeGen
             {
                 IdentifierExpression id => variables.GetVariable(id.Name).LLVMAlloca,
                 IndexExpression index => EmitIndexExpressionAddress(index, variables),
-                MemberExpression mem => EmitMemberExpressionAddress(mem, variables),
+                MemberExpression member => EmitMemberExpressionAddress(member, variables),
 
                 _ => throw new NotSupportedException($"Expression type '{expression.GetType().Name}' is not a valid L-Value target.")
             };
@@ -1244,11 +1248,7 @@ namespace CommonC.LLVM.CodeGen
             LLVMValueRef fieldAddressPtr = EmitMemberExpressionAddress(memberExpression, variables);
             LLVMTypeRef expectedFieldType = memberExpression.TypeAnnotation.ToLLVMType();
 
-            return Builder.BuildLoad2(
-                expectedFieldType,
-                fieldAddressPtr,
-                "struct.member.load"
-            );
+            return fieldAddressPtr;
         }
 
 

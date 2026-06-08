@@ -65,6 +65,7 @@ namespace CommonC.Lexer
             "extern",
             "null",
             "class",
+            "enum",
         };
 
         readonly Dictionary<string, LexKinds> Operators = new Dictionary<string, LexKinds>()

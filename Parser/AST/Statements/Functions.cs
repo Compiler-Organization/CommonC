@@ -65,7 +65,7 @@ namespace CommonC.Parser.AST.Statements
             }
 
             FunctionDeclarationStatement? function = null;
-            foreach(FunctionDeclarationStatement functionDeclaration in functions)
+            foreach(FunctionDeclarationStatement functionDeclaration in functions) // TODO: Change up this so it properly respects default parameter assignments in functions
             {
                 if (arguments.Count == functionDeclaration.Parameters.Count 
                     && functionDeclaration.Parameters.MatchTypes(arguments, false))

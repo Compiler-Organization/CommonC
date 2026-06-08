@@ -1,4 +1,5 @@
-﻿using CommonC.Error;
+﻿using AsmResolver;
+using CommonC.Error;
 using CommonC.Lexer;
 using CommonC.Lexer.Objects;
 using CommonC.Parser.AST;
@@ -1443,8 +1444,109 @@ bool ParseSimpleExpression(out Expression expression)
             return false;
         }
 
+        bool ParseEnumStatement(out EnumStatement enumStatement)
+        {
+            enumStatement = new EnumStatement()
+            {
+                Line = TokenReader.Peek().Line,
+                FileName = FileName
+            };
+
+            if(TokenReader.Expect(LexKinds.Keyword, "enum"))
+            {
+                TokenReader.Consume();
+                if (ParseIdentifierExpression(out IdentifierExpression identifierExpression))
+                {
+                    enumStatement.Name = identifierExpression.Name;
+                }
+                else
+                {
+                    throw ErrorHandler.CreateError($"Could not parse name of enum, invalid syntax", enumStatement);
+                }
+
+                if (TokenReader.Expect(LexKinds.Colon))
+                {
+                    TokenReader.Consume();
+                    if(ParseTypeExpression(out TypeExpression typeExpression))
+                    {
+                        enumStatement.Type = typeExpression;
+                    }
+                    else
+                    {
+                        throw ErrorHandler.CreateError($"Could not parse type of enum, invalid syntax", enumStatement);
+                    }
+                }
+
+                TokenReader.ExpectFatal(LexKinds.BraceOpen);
+                TokenReader.Consume();
+
+                ulong index = 0;
+                for(; ; )
+                {
+                    if(ParseIdentifierExpression(out IdentifierExpression variantIdentifier))
+                    {
+                        EnumVariant variant = new EnumVariant
+                        {
+                            Name = variantIdentifier.Name
+                        };
+
+                        enumStatement.Variants.Add(variant);
+
+                        if (TokenReader.Expect(LexKinds.Colon))
+                        {
+                            TokenReader.Consume();
+                            if (ParseNumberExpression(out NumberExpression variantNumber))
+                            {
+                                variant.Expression = variantNumber;
+                                index = variantNumber.ToUlong();
+                                index++;
+                            }
+                        }
+                        else
+                        {
+                            variant.Expression = new NumberExpression
+                            {
+                                Value = index.ToString()
+                            };
+
+                            index++;
+                        }
+
+                        if (TokenReader.Expect(LexKinds.Comma))
+                        {
+                            TokenReader.Consume();
+                            continue;
+                        }
+
+                        break;
+                    }
+                }
+
+
+                TokenReader.ExpectFatal(LexKinds.BraceClose);
+                TokenReader.Consume();
+
+                return true;
+            }
+
+            return false;
+        }
+
+        enum Test : int
+        {
+            variant,
+            variant2 = 1000,
+            variant3,
+        }
+
         bool ParseStatement(out Statement statement)
         {
+            if(ParseEnumStatement(out EnumStatement enumStatement))
+            {
+                statement = enumStatement;
+                return true;
+            }
+
             if(ParseClassStatement(out ClassStatement classStatement))
             {
                 statement = classStatement;

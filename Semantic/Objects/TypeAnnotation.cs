@@ -10,20 +10,24 @@ namespace CommonC.Semantic.Objects
     public class TypeAnnotation
     {
         public bool IsReservedType { get; set; }
-
         public ReservedTypes ReservedType { get; set; }
 
-        public bool IsStruct { get; set; }
 
+        public bool IsStruct { get; set; }
         public StructStatement Struct { get; set; }
 
-        public bool IsClass { get; set; }
 
+        public bool IsClass { get; set; }
         public ClassStatement Class { get; set; }
 
-        public bool IsArray { get; set; }
 
+        public bool IsEnum { get; set; }
+        public EnumStatement Enum { get; set; }
+
+
+        public bool IsArray { get; set; }
         public int ArrayDepth { get; set; }
+
 
         public bool IsVariable { get; set; } = false;
 
@@ -117,7 +121,7 @@ namespace CommonC.Semantic.Objects
         /// <returns></returns>
         public override string ToString()
         {
-            return $"{(IsReservedType ? ReservedType.ToString() : IsStruct ? Struct.Name : IsClass ? Class.Name : "<Unknown!>")}{(IsArray ? string.Concat(Enumerable.Repeat("[]", ArrayDepth)) : "")}";
+            return $"{(IsReservedType ? ReservedType.ToString() : IsStruct ? Struct.Name : IsClass ? Class.Name : IsEnum ? Enum.Name : "<Unknown!>")}{(IsArray ? string.Concat(Enumerable.Repeat("[]", ArrayDepth)) : "")}";
         }
     }
 }

@@ -1,77 +1,31 @@
 use Console
-use Strings
-use GDIDataStructures
+use Graphics
 
-
-
-ptr WindowProc(ptr hWnd, i32 Msg, i32 wParam, i32 lParam) {
-    if Msg == 16 {
-        DestroyWindow@4(hWnd)
-        return null
-    }
-    if Msg == 2 {
-        return null
-    }
-
-    return DefWindowProcA@16(hWnd, Msg, wParam, lParam)
+enum Test : i32 {
+    value1,
+    value2: 50,
+    value3
 }
 
-fn GenCircle {
-    i32 screenWidth = 800
-    i32 screenHeight = 600
-
-    ptr hInstance = GetModuleHandleA@4(null)
-
-    str className = "Circle window"
-    str titleName = "Circle window"
-
-    ptr blackBrush = GetStockObject@4(4)
-
-    WNDCLASSEXA wndClassPtr = WNDCLASSEXA {
-        cbSize: 48,
-        style: 3,
-        lpfnWndProc: WindowProc,
-        cbClsExtra: 0,
-        cbWndExtra: 0,
-        hInstance: hInstance,
-        hIcon: null,
-        hCursor: null,
-        hbrBackground: blackBrush,
-        lpszMenuName: null,
-        lpszClassName: className,
-        hIconSm: null
+fn main {
+    Window window = Window {
+        Title: "Test",
+        ClassName: "Test",
+        Width: 500,
+        Height: 500
     }
 
-    i16 classAtom = RegisterClassExA@4(wndClassPtr)
-    printl(Concat("Class Atom: ", ToString(classAtom)))
-    
-    i32 windowStyle = 268435456 + 13565952
-
-    ptr windowHandle = CreateWindowExA@48(
-        0, 
-        className, 
-        titleName, 
-        windowStyle, 
-        100, 100, screenWidth, screenHeight, 
-        null, null, hInstance, null
-    )
-
-    printl(I32ToString(IsWindow@4(windowHandle)))
-
-    ShowWindow@8(windowHandle, 1)
-    UpdateWindow@4(windowHandle)
-
-    ptr hdc = GetDC@4(windowHandle)
+    CreateWindow(window)
 
     MSG msg = MSG {}
 
-    printl(I32ToString(IsWindow@4(windowHandle)))
+    printl(ToString(IsWindow@4(window.WindowHandle)))
 
     i32 UpDownModulation = 0
     i32 LeftRightModulation = 0
     i32 Step = 25
 
-    while IsWindow@4(windowHandle) > 0 
+    while WindowExists(window)
     {
         
         i16 escState = GetAsyncKeyState@4(27)
@@ -84,34 +38,34 @@ fn GenCircle {
 
             if(key == 40)
             {
-                UpDownModulation = UpDownModulation + Step
+                UpDownModulation += Step
             }
 
             if(key == 38)
             {
-                UpDownModulation = UpDownModulation - Step
+                UpDownModulation -= Step
             }
 
             if(key == 39)
             {
-                LeftRightModulation = LeftRightModulation + Step
+                LeftRightModulation += Step
             }
 
             if(key == 37)
             {
-                LeftRightModulation = LeftRightModulation - Step
+                LeftRightModulation -= Step
             }
 
         }
 
         if !(escState == 0) {
-            DestroyWindow@4(windowHandle)
+            DestroyWindow@4(window.WindowHandle)
             break
         }
 
-        Ellipse@20(hdc, 250 + LeftRightModulation, 150 + UpDownModulation, 550 + LeftRightModulation, 450 + UpDownModulation)
+        Ellipse@20(window.Device, 250 + LeftRightModulation, 150 + UpDownModulation, 550 + LeftRightModulation, 450 + UpDownModulation)
     }
 
-    ReleaseDC@8(windowHandle, hdc)
+    ReleaseDC@8(window.WindowHandle, window.Device)
     printl("Window closed cleanly. Program exit.")
 }

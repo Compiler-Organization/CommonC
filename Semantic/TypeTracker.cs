@@ -6,6 +6,7 @@ using CommonC.Semantic.Objects;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.Serialization;
 using System.Text;
 
 namespace CommonC.Semantic
@@ -15,6 +16,8 @@ namespace CommonC.Semantic
         Dictionary<string, StructStatement> Structs = new Dictionary<string, StructStatement>();
     
         Dictionary<string, ClassStatement> Classes = new Dictionary<string, ClassStatement>();
+
+        Dictionary<string, EnumStatement> Enums = new Dictionary<string, EnumStatement>();
 
         Functions Functions = new Functions();
 
@@ -83,6 +86,11 @@ namespace CommonC.Semantic
                         IsClass = true,
                         Class = classStatement
                     };
+                }
+
+                if (Enums.TryGetValue(name, out var enumStatement))
+                {
+                    return expression.TypeAnnotation = enumStatement.TypeAnnotation;
                 }
 
                 if (variables?.Contains(name) == true)
@@ -281,6 +289,7 @@ namespace CommonC.Semantic
                 ExpressionList memberChain = memberExpression.Flatten();
                 StructStatement? currentStruct = null;
                 ClassStatement? currentClass = null;
+
                 bool isStruct = false;
 
                 if (memberChain.Count <= 0)
@@ -291,7 +300,8 @@ namespace CommonC.Semantic
                 memberChain.First().TypeAnnotation = ResolveTypeFromExpression(memberChain.First(), variables);
 
                 if(!memberChain.First().TypeAnnotation.IsStruct
-                    && !memberChain.First().TypeAnnotation.IsClass)
+                    && !memberChain.First().TypeAnnotation.IsClass
+                    && !memberChain.First().TypeAnnotation.IsEnum)
                 {
                     throw ErrorHandler.CreateError($"First member ({memberChain.First().PrettyPrint()}) must be of struct / class type, but was of type {memberChain.First().TypeAnnotation}", memberExpression);
                 }
@@ -315,6 +325,8 @@ namespace CommonC.Semantic
                     {
                         throw ErrorHandler.CreateError($"Could not resolve inner identifier expression for member in member expression when resolving type from member expression.", memberExpression);
                     }
+
+                    Console.WriteLine("------------------------------------" + member.ToString() + " ---- " + member.TypeAnnotation.ToString());
 
                     VariableDeclarationStatement? field = isStruct 
                         ? currentStruct.GetField(memberIdentifier.Name) 
@@ -441,6 +453,12 @@ namespace CommonC.Semantic
                 Classes.Add(classStatement.Name, classStatement);
             }
 
+            List<EnumStatement> enums = closure.Statements.OfType<EnumStatement>().ToList();
+            foreach(EnumStatement enumStatement in enums)
+            {
+                Enums.Add(enumStatement.Name, enumStatement);
+            }
+
             List<FunctionDeclarationStatement> functionDeclarationStatements = closure.Statements.OfType<FunctionDeclarationStatement>().ToList();
             foreach (FunctionDeclarationStatement functionDeclarationStatement in functionDeclarationStatements)
             {
@@ -459,9 +477,9 @@ namespace CommonC.Semantic
             }
         }
 
-        void TrackTypeForExpression(Expression expression, Variables variables)
+        TypeAnnotation TrackTypeForExpression(Expression expression, Variables variables)
         {
-            expression.TypeAnnotation = ResolveTypeFromExpression(expression, variables);
+            return expression.TypeAnnotation = ResolveTypeFromExpression(expression, variables);
         }
 
         void TrackTypeForExpressions(List<Expression> expressions, Variables variables)
@@ -568,6 +586,29 @@ namespace CommonC.Semantic
             if(statement is ClassStatement classStatement)
             {
                 TrackStatements(classStatement.Body);
+                return;
+            }
+            if(statement is EnumStatement enumStatement)
+            {
+                if(enumStatement.Type == null)
+                {
+                    enumStatement.TypeAnnotation = new TypeAnnotation
+                    {
+                        IsReservedType = true,
+                        ReservedType = ReservedTypes.I32,
+
+                        IsEnum = true,
+                        Enum = enumStatement
+                    };
+                }
+                else
+                {
+                    TypeAnnotation enumAnnotation = TrackTypeForExpression(enumStatement.Type, variables).Copy();
+                    enumAnnotation.IsEnum = true;
+                    enumAnnotation.Enum = enumStatement;
+
+                    enumStatement.TypeAnnotation = enumAnnotation;
+                }
                 return;
             }
 
