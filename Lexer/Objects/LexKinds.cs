@@ -207,6 +207,16 @@ namespace CommonC.Lexer.Objects
         RightShift,
 
         /// <summary>
+        /// <para>E.g '&amp;'</para>
+        /// </summary>
+        BitwiseAnd,
+
+        /// <summary>
+        /// E.g '|'
+        /// </summary>
+        BitwiseOr,
+
+        /// <summary>
         /// E.g '..'
         /// </summary>
         Range,
@@ -257,14 +267,24 @@ namespace CommonC.Lexer.Objects
         CompoundRightShift,
 
         /// <summary>
+        /// E.g '&amp;='
+        /// </summary>
+        CompoundBitwiseAnd,
+
+        /// <summary>
+        /// E.g '|='
+        /// </summary>
+        CompoundBitwiseOr,
+
+        /// <summary>
         /// E.g 'and'
         /// </summary>
-        And,
+        LogicalAnd,
 
         /// <summary>
         /// E.g 'or'
         /// </summary>
-        Or,
+        LogicalOr,
 
         /// <summary>
         /// E.g '...'

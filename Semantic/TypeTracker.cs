@@ -21,7 +21,9 @@ namespace CommonC.Semantic
 
         Functions Functions = new Functions();
 
-        TypeAnnotation ResolveTypeFromExpression(Expression expression, Variables? variables)
+        ClassStatement? CurrentClass { get; set; }
+
+        TypeAnnotation ResolveTypeFromExpression(Expression expression, Variables? variables, bool isType = true)
         {
             if (expression is StringExpression)
             {
@@ -110,6 +112,15 @@ namespace CommonC.Semantic
                     return expression.TypeAnnotation = ResolveTypeFromExpression(function.ReturnType, variables);
                 }
 
+                if(CurrentClass != null && name == "this")
+                {
+                    return expression.TypeAnnotation = new TypeAnnotation
+                    {
+                        IsClass = true,
+                        Class = CurrentClass
+                    };
+                }
+
                 throw ErrorHandler.CreateError($"'{name}' does not exist in the current context.", identifierExpression);
             }
             if (expression is CallExpression callExpression)
@@ -140,10 +151,13 @@ namespace CommonC.Semantic
 
                 TypeAnnotation indexTypeAnnotation = ResolveTypeFromExpression(indexExpression.Expression, variables).Copy();
 
-                indexTypeAnnotation.IsArray = true;
+                if(isType)
+                {
+                    indexTypeAnnotation.IsArray = true;
+                }
                 indexTypeAnnotation.ArrayDepth += indexTypeAnnotation.IsVariable ? 0 : 1;
 
-                return indexExpression.TypeAnnotation = indexTypeAnnotation;
+                return expression.TypeAnnotation = indexTypeAnnotation;
             }
             if (expression is NotExpression notExpression)
             {
@@ -164,7 +178,12 @@ namespace CommonC.Semantic
             if (expression is RelationalExpression relationalExpression)
             {
                 ResolveTypeFromExpression(relationalExpression.Right, variables);
-                return expression.TypeAnnotation = ResolveTypeFromExpression(relationalExpression.Left, variables);
+                ResolveTypeFromExpression(relationalExpression.Left, variables);
+                return expression.TypeAnnotation = new TypeAnnotation
+                {
+                    IsReservedType = true,
+                    ReservedType = ReservedTypes.Bool
+                };
             }
             if (expression is ArithmeticExpression arithmeticExpression)
             {
@@ -179,7 +198,8 @@ namespace CommonC.Semantic
             if (expression is ArrayInitializerExpression arrayInitializerExpression)
             {
                 ResolveTypeFromExpression(arrayInitializerExpression.Array, variables);
-                return expression.TypeAnnotation = ResolveTypeFromExpression(arrayInitializerExpression.Index, variables);
+                TypeAnnotation indexAnnotation = ResolveTypeFromExpression(arrayInitializerExpression.Index, variables, true);
+                return expression.TypeAnnotation = indexAnnotation;
             }
             if(expression is ArrayExpression arrayExpression)
             {
@@ -289,6 +309,7 @@ namespace CommonC.Semantic
                 ExpressionList memberChain = memberExpression.Flatten();
                 StructStatement? currentStruct = null;
                 ClassStatement? currentClass = null;
+                EnumStatement? currentEnum = null;
 
                 bool isStruct = false;
 
@@ -297,23 +318,28 @@ namespace CommonC.Semantic
                     throw ErrorHandler.CreateError("Invalid member expression when solving type, member chain contained 0 members!", memberExpression);
                 }
 
-                memberChain.First().TypeAnnotation = ResolveTypeFromExpression(memberChain.First(), variables);
+                TypeAnnotation firstMemberAnnotation = memberChain.First().TypeAnnotation = ResolveTypeFromExpression(memberChain.First(), variables);
 
-                if(!memberChain.First().TypeAnnotation.IsStruct
-                    && !memberChain.First().TypeAnnotation.IsClass
-                    && !memberChain.First().TypeAnnotation.IsEnum)
+                if(!firstMemberAnnotation.IsStruct
+                    && !firstMemberAnnotation.IsClass
+                    && !firstMemberAnnotation.IsEnum)
                 {
-                    throw ErrorHandler.CreateError($"First member ({memberChain.First().PrettyPrint()}) must be of struct / class type, but was of type {memberChain.First().TypeAnnotation}", memberExpression);
+                    throw ErrorHandler.CreateError($"First member ({memberChain.First().PrettyPrint()}) must be of struct / class type, but was of type {firstMemberAnnotation}", memberExpression);
                 }
 
-                if(memberChain.First().TypeAnnotation.IsStruct)
+                if(firstMemberAnnotation.IsStruct)
                 {
-                    currentStruct = memberChain.First().TypeAnnotation.Struct;
+                    currentStruct = firstMemberAnnotation.Struct;
                     isStruct = true;
                 }
-                else if (memberChain.First().TypeAnnotation.IsClass)
+                else if (firstMemberAnnotation.IsClass)
                 {
-                    currentClass = memberChain.First().TypeAnnotation.Class;
+                    currentClass = firstMemberAnnotation.Class;
+                    isStruct = false;
+                }
+                else if (firstMemberAnnotation.IsEnum)
+                {
+                    currentEnum = firstMemberAnnotation.Enum;
                     isStruct = false;
                 }
 
@@ -326,11 +352,17 @@ namespace CommonC.Semantic
                         throw ErrorHandler.CreateError($"Could not resolve inner identifier expression for member in member expression when resolving type from member expression.", memberExpression);
                     }
 
-                    Console.WriteLine("------------------------------------" + member.ToString() + " ---- " + member.TypeAnnotation.ToString());
-
-                    VariableDeclarationStatement? field = isStruct 
+                    VariableDeclarationStatement? field = isStruct
                         ? currentStruct.GetField(memberIdentifier.Name) 
-                        : currentClass.GetField(memberIdentifier.Name);
+                        : firstMemberAnnotation.IsClass
+                        ? currentClass.GetField(memberIdentifier.Name)
+                        : null;
+
+                    if(field == null && firstMemberAnnotation.IsEnum)
+                    {
+                        member.TypeAnnotation = currentEnum.TypeAnnotation;
+                        return expression.TypeAnnotation = member.TypeAnnotation;
+                    }
 
                     Expression? type = null;
 
@@ -344,6 +376,19 @@ namespace CommonC.Semantic
                         if(func == null)
                         {
                             throw ErrorHandler.CreateError($"'{memberIdentifier.Name}' does not exist in class {currentClass.Name}", memberExpression);
+                        }
+
+                        if(func.ReturnType.TypeAnnotation.IsStruct)
+                        {
+                            currentStruct = func.ReturnType.TypeAnnotation.Struct;
+                            isStruct = true;
+
+                            if(memberChain.IsLast(member))
+                            {
+                                return expression.TypeAnnotation = func.ReturnType.TypeAnnotation;
+                            }
+
+                            continue;
                         }
 
                         type = func.ReturnType;
@@ -477,9 +522,9 @@ namespace CommonC.Semantic
             }
         }
 
-        TypeAnnotation TrackTypeForExpression(Expression expression, Variables variables)
+        TypeAnnotation TrackTypeForExpression(Expression expression, Variables variables, bool isType = true)
         {
-            return expression.TypeAnnotation = ResolveTypeFromExpression(expression, variables);
+            return expression.TypeAnnotation = ResolveTypeFromExpression(expression, variables, isType);
         }
 
         void TrackTypeForExpressions(List<Expression> expressions, Variables variables)
@@ -502,7 +547,7 @@ namespace CommonC.Semantic
         {
             if (statement is FunctionDeclarationStatement functionDeclarationStatement)
             {
-                TrackTypeForExpression(functionDeclarationStatement.ReturnType, variables);
+                TrackTypeForExpression(functionDeclarationStatement.ReturnType, variables, true);
                 TrackTypeForParameters(functionDeclarationStatement.Parameters, variables);
 
                 if (functionDeclarationStatement.Body != null)
@@ -533,12 +578,21 @@ namespace CommonC.Semantic
             }
             if (statement is VariableDeclarationStatement variableDeclarationStatement)
             {
-                TrackTypeForExpression(variableDeclarationStatement.Type, variables);
+                TypeAnnotation variableTypeAnnotation = TrackTypeForExpression(variableDeclarationStatement.Type, variables, true);
 
                 if (variableDeclarationStatement.Expression != null)
-                    TrackTypeForExpression(variableDeclarationStatement.Expression, variables);
+                {
+                    TypeAnnotation valueAnnotation = TrackTypeForExpression(variableDeclarationStatement.Expression, variables);
 
-                variableDeclarationStatement.TypeAnnotation = variableDeclarationStatement.Type.TypeAnnotation;
+                    Console.WriteLine(variableTypeAnnotation.ToString() + " " + variableDeclarationStatement.Name + " = " + valueAnnotation.ToString());
+                    // Its actually quite a lot nicer to not have type checking here, as it allows you to do more hacky stuff.
+                    //if (!variableTypeAnnotation.Match(valueAnnotation, false))
+                    //{
+                    //    throw ErrorHandler.CreateError($"Cannot assign value of type '{valueAnnotation.ToString()}' to variable of type '{variableTypeAnnotation.ToString()}'", variableDeclarationStatement);
+                    //}
+                }
+
+                variableDeclarationStatement.TypeAnnotation = variableTypeAnnotation;
                 return;
             }
             if (statement is AssignmentStatement assignmentStatement)
@@ -565,7 +619,7 @@ namespace CommonC.Semantic
             {
                 foreach (VariableDeclarationStatement field in structStatement.Fields)
                 {
-                    TrackTypeForExpression(field.Type, variables);
+                    TrackTypeForExpression(field.Type, variables, true);
                     field.TypeAnnotation = field.Type.TypeAnnotation;
                 }
                 return;
@@ -585,7 +639,9 @@ namespace CommonC.Semantic
             }
             if(statement is ClassStatement classStatement)
             {
+                CurrentClass = classStatement;
                 TrackStatements(classStatement.Body);
+                CurrentClass = null;
                 return;
             }
             if(statement is EnumStatement enumStatement)

@@ -1,0 +1,127 @@
+struct BigInt {
+    i32[200] digits,
+    i32 length,
+    i32 isNegative
+}
+
+// Initializes a BigInt from a standard primitive i64
+BigInt CreateBigInt(i64 value) {
+    BigInt result = BigInt { 
+        digits: i32[200] {}, 
+        length: 0, 
+        isNegative: 0 
+    }
+    
+    i32 isZero = 0
+    if (value == 0) {
+        isZero = 1
+    }
+    
+    if (isZero == 1) {
+        result.digits[0] = 0
+        result.length = 1
+        return result
+    }
+
+    i64 temp = value
+    if (value < 0) {
+        result.isNegative = 1
+        temp = -value
+    }
+
+    i32 idx = 0
+    i32 process = 1
+    while (process == 1) {
+        i64 digit = temp % 10
+        result.digits[idx] = digit
+        idx = idx + 1
+        temp = temp / 10
+        
+        i32 done = 0
+        if (temp == 0) {
+            done = 1
+        }
+        if (done == 1) {
+            process = 0
+        }
+    }
+    
+    result.length = idx
+    return result
+}
+
+// Add two BigInt structures together (Absolute value addition)
+BigInt AbsoluteAdd(BigInt a, BigInt b) {
+    BigInt result = BigInt { 
+        digits: i32[200] {}, 
+        length: 0, 
+        isNegative: 0 
+    }
+    
+    i32 carry = 0
+    i32 i = 0
+    i32 process = 1
+    
+    while (process == 1) {
+        i32 digitA = 0
+        if (i < a.length) {
+            digitA = a.digits[i]
+        }
+        
+        i32 digitB = 0
+        if (i < b.length) {
+            digitB = b.digits[i]
+        }
+        
+        i32 sum = digitA + digitB + carry
+        result.digits[i] = sum % 10
+        carry = sum / 10
+        
+        i = i + 1
+        
+        i32 stopSign = 0
+        if (i >= a.length) {
+            if (i >= b.length) {
+                if (carry == 0) {
+                    stopSign = 1
+                }
+            }
+        }
+        
+        if (stopSign == 1) {
+            process = 0
+        }
+    }
+    
+    result.length = i
+    return result
+}
+
+// High-level wrapper management handling signed addition operations
+BigInt BigIntAdd(BigInt a, BigInt b) {
+    i32 signsMatch = 0
+    if (a.isNegative == b.isNegative) {
+        signsMatch = 1
+    }
+    
+    if (signsMatch == 1) {
+        BigInt res = AbsoluteAdd(a, b)
+        res.isNegative = a.isNegative
+        return res
+    }
+
+    return a
+}
+
+// Prints the underlying BigInt structure back onto standard output
+fn PrintBigInt(BigInt val) {
+    if (val.isNegative == 1) {
+        print("-")
+    }
+    
+    i32 idx = val.length - 1
+    for idx..-1, i {
+        print(val.digits[i])
+    }
+    printl("")
+}

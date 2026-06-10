@@ -53,6 +53,12 @@ namespace CommonC.Parser.AST.Statements
                 case AssignmentOperator.CompoundRightShift:
                     Builder.Append(" >>= ");
                     break;
+                case AssignmentOperator.CompoundBitwiseAnd:
+                    Builder.Append(" &= ");
+                    break;
+                case AssignmentOperator.CompoundBitwiseOr:
+                    Builder.Append(" |= ");
+                    break;
             }
             Builder.Append(Expression.PrettyPrint());
             Builder.Append(";");
@@ -74,5 +80,7 @@ namespace CommonC.Parser.AST.Statements
         CompoundExp = LexKinds.CompoundExp,
         CompoundLeftShift = LexKinds.CompoundLeftShift,
         CompoundRightShift = LexKinds.CompoundRightShift,
+        CompoundBitwiseAnd = LexKinds.CompoundBitwiseAnd,
+        CompoundBitwiseOr = LexKinds.CompoundBitwiseOr,
     }
 }

@@ -21,7 +21,7 @@ namespace CommonC.Parser.AST.Statements
         /// <param name="fieldName"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public VariableDeclarationStatement? GetField(string fieldName)
+        public VariableDeclarationStatement GetField(string fieldName)
         {
             return Fields.GetVariable(fieldName);
         }

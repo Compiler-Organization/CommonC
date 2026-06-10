@@ -7,7 +7,7 @@ enum Test : i32 {
     value3
 }
 
-fn main {
+fn GraphicsCircle {
     Window window = Window {
         Title: "Test",
         ClassName: "Test",
@@ -18,8 +18,6 @@ fn main {
     CreateWindow(window)
 
     MSG msg = MSG {}
-
-    printl(ToString(IsWindow@4(window.WindowHandle)))
 
     i32 UpDownModulation = 0
     i32 LeftRightModulation = 0

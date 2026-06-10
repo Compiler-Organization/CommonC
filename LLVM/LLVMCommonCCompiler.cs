@@ -84,7 +84,7 @@ namespace CommonC.LLVM
                 ProcessStartInfo clang = new ProcessStartInfo()
                 {
                     FileName = @".\\Llvm\\bin\\clang.exe",
-                    Arguments = $"\"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.ll\" -luser32 -lgdi32 -O3 -o \"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.exe\"",
+                    Arguments = $"\"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.ll\" -luser32 -lgdi32 -ladvapi32 -O3 -o \"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.exe\"",
                 };
 
                 Process.Start(clang).WaitForExit();
@@ -109,8 +109,7 @@ namespace CommonC.LLVM
 
                 foreach (UseStatement useStmt in pendingUses)
                 {
-                    string fileName = useStmt.Identifier.Name;
-                    string filePath = Path.Combine(Settings.WorkingDirectory, $"{fileName}.coc");
+                    string filePath = Path.Combine(Settings.WorkingDirectory, $"{useStmt.Identifier.Name}.coc");
 
                     if (importedFiles.Contains(filePath))
                     {
@@ -120,8 +119,7 @@ namespace CommonC.LLVM
 
                     if (File.Exists(filePath))
                     {
-                        string fileContent = File.ReadAllText(filePath);
-                        ClosureStatement importedAST = ParseText(fileContent, Path.GetFileName(filePath));
+                        ClosureStatement importedAST = ParseText(File.ReadAllText(filePath), Path.GetFileName(filePath));
 
                         importedFiles.Add(filePath);
                         closure.Statements.Remove(useStmt);

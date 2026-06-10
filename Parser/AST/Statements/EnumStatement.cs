@@ -1,4 +1,5 @@
-﻿using CommonC.Parser.AST.Expressions;
+﻿using CommonC.Error;
+using CommonC.Parser.AST.Expressions;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -12,6 +13,9 @@ namespace CommonC.Parser.AST.Statements
         public Expression? Type { get; set; }
 
         public List<EnumVariant> Variants = new List<EnumVariant>();
+
+        public EnumVariant GetVariant(string name)
+            => Variants.FirstOrDefault(v => v.Name == name) ?? throw ErrorHandler.CreateError($"Variant '{name}' does not exist in enum '{Name}'", this);
 
         public override string PrettyPrint(int indentLevel = 0)
         {

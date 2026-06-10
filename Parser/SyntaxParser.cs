@@ -418,11 +418,15 @@ bool ParseSimpleExpression(out Expression expression)
             if (TokenReader.Expect(LexKinds.ParentheseOpen))
             {
                 TokenReader.Consume();
+                if (TokenReader.Expect(LexKinds.ParentheseClose))
+                {
+                    TokenReader.Consume();
+                    return true;
+                }
                 if (ParseExpressions(out ExpressionList expressionList))
                 {
                     callExpression.Arguments = expressionList;
                 }
-
                 if (TokenReader.ExpectFatal(LexKinds.ParentheseClose))
                 {
                     TokenReader.Consume();
@@ -471,8 +475,8 @@ bool ParseSimpleExpression(out Expression expression)
             LexKinds arithmeticKind = TokenReader.Peek().Kind;
             switch (arithmeticKind)
             {
-                case LexKinds.And:
-                case LexKinds.Or:
+                case LexKinds.LogicalAnd:
+                case LexKinds.LogicalOr:
                     logicalExpression.Operator = (LogicalOperator)arithmeticKind;
                     break;
 
@@ -526,9 +530,13 @@ bool ParseSimpleExpression(out Expression expression)
                 
                 if (ParseSimpleExpression(out Expression childExpression))
                 {
-                    while (ParseIndexExpression(childExpression, out IndexExpression indexExpression))
+                    if (ParseIndexExpression(childExpression, out IndexExpression indexExpression))
                     {
                         childExpression = indexExpression;
+                    }
+                    if (ParseCallExpression(childExpression, out CallExpression callExpression))
+                    {
+                        childExpression = callExpression;
                     }
 
                     memberExpression.Member = childExpression;
@@ -1599,6 +1607,28 @@ bool ParseSimpleExpression(out Expression expression)
 
             if (ParseExpression(out Expression expression, true))
             {
+                // TODO: Find a better solution for this, as this will build a, for example, person.EmitName()() instead of person.EmitName()
+                // The main issue for now is calling class functions as statements without having to write an entirely new member resolution function inside the EmitCallStatement parts in the LLVM emitter.
+                // Currently member calls as expressions works, though i want member call statements to work like this aswell.
+                // See EmitMemberExpressionAddress in LLVMCodeGen to see what im talking about.
+                if(expression is MemberExpression memberExpression)
+                {
+                    ExpressionList flattenedMembers = memberExpression.Flatten();
+                    if (flattenedMembers.Last() is CallExpression callExpression)
+                    {
+                        statement = new CallStatement()
+                        {
+                            Expression = memberExpression,
+                            Arguments = callExpression.Arguments,
+                            FileName = callExpression.FileName,
+                            Line = callExpression.Line,
+                            TypeAnnotation = callExpression.TypeAnnotation
+                        };
+
+                        return true;
+                    }
+                }
+
                 if(ParseCallStatement(expression, out CallStatement callStatement))
                 {
                     statement = callStatement;

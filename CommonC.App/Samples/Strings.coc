@@ -5,14 +5,12 @@ use DataConversion
 // Returns the length of a null-terminated string.
 i32 GetStringLength(str strBuffer) {
     i32 length = 0;
-    while (true) {
-            if strBuffer[length] == 0 {
-                    return length;
-            }
-            length = length + 1;
+    while !(strBuffer[length] == 0) {
+        length = length + 1;
     }
     return length;
 }
+
 
 // Concatenates two strings and returns the result as a new string.
 str Concat(str str1, str str2) {
@@ -44,7 +42,9 @@ i32 StringToI32(str strBuffer) {
         return 0
     }
 
-    char firstChar = strBuffer[0]
+    char[] charSpan = strBuffer
+
+    char firstChar = charSpan[0]
     if firstChar == '-' {
         isNegative = 1
         index = 1
@@ -53,7 +53,7 @@ i32 StringToI32(str strBuffer) {
     }
 
     while (index < stringLength) {
-        char currentChar = strBuffer[index]
+        char currentChar = charSpan[index]
         i32 virtualChar = currentChar - 48
 
         if virtualChar < 0 {
@@ -77,9 +77,12 @@ i32 StringToI32(str strBuffer) {
 bool StringIsEqual(str str1, str str2) {
     i32 index = 0
 
+    char[] charSpan1 = str1
+    char[] charSpan2 = str2
+
     while (true) {
-        char c1 = str1[index]
-        char c2 = str2[index]
+        char c1 = charSpan1[index]
+        char c2 = charSpan2[index]
 
         if !(c1 == c2) {
             return false
@@ -95,12 +98,228 @@ bool StringIsEqual(str str1, str str2) {
     return true
 }
 
-// Converts a 32-bit integer to a string.
-str I32ToString(i32 num) {
-    if num == 0 {
-        return "0"
+i8[] GlobalConversionBuffer = i8[16] {}
+
+str F64ToString(f64 num) {    i32 isZero = 0
+    if (num == 0.0) {
+        isZero = 1
+    }
+    
+    if (isZero == 1) {
+        GlobalConversionBuffer[0] = '0'
+        GlobalConversionBuffer[1] = '.'
+        GlobalConversionBuffer[2] = '0'
+        GlobalConversionBuffer[3] = 0
+        return I8ArrayToString(GlobalConversionBuffer)
     }
 
+    i32 isNegative = 0
+    f64 absoluteNum = num
+
+    i32 isLessThanZero = 0
+    if (num < 0.0) {
+        isLessThanZero = 1
+    }
+
+    if (isLessThanZero == 1) {
+        isNegative = 1
+        absoluteNum = -num
+    }
+
+    // 1. Find the highest power of 10 for the whole number segment
+    f64 power = 1.0
+    i32 keepFindingPower = 1
+    while (keepFindingPower == 1) {
+        f64 nextPowerCheck = power * 10.0
+        i32 powerCheckValid = 0
+        if (nextPowerCheck <= absoluteNum) {
+            powerCheckValid = 1
+        }
+        
+        if (powerCheckValid == 1) {
+            power = power * 10.0
+        }
+        if (powerCheckValid == 0) {
+            keepFindingPower = 0
+        }
+    }
+
+    i32 index = 0
+
+    // Add negative sign if required
+    if (isNegative == 1) {
+        i32 signIndexValid = 0
+        if (index < 15) {
+            signIndexValid = 1
+        }
+        if (signIndexValid == 1) {
+            GlobalConversionBuffer[index] = '-'
+            index = index + 1
+        }
+    }
+
+    // 2. Parse out whole digits sequentially
+    f64 remaining = absoluteNum
+    i32 layoutWholeStarted = 0
+
+    i32 processWholeDigits = 1
+    while (processWholeDigits == 1) {
+        f64 digitF64 = 0.0
+        i32 findDigit = 1
+        while (findDigit == 1) {
+            f64 targetValue = (digitF64 + 1.0) * power
+            i32 valueValid = 0
+            if (targetValue <= remaining) {
+                valueValid = 1
+            }
+            
+            if (valueValid == 1) {
+                digitF64 = digitF64 + 1.0
+            }
+            if (valueValid == 0) {
+                findDigit = 0
+            }
+        }
+        
+        remaining = remaining - (digitF64 * power)
+
+        i32 charByte = 48
+        if (digitF64 >= 9.0) { charByte = 57 }
+        if (digitF64 >= 8.0) { if (digitF64 < 9.0) { charByte = 56 } }
+        if (digitF64 >= 7.0) { if (digitF64 < 8.0) { charByte = 55 } }
+        if (digitF64 >= 6.0) { if (digitF64 < 7.0) { charByte = 54 } }
+        if (digitF64 >= 5.0) { if (digitF64 < 6.0) { charByte = 53 } }
+        if (digitF64 >= 4.0) { if (digitF64 < 5.0) { charByte = 52 } }
+        if (digitF64 >= 3.0) { if (digitF64 < 4.0) { charByte = 51 } }
+        if (digitF64 >= 2.0) { if (digitF64 < 3.0) { charByte = 50 } }
+        if (digitF64 >= 1.0) { if (digitF64 < 2.0) { charByte = 49 } }
+
+        i32 wholeIndexValid = 0
+        if (index < 15) {
+            wholeIndexValid = 1
+        }
+        if (wholeIndexValid == 1) {
+            GlobalConversionBuffer[index] = charByte
+            index = index + 1
+        }
+
+        power = power / 10.0
+        layoutWholeStarted = 1
+        
+        i32 powerFinished = 0
+        if (power < 1.0) {
+            powerFinished = 1
+        }
+        if (powerFinished == 1) {
+            processWholeDigits = 0
+        }
+    }
+
+    if (layoutWholeStarted == 0) {
+        i32 zeroIndexValid = 0
+        if (index < 15) {
+            zeroIndexValid = 1
+        }
+        if (zeroIndexValid == 1) {
+            GlobalConversionBuffer[index] = '0'
+            index = index + 1
+        }
+    }
+
+    // 3. Check if an active fraction exists before writing the dot
+    i32 hasFraction = 0
+    if (remaining > 0.0) {
+        hasFraction = 1
+    }
+
+    if (hasFraction == 1) {
+        i32 dotIndexValid = 0
+        if (index < 15) {
+            dotIndexValid = 1
+        }
+        if (dotIndexValid == 1) {
+            GlobalConversionBuffer[index] = '.'
+            index = index + 1
+        }
+
+        // 4. Continuously loop fraction digits until remaining reaches 0.0 OR buffer fills up
+        i32 processFracDigits = 1
+        while (processFracDigits == 1) {
+            remaining = remaining * 10.0
+            
+            f64 digitF64 = 0.0
+            i32 findFracDigit = 1
+            while (findFracDigit == 1) {
+                f64 targetValue = digitF64 + 1.0
+                i32 valueValid = 0
+                if (targetValue <= remaining) {
+                    valueValid = 1
+                }
+                
+                if (valueValid == 1) {
+                    digitF64 = digitF64 + 1.0
+                }
+                if (valueValid == 0) {
+                    findFracDigit = 0
+                }
+            }
+            
+            remaining = remaining - digitF64
+
+            i32 charByte = 48
+            if (digitF64 >= 9.0) { charByte = 57 }
+            if (digitF64 >= 8.0) { if (digitF64 < 9.0) { charByte = 56 } }
+            if (digitF64 >= 7.0) { if (digitF64 < 8.0) { charByte = 55 } }
+            if (digitF64 >= 6.0) { if (digitF64 < 7.0) { charByte = 54 } }
+            if (digitF64 >= 5.0) { if (digitF64 < 6.0) { charByte = 53 } }
+            if (digitF64 >= 4.0) { if (digitF64 < 5.0) { charByte = 52 } }
+            if (digitF64 >= 3.0) { if (digitF64 < 4.0) { charByte = 51 } }
+            if (digitF64 >= 2.0) { if (digitF64 < 3.0) { charByte = 50 } }
+            if (digitF64 >= 1.0) { if (digitF64 < 2.0) { charByte = 49 } }
+
+            i32 fracIndexValid = 0
+            if (index < 15) {
+                fracIndexValid = 1
+            }
+            if (fracIndexValid == 1) {
+                GlobalConversionBuffer[index] = charByte
+                index = index + 1
+            }
+            
+            // Loop controls: stop immediately if remainder hits exact zero or memory capacity runs out
+            i32 fractionIsDrained = 0
+            if (remaining == 0.0) {
+                fractionIsDrained = 1
+            }
+            
+            i32 bufferIsFull = 0
+            if (index >= 15) {
+                bufferIsFull = 1
+            }
+            
+            if (fractionIsDrained == 1) {
+                processFracDigits = 0
+            }
+            if (bufferIsFull == 1) {
+                processFracDigits = 0
+            }
+        }
+    }
+
+    // Safety terminator entry
+    i32 finalIndexValid = 0
+    if (index < 16) {
+        finalIndexValid = 1
+    }
+    if (finalIndexValid == 1) {
+        GlobalConversionBuffer[index] = 0
+    }
+
+    return I8ArrayToString(GlobalConversionBuffer)
+}
+
+// Converts a 32-bit integer to a string
+str I32ToString(i32 num) {
     i32 isNegative = 0
     i32 absoluteNum = num
 
@@ -118,24 +337,24 @@ str I32ToString(i32 num) {
 
     i32 totalLength = length + isNegative
     
-    i8[] buffer = i8[totalLength + 1] {}
-    buffer[totalLength] = 0
+    GlobalConversionBuffer[totalLength] = 0
 
     i32 index = totalLength - 1
     temp = absoluteNum
     while temp > 0 {
         i32 digit = temp % 10
-        buffer[index] = digit + 48
+        GlobalConversionBuffer[index] = digit + 48
         temp = temp / 10
         index = index - 1
     }
 
     if isNegative == 1 {
-        buffer[0] = '-'
+        GlobalConversionBuffer[0] = '-'
     }
 
-    return I8ArrayToString(buffer)
+    return I8ArrayToString(GlobalConversionBuffer)
 }
+
 
 // Converts a 32-bit integer to a string.
 str ToString(i32 num) {

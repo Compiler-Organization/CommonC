@@ -1,21 +1,33 @@
 use Console
 
-struct NestedStruct {
-    str Test
+struct Nested {
+    str Name
 }
 
-struct MainStruct {
-    NestedStruct nestedStruct
+struct Valid {
+    Nested nested
 }
 
-fn main {
-    MainStruct struc = MainStruct {
-        nestedStruct: NestedStruct {
-            Test: "Wowzers!"
+class Person {
+    str Name = "Fjodtolf"
+    i32 Bla = 53
+    Valid valid = Valid {
+        nested: Nested {
+            Name: "Jack"
         }
     }
 
-    
+    str EmitName() {
+        printl("Joke")
+        return this.Name
+    }
+}
 
-    printl(struc.nestedStruct.Test)
+fn main {
+    Person person = Person {}
+
+    printl(person.EmitName())
+
+    printl(person.valid.nested.Name)
+    printl(person.valid.nested.Name)
 }

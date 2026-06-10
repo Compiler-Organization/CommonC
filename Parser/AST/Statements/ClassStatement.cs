@@ -12,9 +12,7 @@ namespace CommonC.Parser.AST.Statements
 
         public ClosureStatement Body { get; set; } = new ClosureStatement();
 
-        internal LLVMTypeRef LLVMStructType;
-
-        internal LLVMValueRef LLVMStructPointer;
+        internal StructStatement Struct { get; set; }
 
         public override string PrettyPrint(int indentLevel = 0)
         {
@@ -32,6 +30,16 @@ namespace CommonC.Parser.AST.Statements
         public VariableDeclarationStatement? GetField(string name)
         {
             return Body.Statements.OfType<VariableDeclarationStatement>().FirstOrDefault(v => v.Name == name);
+        }
+
+        public Variables GetFields()
+        {
+            return new Variables(Body.Statements.OfType<VariableDeclarationStatement>());
+        }
+
+        public List<FunctionDeclarationStatement> GetFunctions()
+        {
+            return Body.Statements.OfType<FunctionDeclarationStatement>().ToList();
         }
     }
 }

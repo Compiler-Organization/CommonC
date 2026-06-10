@@ -493,6 +493,35 @@ ___
 
 # Statements
 
+## Classes
+A user-object with a struct in the bottom.
+```cs
+class <expr> {
+    <statements>
+}
+```
+
+Example
+```cs
+class Human {
+    str FirstName = "Jack"
+    str LastName = "Roose"
+
+    str GetFullName() {
+        return Concat(this.FirstName, Concat(" ", this.LastName))
+    }
+}
+```
+
+Example using the class
+```cs
+fn main() {
+    Human human = Human {}
+
+    printl(human.GetFullName())
+}
+```
+
 ## Assignment
 Assigns an expression to a local, global or property
 

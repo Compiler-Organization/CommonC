@@ -37,9 +37,12 @@ namespace CommonC.LLVM.CodeGen
         LLVMContextRef Context { get; set; }
 
         FunctionDeclarationStatement? CurrentFunction { get; set; }
+        ClassStatement CurrentClass { get; set; }
 
         Functions Functions = new Functions();
         Dictionary<string, StructStatement> Structs = new Dictionary<string, StructStatement>();
+        Dictionary<string, EnumStatement> Enums = new Dictionary<string, EnumStatement>();
+        Dictionary<string, ClassStatement> Classes = new Dictionary<string, ClassStatement>();
 
         public LLVMModuleRef GenerateLLVMModule()
         {
@@ -47,18 +50,20 @@ namespace CommonC.LLVM.CodeGen
             Builder = LLVMBuilderRef.Create(Module.Context);
             Context = Module.Context;
 
-            CreateStructReferences();
-            CreateFunctionReferences();
-            CreateGlobalReferences();
+            CreateEnumReferences(UpperClosure);
+            CreateStructReferences(UpperClosure);
+            CreateClassReferences(UpperClosure);
+            CreateFunctionReferences(UpperClosure);
+            CreateGlobalReferences(UpperClosure);
 
             EmitStatements(UpperClosure.Statements, new Variables());
 
             return Module;
         }
 
-        void CreateStructReferences()
+        void CreateStructReferences(ClosureStatement closure)
         {
-            foreach (StructStatement structStatement in UpperClosure.Statements.OfType<StructStatement>())
+            foreach (StructStatement structStatement in closure.Statements.OfType<StructStatement>())
             {
                 Structs.Add(structStatement.Name, structStatement);
             }
@@ -70,9 +75,49 @@ namespace CommonC.LLVM.CodeGen
             }
         }
 
-        void CreateFunctionReferences()
+        void CreateClassReferences(ClosureStatement closure)
         {
-            foreach (FunctionDeclarationStatement functionDeclarationStatement in UpperClosure.Statements.OfType<FunctionDeclarationStatement>())
+            foreach (ClassStatement classStatement in closure.Statements.OfType<ClassStatement>())
+            {
+                Classes.Add(classStatement.Name, classStatement);
+            }
+
+            foreach (ClassStatement classReference in Classes.Values)
+            {
+                Variables classFields = classReference.GetFields();
+
+                int index = 0;
+                foreach (VariableDeclarationStatement field in classFields)
+                {
+                    field.FieldIndex = index++;
+                }
+
+                LLVMTypeRef[] fields = classFields.Select(f => f.Type.TypeAnnotation.ToLLVMType()).ToArray();
+                classReference.Struct = new StructStatement
+                {
+                    Name = $"{classReference.Name}",
+                    LLVMStructType = LLVMTypeRef.CreateStruct(fields, false),
+                    Fields = classFields,
+                    TypeAnnotation = new TypeAnnotation
+                    {
+                        IsStruct = true,
+                        Struct = classReference.Struct
+                    }
+                };
+            }
+        }
+
+        void CreateEnumReferences(ClosureStatement closure)
+        {
+            foreach (EnumStatement enumStatement in closure.Statements.OfType<EnumStatement>())
+            {
+                Enums.Add(enumStatement.Name, enumStatement);
+            }
+        }
+
+        void CreateFunctionReferences(ClosureStatement closure, bool isClassFunction = false)
+        {
+            foreach (FunctionDeclarationStatement functionDeclarationStatement in closure.Statements.OfType<FunctionDeclarationStatement>())
             {
                 if (functionDeclarationStatement.IsExtern)
                 {
@@ -87,7 +132,50 @@ namespace CommonC.LLVM.CodeGen
 
                 LLVMTypeRef returnType = functionDeclarationStatement.ReturnType.TypeAnnotation.ToLLVMType();
                 LLVMTypeRef[] parameterTypes = functionDeclarationStatement.Parameters.Select(p => p.Type.TypeAnnotation.ToLLVMType()).ToArray();
-                LLVMTypeRef functionType = LLVMTypeRef.CreateFunction(returnType, parameterTypes, false);
+
+                LLVMTypeRef functionType = LLVMTypeRef.CreateFunction(returnType, 
+                    isClassFunction 
+                    ? [LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), ..parameterTypes] 
+                    : parameterTypes, 
+                    false);
+
+                if(isClassFunction)
+                {
+                    foreach(VariableDeclarationStatement parameter in functionDeclarationStatement.Body.Locals.Where(v => v.IsParameter))
+                    {
+                        parameter.ParameterIndex++;
+                    }
+
+                    TypeAnnotation typeAnnotation = new TypeAnnotation
+                    {
+                        IsClass = true,
+                        Class = CurrentClass
+                    };
+
+                    IdentifierExpression typeExpression = new IdentifierExpression
+                    {
+                        Name = CurrentClass.Name,
+                        TypeAnnotation = typeAnnotation
+                    };
+
+                    functionDeclarationStatement.Parameters.Prepend(new ParameterExpression
+                    {
+                        Name = "this",
+                        Type = typeExpression,
+                        TypeAnnotation = typeAnnotation
+                    });
+
+                    functionDeclarationStatement.Body.Locals.Add(new VariableDeclarationStatement
+                    {
+                        Name = "this",
+                        ParameterIndex = 0,
+                        IsParameter = true,
+                        Type = typeExpression,
+                        TypeAnnotation = typeAnnotation,
+                    });
+
+                    functionDeclarationStatement.Name += $"_{CurrentClass.Name}";
+                }
 
                 LLVMValueRef function = Module.AddFunction(functionDeclarationStatement.Name, functionType);
 
@@ -100,9 +188,9 @@ namespace CommonC.LLVM.CodeGen
             }
         }
 
-        void CreateGlobalReferences()
+        void CreateGlobalReferences(ClosureStatement closure)
         {
-            foreach (VariableDeclarationStatement variableDeclarationStatement in UpperClosure.Statements.OfType<VariableDeclarationStatement>())
+            foreach (VariableDeclarationStatement variableDeclarationStatement in closure.Statements.OfType<VariableDeclarationStatement>())
             {
                 LLVMTypeRef type = variableDeclarationStatement.Type.TypeAnnotation.ToLLVMType();
                 variableDeclarationStatement.LLVMType = LLVMTypeRef.CreatePointer(type, 0);
@@ -185,7 +273,11 @@ namespace CommonC.LLVM.CodeGen
 
         void EmitClassStatement(ClassStatement classStatement, Variables variables)
         {
+            CurrentClass = classStatement;
+            CreateFunctionReferences(classStatement.Body, isClassFunction: true);
 
+            EmitStatements(classStatement.Body.Statements, classStatement.Body.Locals);
+            CurrentClass = null;
         }
 
         void EmitIfStatement(IfStatement ifStatement, Variables variables)
@@ -390,6 +482,12 @@ namespace CommonC.LLVM.CodeGen
                         : (isSigned ? Builder.BuildSRem(currentValue, valueToStore, "compound.srem")
                                     : Builder.BuildURem(currentValue, valueToStore, "compound.urem")),
 
+                    AssignmentOperator.CompoundBitwiseAnd when isInteger =>
+                        Builder.BuildAnd(currentValue, valueToStore, "compound.and"),
+
+                    AssignmentOperator.CompoundBitwiseOr when isInteger =>
+                        Builder.BuildOr(currentValue, valueToStore, "compound.or"),
+
                     AssignmentOperator.CompoundXor when isInteger =>
                         Builder.BuildXor(currentValue, valueToStore, "compound.xor"),
 
@@ -404,6 +502,7 @@ namespace CommonC.LLVM.CodeGen
 
                     _ => throw ErrorHandler.CreateError($"Unsupported or invalid compound assignment operator: {assignmentStatement.Operator}")
                 };
+
 
                 if (valueToStore.TypeOf != targetType)
                 {
@@ -448,8 +547,6 @@ namespace CommonC.LLVM.CodeGen
             }
         }
 
-
-
         void EmitFreeStatement(FreeStatement freeStatement, Variables variables)
         {
             LLVMValueRef target = EmitExpression(freeStatement.Expression, variables);
@@ -460,6 +557,11 @@ namespace CommonC.LLVM.CodeGen
         {
             if (returnStatement.Expression != null)
             {
+                if(!CurrentFunction.ReturnType.TypeAnnotation.Match(returnStatement.Expression.TypeAnnotation, false))
+                {
+                    throw ErrorHandler.CreateError($"Return value of type '{returnStatement.Expression.TypeAnnotation.ToString()}' does not match the functions return type {CurrentFunction.ReturnType.TypeAnnotation.ToString()}", returnStatement);
+                }
+
                 LLVMValueRef returnValue = EmitExpression(returnStatement.Expression, variables);
 
                 Builder.BuildRet(returnValue);
@@ -535,6 +637,8 @@ namespace CommonC.LLVM.CodeGen
                     Builder.BuildRet(returnValue);
                 }
             }
+
+            CurrentFunction = null;
         }
 
         void EmitCallStatement(CallStatement callStatement, Variables variables)
@@ -569,7 +673,7 @@ namespace CommonC.LLVM.CodeGen
         {
             if (variableDeclaration.IsGlobal)
             {
-                LLVMTypeRef globalType = variableDeclaration.Type.TypeAnnotation.ToLLVMType();
+                LLVMTypeRef globalType = variableDeclaration.TypeAnnotation.ToLLVMType();
                 LLVMValueRef global = Module.AddGlobal(globalType, variableDeclaration.Name);
 
                 global.Initializer = LLVMValueRef.CreateConstNull(globalType);
@@ -609,12 +713,15 @@ namespace CommonC.LLVM.CodeGen
                 return;
             }
 
+            if (CurrentClass != null)
+                return;
+
             if (CurrentFunction == null)
             {
                 throw ErrorHandler.CreateError($"Cannot declare local variable '{variableDeclaration.Name}' outside of a function context.", variableDeclaration);
             }
 
-            LLVMTypeRef varType = variableDeclaration.Type.TypeAnnotation.ToLLVMType();
+            LLVMTypeRef varType = variableDeclaration.TypeAnnotation.ToLLVMType();
 
             LLVMBasicBlockRef currentBlock = Builder.InsertBlock;
             LLVMBasicBlockRef entryBlock = CurrentFunction.LLVMFunction.EntryBasicBlock;
@@ -676,7 +783,7 @@ namespace CommonC.LLVM.CodeGen
                 return Builder.BuildLoad2(targetType, value, name);
             }
 
-            throw ErrorHandler.CreateError($"Implicit type conversion from {value.TypeOf} to {targetType} is unsupported.", errorObject); // add errorObject to this method
+            throw ErrorHandler.CreateError($"Implicit type conversion from {value.TypeOf} to {targetType} is unsupported.", errorObject);
         }
 
 
@@ -774,15 +881,23 @@ namespace CommonC.LLVM.CodeGen
 
                 case ArithmeticOperator.LeftShift:
                     if (isFloat) throw ErrorHandler.CreateError("Left shift operator is not supported on floating-point types.", arithmeticExpression);
-                    return Builder.BuildShl(left, right, "shl");
+                    return Builder.BuildShl(left, right, "bitwise.leftshift");
 
                 case ArithmeticOperator.RightShift:
                     if (isFloat) throw ErrorHandler.CreateError("Right shift operator is not supported on floating-point types.", arithmeticExpression);
-                    return Builder.BuildAShr(left, right, "ashr");
+                    return Builder.BuildAShr(left, right, "bitwise.rightshift");
 
                 case ArithmeticOperator.Xor:
                     if (isFloat) throw ErrorHandler.CreateError("XOR operator is not supported on floating-point types.", arithmeticExpression);
-                    return Builder.BuildXor(left, right, "xor");
+                    return Builder.BuildXor(left, right, "bitwise.xor");
+
+                case ArithmeticOperator.BitwiseAnd:
+                    if (isFloat) throw ErrorHandler.CreateError("XOR operator is not supported on floating-point types.", arithmeticExpression);
+                    return Builder.BuildAnd(left, right, "bitwise.and");
+
+                case ArithmeticOperator.BitwiseOr:
+                    if (isFloat) throw ErrorHandler.CreateError("XOR operator is not supported on floating-point types.", arithmeticExpression);
+                    return Builder.BuildOr(left, right, "bitwise.or");
 
                 case ArithmeticOperator.Exponentiation:
                     return EmitPowerExpression(left, right, commonType);
@@ -890,7 +1005,7 @@ namespace CommonC.LLVM.CodeGen
                     identifierExpression.Name + "_call"
                 );
 
-                if (identifierExpression.Name.Contains('@')) // Temporary workaround for 32-bit Win32 API calls
+                if (identifierExpression.Name.Contains('@'))
                 {
                     callInst.InstructionCallConv = 64;
                 }
@@ -902,6 +1017,7 @@ namespace CommonC.LLVM.CodeGen
                 throw ErrorHandler.CreateError("Unsupported function expression type in call: " + callExpression.Expression.GetType().Name, callExpression);
             }
         }
+
 
         LLVMValueRef EmitArrayInitializerExpression(ArrayInitializerExpression arrayInitializerExpression, Variables variables)
         {
@@ -930,7 +1046,7 @@ namespace CommonC.LLVM.CodeGen
                     Builder.BuildStore(evaluatedVal, elementPtr);
                 }
             }
-            else if (elementType == LLVMTypeRef.CreatePointer(LLVMTypeRef.Int32, 0) || elementType.Kind == LLVMTypeKind.LLVMPointerTypeKind)
+            else if (arrayInitializerExpression.Index.Expression.TypeAnnotation.IsArray && (elementType == LLVMTypeRef.CreatePointer(LLVMTypeRef.Int32, 0) || elementType.Kind == LLVMTypeKind.LLVMPointerTypeKind))
             {
                 LLVMValueRef currentFunc = Builder.InsertBlock.Parent;
 
@@ -984,10 +1100,31 @@ namespace CommonC.LLVM.CodeGen
             };
         }
 
+        LLVMValueRef GetArrayIndexPointer(LLVMValueRef arrayPointer, LLVMTypeRef arrayType, LLVMValueRef indexValue)
+        {
+            return Builder.BuildInBoundsGEP2(
+                arrayType,
+                arrayPointer,
+                new[] { indexValue },
+                "str.or.array.index.gep"
+            );
+        }
+
+        LLVMValueRef GetArrayIndexPointerValue(LLVMValueRef arrayPointer, LLVMTypeRef arrayType, LLVMValueRef indexValue)
+        {
+            return Builder.BuildLoad2(
+                arrayType,
+                GetArrayIndexPointer(
+                    arrayPointer, 
+                    arrayType, 
+                    indexValue
+                    )
+                );
+        }
+
         LLVMValueRef EmitIndexExpressionAddress(IndexExpression indexExpression, Variables variables)
         {
             LLVMValueRef arrayPtr;
-            bool isString = indexExpression.Expression.TypeAnnotation.ReservedType == ReservedTypes.String;
 
             if (indexExpression.Expression is IndexExpression nestedIndex)
             {
@@ -1002,7 +1139,7 @@ namespace CommonC.LLVM.CodeGen
 
             LLVMValueRef indexValue = EmitExpression(indexExpression.Index, variables);
 
-            LLVMTypeRef elementType = isString
+            LLVMTypeRef elementType = indexExpression.Expression.TypeAnnotation.ReservedType == ReservedTypes.String
                 ? LLVMTypeRef.Int8
                 : indexExpression.TypeAnnotation.ToLLVMType(destructArray: true);
 
@@ -1017,10 +1154,7 @@ namespace CommonC.LLVM.CodeGen
         LLVMValueRef EmitIndexExpression(IndexExpression indexExpression, Variables variables)
         {
             LLVMValueRef elementPtr = EmitIndexExpressionAddress(indexExpression, variables);
-
-            LLVMTypeRef elementType = indexExpression.Expression.TypeAnnotation.ReservedType == ReservedTypes.String
-                ? LLVMTypeRef.Int8
-                : indexExpression.Expression.TypeAnnotation.ToLLVMType(destructArray: true);
+            LLVMTypeRef elementType = indexExpression.Expression.TypeAnnotation.ToLLVMType(destructArray: true);
 
             return Builder.BuildLoad2(elementType, elementPtr, "index.load");
         }
@@ -1083,6 +1217,8 @@ namespace CommonC.LLVM.CodeGen
         {
             ExpressionList memberChain = memberExpression.Flatten();
 
+            int skipLastCount = memberChain.Last() is CallExpression ? 1 : 0;
+
             StructStatement? currentStruct = null;
             LLVMValueRef currentPointer = null;
 
@@ -1097,12 +1233,9 @@ namespace CommonC.LLVM.CodeGen
 
                 if (function.ReturnType is IdentifierExpression funcIdentifier)
                 {
-                    if (!Structs.ContainsKey(funcIdentifier.Name))
-                    {
-                        throw ErrorHandler.CreateError($"Struct {funcIdentifier.Name} does not exist.", memberExpression);
-                    }
-
-                    currentStruct = Structs[funcIdentifier.Name];
+                    if (Structs.ContainsKey(funcIdentifier.Name)) currentStruct = Structs[funcIdentifier.Name];
+                    else if (Classes.ContainsKey(funcIdentifier.Name)) currentStruct = Classes[funcIdentifier.Name].Struct;
+                    else throw ErrorHandler.CreateError($"Type {funcIdentifier.Name} does not exist.", memberExpression);
 
                     LLVMValueRef callValue = EmitCallExpression(firstMemberCall, variables);
                     currentPointer = Builder.BuildAlloca(currentStruct.LLVMStructType, "call_result_temp");
@@ -1119,15 +1252,13 @@ namespace CommonC.LLVM.CodeGen
                     ?? throw ErrorHandler.CreateError("Could not resolve inner identifier of index in member expression.", memberExpression);
 
                 VariableDeclarationStatement matchingVariable = variables.GetVariable(indexIdentifier.Name);
-                IdentifierExpression? typeIdentifier = matchingVariable.Type as IdentifierExpression
-                    ?? GetInnerIdentifierExpression(matchingVariable.Type);
+                IdentifierExpression? typeIdentifier = matchingVariable.Type as IdentifierExpression ?? GetInnerIdentifierExpression(matchingVariable.Type);
 
-                if (typeIdentifier == null || !Structs.ContainsKey(typeIdentifier.Name))
-                {
-                    throw ErrorHandler.CreateError($"Struct or underlying matrix type does not exist.", memberExpression);
-                }
+                if (typeIdentifier == null) throw ErrorHandler.CreateError($"Type could not be determined for indexed expression.", memberExpression);
 
-                currentStruct = Structs[typeIdentifier.Name];
+                if (Structs.ContainsKey(typeIdentifier.Name)) currentStruct = Structs[typeIdentifier.Name];
+                else if (Classes.ContainsKey(typeIdentifier.Name)) currentStruct = Classes[typeIdentifier.Name].Struct;
+                else throw ErrorHandler.CreateError($"Struct or class type '{typeIdentifier.Name}' does not exist.", memberExpression);
 
                 currentPointer = EmitLValueAddress(firstMemberIndex, variables);
             }
@@ -1137,13 +1268,20 @@ namespace CommonC.LLVM.CodeGen
 
                 if (matchingVariable.Type is IdentifierExpression variableIdentifier)
                 {
-                    if (!Structs.ContainsKey(variableIdentifier.Name))
+                    if (Structs.ContainsKey(variableIdentifier.Name))
                     {
-                        throw ErrorHandler.CreateError($"Struct {variableIdentifier.Name} does not exist.", memberExpression);
+                        currentStruct = Structs[variableIdentifier.Name];
+                        currentPointer = matchingVariable.LLVMAlloca;
                     }
-
-                    currentStruct = Structs[variableIdentifier.Name];
-                    currentPointer = matchingVariable.LLVMAlloca;
+                    else if (Classes.ContainsKey(variableIdentifier.Name))
+                    {
+                        currentStruct = Classes[variableIdentifier.Name].Struct;
+                        currentPointer = matchingVariable.LLVMAlloca;
+                    }
+                    else
+                    {
+                        throw ErrorHandler.CreateError($"Struct or class '{variableIdentifier.Name}' does not exist", memberExpression);
+                    }
                 }
                 else
                 {
@@ -1158,97 +1296,126 @@ namespace CommonC.LLVM.CodeGen
 
             foreach (Expression member in memberChain.Skip(1))
             {
-                IdentifierExpression? memberIdentifier = null;
-                IndexExpression? indexExpr = null;
-
-                if (member is IdentifierExpression idExpr)
+                if (member is IdentifierExpression memberIdentifier)
                 {
-                    memberIdentifier = idExpr;
-                }
-                else if (member is IndexExpression idxExpr)
-                {
-                    indexExpr = idxExpr;
-                    memberIdentifier = GetInnerIdentifierExpression(idxExpr);
-                }
-
-                if (memberIdentifier != null)
-                {
-                    VariableDeclarationStatement? field = currentStruct.GetField(memberIdentifier.Name);
-
-                    if(field == null)
+                    try
                     {
-                        throw ErrorHandler.CreateError($"Field '{memberIdentifier.Name}' does not exist in struct '{currentStruct.Name}'", memberExpression);
+                        currentPointer = GetStructPropertyPointer(currentPointer, currentStruct, memberIdentifier.Name);
+                    }
+                    catch
+                    {
+                        throw ErrorHandler.CreateError($"Field '{memberIdentifier.Name}' does not exist in context layout '{currentStruct.Name}'", memberExpression);
                     }
 
-                    var indices = new LLVMValueRef[] {
-                        LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0),
-                        LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, (ulong)field.FieldIndex)
-                    };
+                    VariableDeclarationStatement currentField = currentStruct.Fields.GetVariable(memberIdentifier.Name);
+                    IdentifierExpression? fieldTypeIdentifier = currentField.Type is IdentifierExpression directId ? directId : GetInnerIdentifierExpression(currentField.Type);
 
-                    LLVMValueRef fieldPtr = Builder.BuildGEP2(
-                        currentStruct.LLVMStructType,
-                        currentPointer,
-                        indices,
-                        $"{memberIdentifier.Name}_field_ptr".AsSpan()
-                    );
-
-                    currentPointer = fieldPtr;
-
-                    if (indexExpr != null)
+                    if (fieldTypeIdentifier != null)
                     {
-                        var indexChain = new List<IndexExpression>();
-                        Expression? current = indexExpr;
-                        while (current is IndexExpression nestedIndex)
+                        if (Structs.ContainsKey(fieldTypeIdentifier.Name))
                         {
-                            indexChain.Insert(0, nestedIndex);
-                            current = nestedIndex.Expression;
+                            currentStruct = Structs[fieldTypeIdentifier.Name];
+                            LLVMTypeRef pointerType = LLVMTypeRef.CreatePointer(currentStruct.LLVMStructType, 0);
+                            currentPointer = Builder.BuildLoad2(pointerType, currentPointer, $"{memberIdentifier.Name}_deref");
                         }
-
-                        LLVMTypeRef fieldLLVMType = field.Type.TypeAnnotation.ToLLVMType();
-                        currentPointer = Builder.BuildLoad2(fieldLLVMType, currentPointer, "array.member.base.load");
-
-                        for (int i = 0; i < indexChain.Count; i++)
+                        else if (Classes.ContainsKey(fieldTypeIdentifier.Name))
                         {
-                            IndexExpression currentBracket = indexChain[i];
-                            LLVMValueRef indexValue = EmitExpression(currentBracket.Index, variables);
-
-                            LLVMTypeRef elementLLVMType = currentBracket.TypeAnnotation.ToLLVMType(destructArray: true);
-
-                            currentPointer = Builder.BuildInBoundsGEP2(
-                                elementLLVMType,
-                                currentPointer,
-                                new[] { indexValue },
-                                "array.member.index.gep"
-                            );
-
-                            if (i < indexChain.Count - 1)
-                            {
-                                LLVMTypeRef nextPointerType = currentBracket.TypeAnnotation.ToLLVMType();
-                                currentPointer = Builder.BuildLoad2(nextPointerType, currentPointer, "array.subptr.load");
-                            }
+                            currentStruct = Classes[fieldTypeIdentifier.Name].Struct;
+                            LLVMTypeRef pointerType = LLVMTypeRef.CreatePointer(currentStruct.LLVMStructType, 0);
+                            currentPointer = Builder.BuildLoad2(pointerType, currentPointer, $"{memberIdentifier.Name}_deref");
                         }
+                        else currentStruct = null;
                     }
+                    else currentStruct = null;
 
-                    IdentifierExpression? fieldTypeIdentifier = GetInnerIdentifierExpression(field.Type);
-                    if (fieldTypeIdentifier != null && Structs.ContainsKey(fieldTypeIdentifier.Name))
-                    {
-                        currentStruct = Structs[fieldTypeIdentifier.Name];
-                    }
                     continue;
                 }
+                else if (member is IndexExpression memberIndex)
+                {
+                    IdentifierExpression? indexIdentifier = GetInnerIdentifierExpression(memberIndex)
+                        ?? throw ErrorHandler.CreateError("Could not resolve inner identifier of index expression.", memberExpression);
+
+                    VariableDeclarationStatement field = currentStruct.Fields.GetVariable(indexIdentifier.Name)
+                        ?? throw ErrorHandler.CreateError($"Field '{indexIdentifier.Name}' does not exist in context layout '{currentStruct.Name}'", memberExpression);
+
+                    LLVMValueRef fieldPtr = GetStructPropertyPointer(currentPointer, currentStruct, indexIdentifier.Name);
+
+                    LLVMTypeRef fieldLLVMType = field.Type.TypeAnnotation.ToLLVMType();
+                    LLVMValueRef arrayBasePtr = Builder.BuildLoad2(fieldLLVMType, fieldPtr, "array.member.base.load");
+
+                    currentPointer = EmitIndexExpressionAddress(memberIndex, variables);
+
+                    IdentifierExpression? fieldTypeIdentifier = field.Type is IdentifierExpression directId ? directId : GetInnerIdentifierExpression(field.Type);
+                    if (fieldTypeIdentifier != null)
+                    {
+                        if (Structs.ContainsKey(fieldTypeIdentifier.Name))
+                        {
+                            currentStruct = Structs[fieldTypeIdentifier.Name];
+                        }
+                        else if (Classes.ContainsKey(fieldTypeIdentifier.Name))
+                        {
+                            currentStruct = Classes[fieldTypeIdentifier.Name].Struct;
+                        }
+                        else currentStruct = null;
+                    }
+                    else currentStruct = null;
+
+                    continue;
+                }
+                else if (member is CallExpression memberCall)
+                {
+                    IdentifierExpression? callIdentifier = GetInnerIdentifierExpression(memberCall)
+                        ?? throw ErrorHandler.CreateError("Could not resolve inner identifier of call expression.", memberExpression);
+
+                    string mangledMethodName = $"{callIdentifier.Name}_{currentStruct.Name}";
+                    FunctionDeclarationStatement function = Functions.GetFunction(mangledMethodName, memberCall.Arguments, memberExpression);
+
+                    LLVMValueRef[] argsList = [currentPointer, .. memberCall.Arguments == null ? [] : EmitExpressions(memberCall.Arguments, variables)];
+                    LLVMValueRef callResult = Builder.BuildCall2(function.LLVMFunctionType, function.LLVMFunction, argsList, "mid_chain_call_tmp");
+
+                    IdentifierExpression? returnTypeIdentifier = function.ReturnType is IdentifierExpression directRet
+                        ? directRet
+                        : GetInnerIdentifierExpression(function.ReturnType);
+
+                    if (returnTypeIdentifier != null)
+                    {
+                        if (Structs.ContainsKey(returnTypeIdentifier.Name))
+                        {
+                            currentStruct = Structs[returnTypeIdentifier.Name];
+                            currentPointer = Builder.BuildAlloca(currentStruct.LLVMStructType, "mid_chain_struct_alloca");
+                            Builder.BuildStore(callResult, currentPointer);
+                        }
+                        else if (Classes.ContainsKey(returnTypeIdentifier.Name))
+                        {
+                            currentStruct = Classes[returnTypeIdentifier.Name].Struct;
+                            currentPointer = callResult;
+                        }
+                        else return callResult;
+                    }
+                    else return callResult;
+
+                    continue;
+                }
+
                 throw ErrorHandler.CreateError($"Unsupported member expression component type: {member.GetType().Name}", memberExpression);
             }
 
+            LLVMTypeRef expectedFieldType = memberExpression.TypeAnnotation.ToLLVMType();
 
-            return currentPointer;
+            return Builder.BuildLoad2(expectedFieldType, currentPointer);
         }
 
         public LLVMValueRef EmitMemberExpression(MemberExpression memberExpression, Variables variables)
         {
-            LLVMValueRef fieldAddressPtr = EmitMemberExpressionAddress(memberExpression, variables);
-            LLVMTypeRef expectedFieldType = memberExpression.TypeAnnotation.ToLLVMType();
+            if (memberExpression.Parent is IdentifierExpression memberIdentifier && Enums.TryGetValue(memberIdentifier.Name, out var enumStatement)) // hardcoded way to support enums
+            {
+                if (memberExpression.Member is IdentifierExpression childIdentifier)
+                {
+                    return LLVMValueRef.CreateConstInt(enumStatement.TypeAnnotation.ToLLVMType(), enumStatement.GetVariant(childIdentifier.Name).Expression.ToUlong());
+                }
+            }
 
-            return fieldAddressPtr;
+            return EmitMemberExpressionAddress(memberExpression, variables);
         }
 
 
@@ -1256,37 +1423,121 @@ namespace CommonC.LLVM.CodeGen
         {
             if (objectInitializerExpression.Expression is IdentifierExpression identifier)
             {
-                if (!Structs.ContainsKey(identifier.Name))
-                    throw ErrorHandler.CreateError($"Could not initialize object {identifier.Name} as it does not exist.", objectInitializerExpression);
-
-                StructStatement structStatement = Structs[identifier.Name];
-                LLVMTypeRef structType = structStatement.LLVMStructType;
-
-                LLVMValueRef structPtr = Builder.BuildMalloc(structType, $"{identifier.Name}_struct_instance");
-
-                foreach (AssignmentStatement propertyAssignment in objectInitializerExpression.Fields)
+                if(objectInitializerExpression.TypeAnnotation.IsClass && Classes.ContainsKey(identifier.Name))
                 {
-                    if (propertyAssignment.Variable is IdentifierExpression propertyName)
+                    ClassStatement classStatement = Classes[identifier.Name];
+                    LLVMValueRef structPointer = CreateStructMalloc(classStatement.Struct);
+
+                    HashSet<string> propertiesAssigned = new HashSet<string>();
+
+                    foreach (AssignmentStatement propertyAssignment in objectInitializerExpression.Fields)
                     {
-                        VariableDeclarationStatement field = structStatement.Fields.GetVariable(propertyName.Name);
-                        LLVMValueRef val = EmitExpression(propertyAssignment.Expression, variables);
+                        if (propertyAssignment.Variable is IdentifierExpression propertyName)
+                        {
+                            LLVMValueRef val = EmitExpression(propertyAssignment.Expression, variables);
 
-                        LLVMValueRef fieldPtr = Builder.BuildGEP2(
-                            structType,
-                            structPtr,
-                            [LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0), LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, (ulong)field.FieldIndex)],
-                            $"set_{propertyName.Name.ToLower()}_field_ptr".AsSpan()
-                        );
-
-                        Builder.BuildStore(val, fieldPtr);
+                            SetStructProperty(structPointer, classStatement.Struct, propertyName.Name, val);
+                            propertiesAssigned.Add(propertyName.Name);
+                        }
                     }
+
+                    Variables fieldDefaultAssignments = classStatement.GetFields();
+                    foreach(VariableDeclarationStatement field in fieldDefaultAssignments)
+                    {
+                        if(!propertiesAssigned.Contains(field.Name) && field.Expression != null)
+                        {
+                            LLVMValueRef val = EmitExpression(field.Expression, variables);
+
+                            SetStructProperty(structPointer, classStatement.Struct, field.Name, val);
+                        }
+                    }
+
+                    return structPointer;
                 }
 
-                // return Builder.BuildLoad2(structType, structPtr, $"{identifier.Name.ToLower()}_val");
-                return structPtr;
+                if (objectInitializerExpression.TypeAnnotation.IsStruct && Structs.ContainsKey(identifier.Name))
+                {
+                    StructStatement structStatement = Structs[identifier.Name];
+                    LLVMValueRef structPointer = CreateStructMalloc(structStatement);
+
+                    foreach (AssignmentStatement propertyAssignment in objectInitializerExpression.Fields)
+                    {
+                        if (propertyAssignment.Variable is IdentifierExpression propertyName)
+                        {
+                            LLVMValueRef val = EmitExpression(propertyAssignment.Expression, variables);
+
+                            SetStructProperty(structPointer, structStatement, propertyName.Name, val);
+                        }
+                    }
+
+                    return structPointer;
+                }
+
+                throw ErrorHandler.CreateError($"Could not initialize object {identifier.Name} as it does not exist.", objectInitializerExpression);
             }
             throw ErrorHandler.CreateError("Unsupported object initializer syntax.", objectInitializerExpression);
         }
+
+        /// <summary>
+        /// Sets the property of an allocated struct
+        /// </summary>
+        /// <param name="structPointer"></param>
+        /// <param name="structDefinition"></param>
+        /// <param name="propertyName"></param>
+        /// <param name="value"></param>
+        void SetStructProperty(LLVMValueRef structPointer, StructStatement structDefinition, string propertyName, LLVMValueRef value)
+        {
+            VariableDeclarationStatement field = structDefinition.Fields.GetVariable(propertyName);
+
+            LLVMValueRef fieldPtr = Builder.BuildGEP2(
+                structDefinition.LLVMStructType,
+                structPointer,
+                [LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0), LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, (ulong)field.FieldIndex)],
+                $"set_{propertyName}_field_ptr".AsSpan()
+            );
+
+            Builder.BuildStore(value, fieldPtr);
+        }
+
+        /// <summary>
+        /// Gets the pointer to the property of an allocated struct
+        /// </summary>
+        /// <param name="structPointer"></param>
+        /// <param name="structDefinition"></param>
+        /// <param name="propertyName"></param>
+        /// <returns></returns>
+        LLVMValueRef GetStructPropertyPointer(LLVMValueRef structPointer, StructStatement structDefinition, string propertyName)
+        {
+            VariableDeclarationStatement field = structDefinition.Fields.GetVariable(propertyName);
+
+            LLVMValueRef fieldPtr = Builder.BuildGEP2(
+                structDefinition.LLVMStructType,
+                structPointer,
+                [LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0), LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, (ulong)field.FieldIndex)],
+                $"set_{propertyName}_field_ptr".AsSpan()
+            );
+
+            return fieldPtr;
+        }
+
+        /// <summary>
+        /// Returns a pointer to the newly allocated struct
+        /// </summary>
+        /// <param name="structName"></param>
+        /// <param name="structType"></param>
+        /// <returns></returns>
+        LLVMValueRef CreateStructMalloc(string structName, LLVMTypeRef structType)
+        {
+            return Builder.BuildMalloc(structType, $"{structName}_struct_instance");
+        }
+
+        /// <summary>
+        /// Returns a pointer to the newly allocated struct
+        /// </summary>
+        /// <param name="structStatement"></param>
+        /// <returns></returns>
+        LLVMValueRef CreateStructMalloc(StructStatement structStatement)
+            => CreateStructMalloc(structStatement.Name, structStatement.LLVMStructType);
 
         LLVMValueRef EmitRelationalExpression(RelationalExpression relationalExpression, Variables variables)
         {
@@ -1387,26 +1638,32 @@ namespace CommonC.LLVM.CodeGen
         LLVMValueRef EmitNotExpression(NotExpression notExpression, Variables variables)
         {
             LLVMValueRef value = EmitExpression(notExpression.Expression, variables);
-            if (value == null)
+
+            if (value.Handle == IntPtr.Zero)
             {
-                throw ErrorHandler.CreateError("Expression inside logical/bitwise 'Not' statement evaluated to null.", notExpression);
+                throw ErrorHandler.CreateError("Expression inside 'Not' statement failed to generate valid LLVM IR value.", notExpression);
             }
 
             LLVMTypeRef valType = value.TypeOf;
-
-            if (valType.Kind == LLVMTypeKind.LLVMIntegerTypeKind && valType.IntWidth == 1)
+            if (valType.Handle == IntPtr.Zero)
             {
-                LLVMValueRef trueVal = LLVMValueRef.CreateConstInt(LLVMTypeRef.Int1, 1, false);
-                return Builder.BuildXor(value, trueVal, "logical.not");
+                throw ErrorHandler.CreateError("Unable to resolve LLVM type information for 'Not' expression target.", notExpression);
             }
 
             if (valType.Kind == LLVMTypeKind.LLVMIntegerTypeKind)
             {
+                if (valType.IntWidth == 1)
+                {
+                    LLVMValueRef trueVal = LLVMValueRef.CreateConstInt(LLVMTypeRef.Int1, 1, false);
+                    return Builder.BuildXor(value, trueVal, "logical.not");
+                }
+
                 return Builder.BuildNot(value, "bitwise.not");
             }
 
-            throw ErrorHandler.CreateError($"The 'Not' unary operation is invalid for type kind: {valType.Kind}", notExpression);
+            throw ErrorHandler.CreateError($"The 'Not' unary operation is invalid for type '{valType}' (Kind: {valType.Kind}).", notExpression);
         }
+
 
         LLVMValueRef EmitParenthesizedExpression(ParenthesizedExpression parenthesizedExpression, Variables variables)
         {

@@ -45,6 +45,12 @@ namespace CommonC.Parser.AST.Expressions
                 case ArithmeticOperator.RightShift:
                     Builder.Append(" >> ");
                     break;
+                case ArithmeticOperator.BitwiseAnd:
+                    Builder.Append(" & ");
+                    break;
+                case ArithmeticOperator.BitwiseOr:
+                    Builder.Append(" | ");
+                    break;
             }
 
             Builder.Append(Right.ToString());
@@ -64,5 +70,7 @@ namespace CommonC.Parser.AST.Expressions
         RightShift = LexKinds.RightShift,
         Xor = LexKinds.Xor,
         Exponentiation = LexKinds.Exponentiation,
+        BitwiseAnd = LexKinds.BitwiseAnd,
+        BitwiseOr = LexKinds.BitwiseOr,
     }
 }

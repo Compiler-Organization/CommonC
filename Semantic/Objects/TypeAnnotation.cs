@@ -92,7 +92,12 @@ namespace CommonC.Semantic.Objects
             return !destructArray && IsArray ? LLVMTypeRef.CreatePointer(baseType, 0) : baseType;
         }
 
-        public bool IsPointerType() => IsStruct || IsArray || IsClass;
+        public bool IsPointerType() => 
+            IsStruct 
+            || IsArray 
+            || IsClass
+            || ReservedType == ReservedTypes.String
+            || ReservedType == ReservedTypes.Ptr;
 
         /// <summary>
         /// Creates a deep copy of the type annotation.

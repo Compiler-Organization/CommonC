@@ -21,6 +21,9 @@
 		<None Update="lib\legacy_stdio_definitions.lib">
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
+		<None Update="Samples\BigInt.coc">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
 		<None Update="Samples\Console.coc">
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
@@ -40,6 +43,9 @@
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
 		<None Update="Samples\Mandelbrot.coc">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="Samples\Random.coc">
 		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
 		<None Update="Samples\SierpinskiGasket.coc">

@@ -35,7 +35,7 @@ namespace CommonC.Parser.AST.Expressions
 
     public enum LogicalOperator
     {
-        And = LexKinds.And,
-        Or = LexKinds.Or,
+        And = LexKinds.LogicalAnd,
+        Or = LexKinds.LogicalOr,
     }
 }

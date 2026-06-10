@@ -70,8 +70,8 @@ namespace CommonC.Lexer
 
         readonly Dictionary<string, LexKinds> Operators = new Dictionary<string, LexKinds>()
         {
-            { "and", LexKinds.And },
-            { "or", LexKinds.Or },
+            { "and", LexKinds.LogicalAnd },
+            { "or", LexKinds.LogicalOr },
         };
 
         string Input { get; set; }
@@ -183,8 +183,6 @@ namespace CommonC.Lexer
 
                             break;
                         }
-
-                    case '|': kind = LexKinds.Pipe; break;
 
                     case ',': kind = LexKinds.Comma; break;
 
@@ -396,6 +394,26 @@ namespace CommonC.Lexer
                             if (Input[i + 1] == '=')
                             {
                                 kind = LexKinds.CompoundXor;
+                                i++;
+                            }
+                            break;
+                        }
+                    case '&':
+                        {
+                            kind = LexKinds.BitwiseAnd;
+                            if (Input[i + 1] == '=')
+                            {
+                                kind = LexKinds.CompoundBitwiseAnd;
+                                i++;
+                            }
+                            break;
+                        }
+                    case '|':
+                        {
+                            kind = LexKinds.BitwiseOr;
+                            if (Input[i + 1] == '=')
+                            {
+                                kind = LexKinds.CompoundBitwiseOr;
                                 i++;
                             }
                             break;
