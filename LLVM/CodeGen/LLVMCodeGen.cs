@@ -528,6 +528,8 @@ namespace CommonC.LLVM.CodeGen
                     LLVMValueRef value = Builder.BuildLoad2(targetType.StructGetTypeAtIndex(i), fieldSrcPtr, $"assign.ld.{i}");
                     Builder.BuildStore(value, fieldDstPtr);
                 }
+
+                return;
             }
             else
             {
@@ -544,7 +546,10 @@ namespace CommonC.LLVM.CodeGen
                 }
 
                 Builder.BuildStore(valueToStore, destinationPointer);
+                return;
             }
+
+            throw ErrorHandler.CreateError("Could not emit assignment", assignmentStatement);
         }
 
         void EmitFreeStatement(FreeStatement freeStatement, Variables variables)
@@ -666,7 +671,18 @@ namespace CommonC.LLVM.CodeGen
                 {
                     callInst.InstructionCallConv = 64;
                 }
+
+                return;
             }
+
+            if(callStatement.Expression is MemberExpression memberExpression)
+            {
+                LLVMValueRef callExpression = EmitMemberExpression(memberExpression, variables);
+                callExpression.Name = "";
+                return;
+            }
+
+            throw ErrorHandler.CreateError($"Call statement's expression cannot be a '{callStatement.Expression.GetType().Name}'", callStatement);
         }
 
         void EmitVariableDeclarationStatement(VariableDeclarationStatement variableDeclaration, Variables variables)
@@ -713,34 +729,21 @@ namespace CommonC.LLVM.CodeGen
                 return;
             }
 
-            if (CurrentClass != null)
-                return;
-
             if (CurrentFunction == null)
             {
+                if (CurrentClass != null)
+                    return;
+
                 throw ErrorHandler.CreateError($"Cannot declare local variable '{variableDeclaration.Name}' outside of a function context.", variableDeclaration);
             }
 
             LLVMTypeRef varType = variableDeclaration.TypeAnnotation.ToLLVMType();
 
-            LLVMBasicBlockRef currentBlock = Builder.InsertBlock;
-            LLVMBasicBlockRef entryBlock = CurrentFunction.LLVMFunction.EntryBasicBlock;
 
-            if (entryBlock.FirstInstruction != default)
-            {
-                Builder.PositionBefore(entryBlock.FirstInstruction);
-            }
-            else
-            {
-                Builder.PositionAtEnd(entryBlock);
-            }
-
-            Builder.PositionAtEnd(currentBlock);
 
             if (variableDeclaration.Expression != null)
             {
                 LLVMValueRef initValue = EmitExpression(variableDeclaration.Expression, variables);
-                LLVMValueRef allocaPtr = null;
 
                 if (variableDeclaration.Type.TypeAnnotation.IsPointerType())
                 {
@@ -753,11 +756,29 @@ namespace CommonC.LLVM.CodeGen
                         initValue = CoerceType(initValue, varType, "local.init.cast", variableDeclaration);
                     }
 
-                    allocaPtr = Builder.BuildAlloca(varType, variableDeclaration.Name);
+                    LLVMBasicBlockRef currentBlock = Builder.InsertBlock;
+
+                    LLVMBasicBlockRef entryBlock = CurrentFunction.LLVMFunction.EntryBasicBlock;
+                    LLVMValueRef terminator = entryBlock.LastInstruction;
+
+                    if (terminator.Handle != IntPtr.Zero && terminator.IsATerminatorInst != null)
+                    {
+                        Builder.PositionBefore(terminator);
+                    }
+                    else
+                    {
+                        Builder.PositionAtEnd(entryBlock);
+                    }
+
+                    LLVMValueRef allocaPtr = Builder.BuildAlloca(varType, variableDeclaration.Name);
                     variableDeclaration.LLVMAlloca = allocaPtr;
+
+                    Builder.PositionAtEnd(currentBlock);
+
                     Builder.BuildStore(initValue, allocaPtr);
                 }
             }
+
         }
 
         private LLVMValueRef CoerceType(LLVMValueRef value, LLVMTypeRef targetType, string name, object errorObject)
@@ -1139,6 +1160,7 @@ namespace CommonC.LLVM.CodeGen
 
             LLVMValueRef indexValue = EmitExpression(indexExpression.Index, variables);
 
+
             LLVMTypeRef elementType = indexExpression.Expression.TypeAnnotation.ReservedType == ReservedTypes.String
                 ? LLVMTypeRef.Int8
                 : indexExpression.TypeAnnotation.ToLLVMType(destructArray: true);
@@ -1154,7 +1176,10 @@ namespace CommonC.LLVM.CodeGen
         LLVMValueRef EmitIndexExpression(IndexExpression indexExpression, Variables variables)
         {
             LLVMValueRef elementPtr = EmitIndexExpressionAddress(indexExpression, variables);
-            LLVMTypeRef elementType = indexExpression.Expression.TypeAnnotation.ToLLVMType(destructArray: true);
+
+            LLVMTypeRef elementType = indexExpression.Expression.TypeAnnotation.ReservedType == ReservedTypes.String
+                ? LLVMTypeRef.Int8
+                : indexExpression.TypeAnnotation.ToLLVMType(destructArray: true);
 
             return Builder.BuildLoad2(elementType, elementPtr, "index.load");
         }
@@ -1514,7 +1539,7 @@ namespace CommonC.LLVM.CodeGen
                 structDefinition.LLVMStructType,
                 structPointer,
                 [LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0), LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, (ulong)field.FieldIndex)],
-                $"set_{propertyName}_field_ptr".AsSpan()
+                $"get_{propertyName}_field_ptr".AsSpan()
             );
 
             return fieldPtr;

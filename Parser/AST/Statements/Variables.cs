@@ -32,5 +32,10 @@ namespace CommonC.Parser.AST.Statements
         }
 
         public bool Contains(string name) => this.Any(v => v.Name == name);
+
+        public override string ToString()
+        {
+            return string.Join(", ", this.Select(v => v.PrettyPrint(0)));
+        }
     }
 }

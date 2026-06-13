@@ -1,33 +1,21 @@
 use Console
 
-struct Nested {
-    str Name
-}
-
-struct Valid {
-    Nested nested
-}
-
-class Person {
-    str Name = "Fjodtolf"
-    i32 Bla = 53
-    Valid valid = Valid {
-        nested: Nested {
-            Name: "Jack"
-        }
-    }
-
-    str EmitName() {
-        printl("Joke")
-        return this.Name
-    }
+struct Node {
+    str Name,
+    Node Next
 }
 
 fn main {
-    Person person = Person {}
+    Node node = Node {
+        Name: "Node1",
+        Next: Node {
+            Name: "Node2",
+            Next: Node {
+                Name: "Node3",
+                Next: Node {}
+            }
+        }
+    }
 
-    printl(person.EmitName())
-
-    printl(person.valid.nested.Name)
-    printl(person.valid.nested.Name)
+    printl(node.Next.Next.Name)
 }

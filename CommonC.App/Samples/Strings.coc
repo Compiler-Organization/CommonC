@@ -2,32 +2,38 @@
 
 use DataConversion
 
-// Returns the length of a null-terminated string.
-i32 GetStringLength(str strBuffer) {
-    i32 length = 0;
-    while !(strBuffer[length] == 0) {
-        length = length + 1;
-    }
-    return length;
-}
+__String String = __String {}
 
-
-// Concatenates two strings and returns the result as a new string.
-str Concat(str str1, str str2) {
-    i32 length1 = GetStringLength(str1);
-    i32 length2 = GetStringLength(str2);
-    i8[] buffer = i8[length1 + length2 + 1] {};
-
-    for 0..length1, i {
-        buffer[i] = str1[i];
+class __String 
+{
+    // Returns the length of a null-terminated string.
+    i32 Length(str strBuffer) 
+    {
+        i32 length = 0;
+        while !(strBuffer[length] == 0) {
+            length = length + 1;
+        }
+        return length;
     }
 
-    for 0..length2, j {
-        buffer[length1 + j] = str2[j];
-    }
+    // Concatenates two strings and returns the result as a new string.
+    str Concat(str str1, str str2) 
+    {
+        i32 length1 = String.Length(str1);
+        i32 length2 = String.Length(str2);
+        i8[] buffer = i8[length1 + length2 + 1] {};
 
-    buffer[length1 + length2] = 0;
-    return I8ArrayToString(buffer);
+        for 0..length1, i {
+            buffer[i] = str1[i];
+        }
+
+        for 0..length2, j {
+            buffer[length1 + j] = str2[j];
+        }
+
+        buffer[length1 + length2] = 0;
+        return I8ArrayToString(buffer);
+    }
 }
 
 // Converts a string to a 32-bit integer. Returns 0 if the string is not a valid integer.
@@ -36,7 +42,7 @@ i32 StringToI32(str strBuffer) {
     i32 index = 0
     i32 isNegative = 0
     
-    i32 stringLength = GetStringLength(strBuffer)
+    i32 stringLength = String.Length(strBuffer)
 
     if stringLength == 0 {
         return 0
@@ -100,7 +106,8 @@ bool StringIsEqual(str str1, str str2) {
 
 i8[] GlobalConversionBuffer = i8[16] {}
 
-str F64ToString(f64 num) {    i32 isZero = 0
+str F64ToString(f64 num) {    
+    i32 isZero = 0
     if (num == 0.0) {
         isZero = 1
     }

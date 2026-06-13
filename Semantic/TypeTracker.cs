@@ -352,6 +352,16 @@ namespace CommonC.Semantic
                         throw ErrorHandler.CreateError($"Could not resolve inner identifier expression for member in member expression when resolving type from member expression.", memberExpression);
                     }
 
+                    if(member is CallExpression memberCall
+                        && memberCall.Arguments != null
+                        && memberCall.Arguments.Count > 0)
+                    {
+                        foreach(Expression argument in memberCall.Arguments)
+                        {
+                            argument.TypeAnnotation = ResolveTypeFromExpression(argument, variables);
+                        }
+                    }
+
                     VariableDeclarationStatement? field = isStruct
                         ? currentStruct.GetField(memberIdentifier.Name) 
                         : firstMemberAnnotation.IsClass

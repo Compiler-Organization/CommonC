@@ -6,7 +6,9 @@
 
 ___
 
-For performance benchmarks, see the [Performance](Documentation/Performance.md) markdown file.
+* For performance benchmarks, see [Documentation/Performance](Documentation/Performance.md)
+* For current problems, see [Documentation/Thinktanks](Documentation/Thinktanks.md)
+* For the handbook, see [Documentation/Handbook](Documentation/Handbook.md)
 
 ___
 

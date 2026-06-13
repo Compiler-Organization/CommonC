@@ -18,7 +18,7 @@ ptr __GetStdinHandle() {
 
 fn __SystemWrite(str text) {
         ptr stdoutHandle = __GetStdoutHandle();
-        i32 length = GetStringLength(text);
+        i32 length = String.Length(text);
         
         i32[] charsWritten = i32[1] {}; 
         

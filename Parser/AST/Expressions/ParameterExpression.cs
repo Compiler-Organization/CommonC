@@ -14,7 +14,7 @@ namespace CommonC.Parser.AST.Expressions
 
         public override string PrettyPrint(int indentLevel = 0)
         {
-            return "";
+            return $"{this.Type.PrettyPrint(indentLevel)} {this.Name}{(this.Value == null ? "" : $" = {this.Value.PrettyPrint(indentLevel)}")}";
         }
     }
 

@@ -116,6 +116,7 @@ namespace CommonC.Semantic
 
                     classStatement.Body.Locals.AddRange(variableDeclarationStatements);
                     PassVariablesToInnerScope(classStatement.Body.Statements, classStatement.Body.Locals);
+
                     continue;
                 }
 
