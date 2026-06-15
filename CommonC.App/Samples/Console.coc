@@ -55,7 +55,12 @@ fn printl(i16 num) {
         printl(ToString(num))
 }
 
-// Converts a 8-bit integer to a string, then prints it to the console with a prepending newline.
+// Converts an 8-bit integer to a string, then prints it to the console with a prepending newline.
 fn printl(i8 num) {
         printl(ToString(num))
+}
+
+// Converts an 8-bit integer to a string, then prints it to the console with a prepending newline.
+fn printl(char ch) {
+        printl(ToString(ch))
 }

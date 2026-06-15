@@ -28,95 +28,47 @@ namespace CommonC.Error
         }
 
         public static Exception CreateError(string message, Statement statement)
-        {
-            string prefix = $"Line {statement.Line}: ";
-            string prettyCode = statement.PrettyPrint(0);
-            string[] codeLines = prettyCode.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-
-            var outputLines = new List<string>();
-            var caretLines = new List<string>();
-
-            for (int i = 0; i < codeLines.Length; i++)
-            {
-                string currentLine = codeLines[i];
-                string linePrefix = (i == 0) ? prefix : new string(' ', prefix.Length);
-
-                outputLines.Add($"{linePrefix}{currentLine}");
-
-                int leadingSpaces = currentLine.TakeWhile(char.IsWhiteSpace).Count();
-                int totalPadding = linePrefix.Length + leadingSpaces;
-                string padding = new string(' ', totalPadding);
-
-                int codeWidth = currentLine.Length - leadingSpaces;
-                int caretCount = Math.Max(1, codeWidth);
-                string carets = new string('^', caretCount);
-
-                caretLines.Add($"{padding}{carets}");
-            }
-
-            string fullCodeOutput = string.Join(Environment.NewLine, outputLines);
-            string fullCaretOutput = string.Join(Environment.NewLine, caretLines);
-
-            string finalCaretLinePadding = new string(' ', caretLines[^1].TakeWhile(c => c == ' ').Count());
-            string messageOutput = $"{finalCaretLinePadding}{statement.FileName}: {message}";
-
-            Console.ForegroundColor = ConsoleColor.White;
-            Console.WriteLine(fullCodeOutput);
-
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine(fullCaretOutput);
-            Console.WriteLine(messageOutput);
-
-            Console.ForegroundColor = ConsoleColor.Gray;
-
-            return new Exception($"{fullCodeOutput}\n{fullCaretOutput}\n{messageOutput}");
-        }
+            => CreateError(message, statement.PrettyPrint(), statement.FileName, statement.Line);
 
         public static Exception CreateError(string message, Expression expression)
+            => CreateError(message, expression.PrettyPrint(), expression.FileName, expression.Line);
+
+        static Exception CreateError(string message, string code, string fileName, ulong lineNumber)
         {
-            string prefix = $"Line {expression.Line}: ";
-            string prettyCode = expression.PrettyPrint(0);
-            string[] codeLines = prettyCode.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            string prefix = $"Line {lineNumber}: ";
+            string[] codeLines = code.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
 
-            var outputLines = new List<string>();
-            var caretLines = new List<string>();
-
-            for (int i = 0; i < codeLines.Length; i++)
+            int longestLineLength = 0;
+            foreach (string line in codeLines)
             {
-                string currentLine = codeLines[i];
-                string linePrefix = (i == 0) ? prefix : new string(' ', prefix.Length);
-
-                outputLines.Add($"{linePrefix}{currentLine}");
-
-                int leadingSpaces = currentLine.TakeWhile(char.IsWhiteSpace).Count();
-                int totalPadding = linePrefix.Length + leadingSpaces;
-                string padding = new string(' ', totalPadding);
-
-                int codeWidth = currentLine.Length - leadingSpaces;
-                int caretCount = Math.Max(1, codeWidth);
-                string carets = new string('^', caretCount);
-
-                caretLines.Add($"{padding}{carets}");
+                if (line.Length > longestLineLength)
+                    longestLineLength = line.Length;
             }
 
-            string fullCodeOutput = string.Join(Environment.NewLine, outputLines);
-            string fullCaretOutput = string.Join(Environment.NewLine, caretLines);
-
-            string finalCaretLinePadding = new string(' ', caretLines[^1].TakeWhile(c => c == ' ').Count());
-            string messageOutput = $"{finalCaretLinePadding}{expression.FileName}: {message}";
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.Append(prefix);
+            stringBuilder.Append(code);
+            stringBuilder.AppendLine();
 
             Console.ForegroundColor = ConsoleColor.White;
-            Console.WriteLine(fullCodeOutput);
+            Console.WriteLine(stringBuilder.ToString());
+
+            StringBuilder errorMessage = new StringBuilder();
+            errorMessage.Append(new String(' ', prefix.Length));
+            errorMessage.Append(new String('^', longestLineLength));
+            errorMessage.AppendLine();
+
+            errorMessage.Append(new String(' ', prefix.Length));
+            errorMessage.Append(fileName);
+            errorMessage.Append(": ");
+            errorMessage.Append(message);
 
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine(fullCaretOutput);
-            Console.WriteLine(messageOutput);
+            Console.WriteLine(errorMessage.ToString());
 
             Console.ForegroundColor = ConsoleColor.Gray;
 
-            return new Exception($"{fullCodeOutput}\n{fullCaretOutput}\n{messageOutput}");
+            return new Exception(stringBuilder.ToString() + errorMessage.ToString());
         }
-
-
     }
 }

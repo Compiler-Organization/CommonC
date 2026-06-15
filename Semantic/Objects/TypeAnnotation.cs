@@ -89,7 +89,19 @@ namespace CommonC.Semantic.Objects
                 _ => throw new InvalidOperationException($"Type annotation does not have a valid LLVM type: {ToString()}")
             };
 
-            return !destructArray && IsArray ? LLVMTypeRef.CreatePointer(baseType, 0) : baseType;
+            if (IsArray)
+            {
+                int targetDepth = destructArray ? ArrayDepth - 1 : ArrayDepth;
+
+                LLVMTypeRef pointerType = baseType;
+                for (int i = 0; i < targetDepth; i++)
+                {
+                    pointerType = LLVMTypeRef.CreatePointer(pointerType, 0);
+                }
+                return pointerType;
+            }
+
+            return baseType;
         }
 
         public bool IsPointerType() => 
@@ -99,8 +111,19 @@ namespace CommonC.Semantic.Objects
             || ReservedType == ReservedTypes.String
             || ReservedType == ReservedTypes.Ptr;
 
+        public bool IsSigned() =>
+            IsReservedType ? ReservedType switch
+            {
+                ReservedTypes.I8 => true,
+                ReservedTypes.I16 => true,
+                ReservedTypes.I32 => true,
+                ReservedTypes.I64 => true,
+                ReservedTypes.I128 => true,
+                _ => false
+            } : false;
+
         /// <summary>
-        /// Creates a deep copy of the type annotation.
+        /// Creates a shallow copy of the type annotation.
         /// Useful for when you want to modify a type annotation without affecting the original
         /// </summary>
         /// <returns></returns>

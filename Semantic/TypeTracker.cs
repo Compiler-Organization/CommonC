@@ -22,8 +22,9 @@ namespace CommonC.Semantic
         Functions Functions = new Functions();
 
         ClassStatement? CurrentClass { get; set; }
+        FunctionDeclarationStatement? CurrentFunction { get; set; }
 
-        TypeAnnotation ResolveTypeFromExpression(Expression expression, Variables? variables, bool isType = true)
+        TypeAnnotation ResolveTypeFromExpression(Expression expression, Variables? variables, bool isType = false)
         {
             if (expression is StringExpression)
             {
@@ -72,6 +73,15 @@ namespace CommonC.Semantic
             {
                 string name = identifierExpression.Name;
 
+                if (CurrentClass != null && name == "this")
+                {
+                    return expression.TypeAnnotation = new TypeAnnotation
+                    {
+                        IsClass = true,
+                        Class = CurrentClass
+                    };
+                }
+
                 if (Structs.TryGetValue(name, out var structDeclaration))
                 {
                     return expression.TypeAnnotation = new TypeAnnotation
@@ -98,7 +108,7 @@ namespace CommonC.Semantic
                 if (variables?.Contains(name) == true)
                 {
                     var variable = variables.GetVariable(name);
-                    var variableAnnotation = ResolveTypeFromExpression(variable.Type, variables);
+                    var variableAnnotation = ResolveTypeFromExpression(variable.Type, variables, isType: true);
 
                     variableAnnotation.IsVariable = true;
                     return expression.TypeAnnotation = variableAnnotation;
@@ -110,15 +120,6 @@ namespace CommonC.Semantic
                 {
                     FunctionDeclarationStatement function = matchingFunctions[0];
                     return expression.TypeAnnotation = ResolveTypeFromExpression(function.ReturnType, variables);
-                }
-
-                if(CurrentClass != null && name == "this")
-                {
-                    return expression.TypeAnnotation = new TypeAnnotation
-                    {
-                        IsClass = true,
-                        Class = CurrentClass
-                    };
                 }
 
                 throw ErrorHandler.CreateError($"'{name}' does not exist in the current context.", identifierExpression);
@@ -198,7 +199,7 @@ namespace CommonC.Semantic
             if (expression is ArrayInitializerExpression arrayInitializerExpression)
             {
                 ResolveTypeFromExpression(arrayInitializerExpression.Array, variables);
-                TypeAnnotation indexAnnotation = ResolveTypeFromExpression(arrayInitializerExpression.Index, variables, true);
+                TypeAnnotation indexAnnotation = ResolveTypeFromExpression(arrayInitializerExpression.Index, variables, isType: true);
                 return expression.TypeAnnotation = indexAnnotation;
             }
             if(expression is ArrayExpression arrayExpression)
@@ -232,7 +233,7 @@ namespace CommonC.Semantic
             }
             if(expression is ParameterExpression parameterExpression)
             {
-                return expression.TypeAnnotation = ResolveTypeFromExpression(parameterExpression.Type, variables);
+                return expression.TypeAnnotation = ResolveTypeFromExpression(parameterExpression.Type, variables, isType: true);
             }
             if(expression is RangeExpression rangeExpression)
             {
@@ -277,7 +278,7 @@ namespace CommonC.Semantic
                         {
                             if (propertyAssignment.Variable is IdentifierExpression propertyIdentifier)
                             {
-                                VariableDeclarationStatement field = classStatement.Body.Locals.GetVariable(propertyIdentifier.Name);
+                                VariableDeclarationStatement field = classStatement.Body.Variables.GetVariable(propertyIdentifier.Name);
                                 propertyAssignment.Variable.TypeAnnotation = field.TypeAnnotation;
                                 TrackTypeForExpression(propertyAssignment.Expression, variables);
                                 if (!propertyAssignment.Expression.TypeAnnotation.Match(field.TypeAnnotation, false))
@@ -302,7 +303,7 @@ namespace CommonC.Semantic
                     }
                 }
 
-                throw ErrorHandler.CreateError($"Expression of type {objectInitializerExpression.Expression.GetType().Name} is not supported as the expression of an object initializer expression when resolving types.");
+                throw ErrorHandler.CreateError($"Expression of type {objectInitializerExpression.Expression.GetType().Name} is not supported as the expression of an object initializer expression when resolving types.", objectInitializerExpression);
             }
             if (expression is MemberExpression memberExpression)
             {
@@ -517,7 +518,7 @@ namespace CommonC.Semantic
             List<FunctionDeclarationStatement> functionDeclarationStatements = closure.Statements.OfType<FunctionDeclarationStatement>().ToList();
             foreach (FunctionDeclarationStatement functionDeclarationStatement in functionDeclarationStatements)
             {
-                TrackTypeForParameters(functionDeclarationStatement.Parameters, closure.Locals);
+                TrackTypeForParameters(functionDeclarationStatement.Parameters, closure.Variables);
                 Functions.Add(functionDeclarationStatement);
             }
 
@@ -532,7 +533,7 @@ namespace CommonC.Semantic
             }
         }
 
-        TypeAnnotation TrackTypeForExpression(Expression expression, Variables variables, bool isType = true)
+        TypeAnnotation TrackTypeForExpression(Expression expression, Variables variables, bool isType = false)
         {
             return expression.TypeAnnotation = ResolveTypeFromExpression(expression, variables, isType);
         }
@@ -549,7 +550,7 @@ namespace CommonC.Semantic
         {
             foreach (Statement statement in closure.Statements)
             {
-                TrackStatement(statement, closure.Locals);
+                TrackStatement(statement, closure.Variables);
             }
         }
 
@@ -557,12 +558,15 @@ namespace CommonC.Semantic
         {
             if (statement is FunctionDeclarationStatement functionDeclarationStatement)
             {
-                TrackTypeForExpression(functionDeclarationStatement.ReturnType, variables, true);
+                CurrentFunction = functionDeclarationStatement;
+
+                TrackTypeForExpression(functionDeclarationStatement.ReturnType, variables, isType: true);
                 TrackTypeForParameters(functionDeclarationStatement.Parameters, variables);
 
                 if (functionDeclarationStatement.Body != null)
                     TrackStatements(functionDeclarationStatement.Body);
 
+                CurrentFunction = null;
                 return;
             }
             if (statement is IfStatement ifStatement)
@@ -588,27 +592,41 @@ namespace CommonC.Semantic
             }
             if (statement is VariableDeclarationStatement variableDeclarationStatement)
             {
-                TypeAnnotation variableTypeAnnotation = TrackTypeForExpression(variableDeclarationStatement.Type, variables, true);
+                TypeAnnotation variableTypeAnnotation = TrackTypeForExpression(variableDeclarationStatement.Type, variables, isType: true);
 
-                if (variableDeclarationStatement.Expression != null)
+                if(variableDeclarationStatement.Expression == null)
                 {
-                    TypeAnnotation valueAnnotation = TrackTypeForExpression(variableDeclarationStatement.Expression, variables);
-
-                    Console.WriteLine(variableTypeAnnotation.ToString() + " " + variableDeclarationStatement.Name + " = " + valueAnnotation.ToString());
-                    // Its actually quite a lot nicer to not have type checking here, as it allows you to do more hacky stuff.
-                    //if (!variableTypeAnnotation.Match(valueAnnotation, false))
-                    //{
-                    //    throw ErrorHandler.CreateError($"Cannot assign value of type '{valueAnnotation.ToString()}' to variable of type '{variableTypeAnnotation.ToString()}'", variableDeclarationStatement);
-                    //}
+                    throw ErrorHandler.CreateError($"Variable declarations cannot be left uninitialized", variableDeclarationStatement);
                 }
+
+                if(CurrentFunction == null)
+                {
+                    variableDeclarationStatement.IsGlobal = true;
+                }
+
+                TypeAnnotation valueAnnotation = TrackTypeForExpression(variableDeclarationStatement.Expression, variables);
+
+                // Its actually quite a lot nicer to ignore pointer types here, as it allows you to do more hacky stuff.
+                //if (!variableTypeAnnotation.Match(valueAnnotation, ignorePointerTypes: true))
+                //{
+                //    throw ErrorHandler.CreateError($"Cannot assign value of type '{valueAnnotation.ToString()}' to variable of type '{variableTypeAnnotation.ToString()}'", variableDeclarationStatement);
+                //}
 
                 variableDeclarationStatement.TypeAnnotation = variableTypeAnnotation;
                 return;
             }
             if (statement is AssignmentStatement assignmentStatement)
             {
-                TrackTypeForExpression(assignmentStatement.Variable, variables);
-                TrackTypeForExpression(assignmentStatement.Expression, variables);
+                TypeAnnotation variableTypeAnnotation = TrackTypeForExpression(assignmentStatement.Variable, variables);
+                TypeAnnotation valueAnnotation = TrackTypeForExpression(assignmentStatement.Expression, variables);
+
+                // Its actually quite a lot nicer to ignore pointer types here, as it allows you to do more hacky stuff.
+                //if (!variableTypeAnnotation.Match(valueAnnotation, ignorePointerTypes: true))
+                //{
+                //    throw ErrorHandler.CreateError($"Cannot assign value of type '{valueAnnotation.ToString()}' to variable of type '{variableTypeAnnotation.ToString()}'", assignmentStatement);
+                //}
+
+                assignmentStatement.TypeAnnotation = variableTypeAnnotation;
                 return;
             }
             if (statement is CallStatement callStatement)
@@ -629,7 +647,7 @@ namespace CommonC.Semantic
             {
                 foreach (VariableDeclarationStatement field in structStatement.Fields)
                 {
-                    TrackTypeForExpression(field.Type, variables, true);
+                    TrackTypeForExpression(field.Type, variables, isType: true);
                     field.TypeAnnotation = field.Type.TypeAnnotation;
                 }
                 return;

@@ -1,7 +1,5 @@
 // Mandelbrot fractral to demonstrate graphics capabilities
 
-use Console
-use Strings
 use GDIDataStructures
 
 fn Mandelbrot {
@@ -66,7 +64,6 @@ fn Mandelbrot {
         }
 
         if (rendered == 0) {
-            printl("Generating fractal layout...")
             i32 maxIterations = 32
             i32 dummy = 0 
 
@@ -134,10 +131,8 @@ fn Mandelbrot {
             
             GdiFlush@0()
             rendered = 1 
-            printl("Mandelbrot generation finished.")
         }
     }
 
     ReleaseDC@8(windowHandle, hdc)
-    printl("Window closed cleanly. Program exit.")
 }

@@ -22,17 +22,19 @@ namespace CommonC.Parser.AST.Statements
             this.AddRange(functions);
         }
 
-        public void Add(FunctionDeclarationStatement functionDeclarationStatement)
+        public void Add(FunctionDeclarationStatement functionDeclarationStatement, bool matchParameters = true)
         {
-            IEnumerable<FunctionDeclarationStatement> functions = this.Where(f => f.Name == functionDeclarationStatement.Name);
-            if(functions.Any())
+            if(matchParameters)
             {
-                foreach(FunctionDeclarationStatement function in functions)
+                IEnumerable<FunctionDeclarationStatement> functions = this.Where(f => f.Name == functionDeclarationStatement.Name);
+                if (functions.Any())
                 {
-                    if (function.Parameters.Count == functionDeclarationStatement.Parameters.Count
-                    && function.Parameters.MatchTypes(functionDeclarationStatement.Parameters, false))
+                    foreach (FunctionDeclarationStatement function in functions)
                     {
-                        throw ErrorHandler.CreateError($"Function '{functionDeclarationStatement.Name}' already exists with overload ({string.Join(", ", function.Parameters.Select(p => p.TypeAnnotation.ToString() + " " + p.Name))})", functionDeclarationStatement);
+                        if (function.Parameters.MatchTypes(functionDeclarationStatement.Parameters, false))
+                        {
+                            throw ErrorHandler.CreateError($"Function '{functionDeclarationStatement.Name}' already exists with overload:  {function.Name}({string.Join(", ", function.Parameters.Select(p => p.TypeAnnotation.ToString() + " " + p.Name))})", functionDeclarationStatement);
+                        }
                     }
                 }
             }
@@ -67,8 +69,7 @@ namespace CommonC.Parser.AST.Statements
             FunctionDeclarationStatement? function = null;
             foreach(FunctionDeclarationStatement functionDeclaration in functions) // TODO: Change up this so it properly respects default parameter assignments in functions
             {
-                if (arguments.Count == functionDeclaration.Parameters.Count 
-                    && functionDeclaration.Parameters.MatchTypes(arguments, false))
+                if (functionDeclaration.Parameters.MatchTypes(arguments, false))
                 {
                     function = functionDeclaration;
                     break;

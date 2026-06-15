@@ -88,15 +88,12 @@ bool StringIsEqual(str str1, str str2) {
 
     while (true) {
         char c1 = charSpan1[index]
-        char c2 = charSpan2[index]
 
-        if !(c1 == c2) {
+        if !(c1 == charSpan2[index]) 
             return false
-        }
 
-        if c1 == 0 {
+        if c1 == 0 
             return true
-        }
 
         index = index + 1
     }
@@ -378,4 +375,11 @@ str ToString(i16 num) {
 str ToString(i8 num) {
     i32 newNum = num
     return I32ToString(newNum)
+}
+
+// Converts a 8-bit integer to a string.
+str ToString(char ch) {
+    i8[] arr = i8[] { ch, 0 }
+    str newStr = arr
+    return newStr
 }

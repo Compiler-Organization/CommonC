@@ -1,0 +1,14 @@
+i32 FibonacciTail(i32 n, i32 a, i32 b) {
+    if n == 0
+        return a
+    if n == 1
+        return b
+
+    return FibonacciTail(n - 1, b, a + b)
+}
+
+i32 Fibonacci(i32 n) {
+    if n < 2
+        return n
+    return Fibonacci(n - 1) + Fibonacci(n - 2)
+}

@@ -18,6 +18,8 @@ namespace CommonC.Parser
         LexTokenReader TokenReader { get; set; }
         string FileName { get; set; } = "unspecified";
 
+        bool IsClassScope = false;
+
 
         public SyntaxParser(LexTokenList lexTokenList, string fileName = "")
         {
@@ -1030,10 +1032,12 @@ bool ParseSimpleExpression(out Expression expression)
 
         bool ParseFunctionDeclarationStatement(Expression typeExpression, IdentifierExpression nameExpression, bool isExtern, out FunctionDeclarationStatement functionDeclarationStatement)
         {
-            functionDeclarationStatement = new FunctionDeclarationStatement() 
+            functionDeclarationStatement = new FunctionDeclarationStatement()
             {
                 ReturnType = typeExpression,
-                Line = TokenReader.Peek().Line, FileName = FileName
+                Line = TokenReader.Peek().Line, FileName = FileName,
+                Name = nameExpression.Name,
+                IsClassFunction = IsClassScope
             };
 
             functionDeclarationStatement.Name = nameExpression.Name;
@@ -1421,9 +1425,11 @@ bool ParseSimpleExpression(out Expression expression)
                     classStatement.Name = TokenReader.Consume().Value;
                 }
 
+                IsClassScope = true;
                 if (ParseClosureStatement(out ClosureStatement closureStatement))
                 {
                     classStatement.Body = closureStatement;
+                    IsClassScope = false;
                     return true;
                 }
 

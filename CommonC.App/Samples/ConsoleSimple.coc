@@ -1,0 +1,21 @@
+// To support simple compiler functionality
+
+extern ptr GetStdHandle@4(i32 nStdHandle);
+extern i32 WriteConsoleA@20(ptr hConsoleOutput, str lpBuffer, i32 nNumberOfCharsToWrite, ptr lpNumberOfCharsWritten, ptr lpReserved);
+extern i32 ReadConsoleA@20(ptr hConsoleInput, i8[] lpBuffer, i32 nNumberOfCharsToRead, i32[] lpNumberOfCharsRead, ptr pInputControl);
+extern i32 SetConsoleTextAttribute@8(ptr hConsoleOutput, i32 wAttributes);
+extern fn ExitProcess@4(i32 uExitCode);
+
+ptr __GetStdoutHandle() {
+        return GetStdHandle@4(-11);
+}
+
+ptr __GetStdinHandle() {
+        return GetStdHandle@4(-10);
+}
+
+fn __SystemWrite(str text, i32 length) {
+        ptr stdoutHandle = __GetStdoutHandle();
+        
+        WriteConsoleA@20(stdoutHandle, text, length, null, null);
+}

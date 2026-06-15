@@ -4,13 +4,8 @@ using CommonC.Parser.AST;
 using CommonC.Parser.AST.Expressions;
 using CommonC.Parser.AST.Statements;
 using CommonC.Semantic.Objects;
-using LLVMSharp;
 using LLVMSharp.Interop;
-using System;
-using System.Collections.Generic;
 using System.Data;
-using System.Text;
-using System.Xml.Linq;
 
 namespace CommonC.LLVM.CodeGen
 {
@@ -131,7 +126,7 @@ namespace CommonC.LLVM.CodeGen
                 }
 
                 LLVMTypeRef returnType = functionDeclarationStatement.ReturnType.TypeAnnotation.ToLLVMType();
-                LLVMTypeRef[] parameterTypes = functionDeclarationStatement.Parameters.Select(p => p.Type.TypeAnnotation.ToLLVMType()).ToArray();
+                LLVMTypeRef[] parameterTypes = functionDeclarationStatement.Parameters.Select(p => p.TypeAnnotation.ToLLVMType()).ToArray();
 
                 LLVMTypeRef functionType = LLVMTypeRef.CreateFunction(returnType, 
                     isClassFunction 
@@ -141,7 +136,7 @@ namespace CommonC.LLVM.CodeGen
 
                 if(isClassFunction)
                 {
-                    foreach(VariableDeclarationStatement parameter in functionDeclarationStatement.Body.Locals.Where(v => v.IsParameter))
+                    foreach(VariableDeclarationStatement parameter in functionDeclarationStatement.Body.Variables.Where(v => v.IsParameter))
                     {
                         parameter.ParameterIndex++;
                     }
@@ -165,7 +160,7 @@ namespace CommonC.LLVM.CodeGen
                         TypeAnnotation = typeAnnotation
                     });
 
-                    functionDeclarationStatement.Body.Locals.Add(new VariableDeclarationStatement
+                    functionDeclarationStatement.Body.Variables.Add(new VariableDeclarationStatement
                     {
                         Name = "this",
                         ParameterIndex = 0,
@@ -178,6 +173,13 @@ namespace CommonC.LLVM.CodeGen
                 }
 
                 LLVMValueRef function = Module.AddFunction(functionDeclarationStatement.Name, functionType);
+
+                LLVMValueRef[] parameters = function.GetParams();
+                int classParamNegation = isClassFunction ? 1 : 0;
+                for (int i = classParamNegation; i < parameters.Length; i++)
+                {
+                    parameters[i].Name = functionDeclarationStatement.Parameters[i - classParamNegation].Name;
+                }
 
                 function.AppendBasicBlock("");
 
@@ -267,7 +269,7 @@ namespace CommonC.LLVM.CodeGen
                     break;
 
                 default:
-                    throw ErrorHandler.CreateError($"Unsupported statement type: {statement.GetType().Name}");
+                    throw ErrorHandler.CreateError($"Unsupported statement type: {statement.GetType().Name}", statement);
             }
         }
 
@@ -276,7 +278,7 @@ namespace CommonC.LLVM.CodeGen
             CurrentClass = classStatement;
             CreateFunctionReferences(classStatement.Body, isClassFunction: true);
 
-            EmitStatements(classStatement.Body.Statements, classStatement.Body.Locals);
+            EmitStatements(classStatement.Body.Statements, classStatement.Body.Variables);
             CurrentClass = null;
         }
 
@@ -304,7 +306,7 @@ namespace CommonC.LLVM.CodeGen
             Builder.BuildCondBr(condition, thenBlock, hasElse ? elseBlock : mergeBlock);
 
             Builder.PositionAtEnd(thenBlock);
-            EmitStatements(ifStatement.Body.Statements, ifStatement.Body.Locals);
+            EmitStatements(ifStatement.Body.Statements, ifStatement.Body.Variables);
 
             if (Builder.InsertBlock.Terminator == null)
             {
@@ -314,7 +316,7 @@ namespace CommonC.LLVM.CodeGen
             if (hasElse)
             {
                 Builder.PositionAtEnd(elseBlock);
-                EmitStatements(ifStatement.Else.Statements, ifStatement.Else.Locals);
+                EmitStatements(ifStatement.Else.Statements, ifStatement.Else.Variables);
 
                 if (Builder.InsertBlock.Terminator == null)
                 {
@@ -354,7 +356,7 @@ namespace CommonC.LLVM.CodeGen
             Builder.BuildCondBr(condition, loopBodyBlock, loopEndBlock);
 
             Builder.PositionAtEnd(loopBodyBlock);
-            EmitStatements(forStatement.Body.Statements, forStatement.Body.Locals);
+            EmitStatements(forStatement.Body.Statements, forStatement.Body.Variables);
 
             if (Builder.InsertBlock.Terminator == null)
             {
@@ -385,7 +387,7 @@ namespace CommonC.LLVM.CodeGen
             LLVMValueRef condition = EmitExpression(whileStatement.Expression, variables);
             Builder.BuildCondBr(condition, loopBodyBlock, loopEndBlock);
             Builder.PositionAtEnd(loopBodyBlock);
-            EmitStatements(whileStatement.Body.Statements, whileStatement.Body.Locals);
+            EmitStatements(whileStatement.Body.Statements, whileStatement.Body.Variables);
             if (whileStatement.Body.Statements.Count == 0 || whileStatement.Body.Statements.Last() is not ReturnStatement)
             {
                 Builder.BuildBr(loopConditionBlock);
@@ -500,7 +502,7 @@ namespace CommonC.LLVM.CodeGen
 
                     AssignmentOperator.CompoundExp => EmitPowerExpression(currentValue, valueToStore, currentValue.TypeOf),
 
-                    _ => throw ErrorHandler.CreateError($"Unsupported or invalid compound assignment operator: {assignmentStatement.Operator}")
+                    _ => throw ErrorHandler.CreateError($"Unsupported or invalid compound assignment operator: {assignmentStatement.Operator}", assignmentStatement)
                 };
 
 
@@ -593,22 +595,20 @@ namespace CommonC.LLVM.CodeGen
                 return;
             }
 
-            LLVMBasicBlockRef startBlock = functionDeclarationStatement.LLVMFunction.EntryBasicBlock;
-
-            Builder.PositionAtEnd(startBlock);
+            Builder.PositionAtEnd(functionDeclarationStatement.LLVMFunction.EntryBasicBlock);
             CurrentFunction = functionDeclarationStatement;
 
-            foreach (VariableDeclarationStatement parameter in functionDeclarationStatement.Body.Locals.Where(local => local.IsParameter))
+            foreach (VariableDeclarationStatement parameter in functionDeclarationStatement.Body.Variables.Where(local => local.IsParameter))
             {
                 if (parameter.Expression != null)
                 {
-                    EmitVariableDeclarationStatement(parameter, functionDeclarationStatement.Body.Locals);
+                    EmitVariableDeclarationStatement(parameter, functionDeclarationStatement.Body.Variables);
                 }
             }
 
             if (functionDeclarationStatement.Body != null && functionDeclarationStatement.Body.Statements.Count > 0)
             {
-                foreach (VariableDeclarationStatement parameter in functionDeclarationStatement.Body.Locals.Where(local => local.IsParameter))
+                foreach (VariableDeclarationStatement parameter in functionDeclarationStatement.Body.Variables.Where(local => local.IsParameter))
                 {
                     if(parameter.Type.TypeAnnotation.IsPointerType())
                     {
@@ -627,7 +627,7 @@ namespace CommonC.LLVM.CodeGen
                     
                 }
 
-                EmitStatements(functionDeclarationStatement.Body.Statements, functionDeclarationStatement.Body.Locals);
+                EmitStatements(functionDeclarationStatement.Body.Statements, functionDeclarationStatement.Body.Variables);
             }
 
             if (functionDeclarationStatement.Body != null && functionDeclarationStatement.Body.Statements.Last() is not ReturnStatement)
@@ -812,7 +812,7 @@ namespace CommonC.LLVM.CodeGen
 
         LLVMValueRef EmitStringExpression(StringExpression stringExpression)
         {
-            return Builder.BuildGlobalStringPtr(stringExpression.Value);
+            return Builder.BuildGlobalStringPtr(stringExpression.Value, stringExpression.Value.Substring(0, Math.Min(stringExpression.Value.Length, 5)));
         }
 
         // Rewrite this so it accruately creates a number given the expression using it
@@ -1427,7 +1427,7 @@ namespace CommonC.LLVM.CodeGen
 
             LLVMTypeRef expectedFieldType = memberExpression.TypeAnnotation.ToLLVMType();
 
-            return Builder.BuildLoad2(expectedFieldType, currentPointer);
+            return Builder.BuildLoad2(expectedFieldType, currentPointer, "member.load");
         }
 
         public LLVMValueRef EmitMemberExpression(MemberExpression memberExpression, Variables variables)
@@ -1602,10 +1602,15 @@ namespace CommonC.LLVM.CodeGen
 
             if (leftKind == LLVMTypeKind.LLVMPointerTypeKind || rightKind == LLVMTypeKind.LLVMPointerTypeKind)
             {
-                if (leftKind == LLVMTypeKind.LLVMIntegerTypeKind && left.IsConstant && left.ConstIntZExt == 0)
-                    left = Builder.BuildIntToPtr(left, right.TypeOf, "nullptr.cast");
-                else if (rightKind == LLVMTypeKind.LLVMIntegerTypeKind && right.IsConstant && right.ConstIntZExt == 0)
-                    right = Builder.BuildIntToPtr(right, left.TypeOf, "nullptr.cast");
+                if (leftKind == LLVMTypeKind.LLVMIntegerTypeKind && left.IsConstant)
+                {
+                    left = Builder.BuildIntToPtr(left, right.TypeOf, "int2ptr.cast");
+                }
+
+                if (rightKind == LLVMTypeKind.LLVMIntegerTypeKind && right.IsConstant)
+                {
+                    right = Builder.BuildIntToPtr(right, left.TypeOf, "int2ptr.cast");
+                }
 
                 if (left.TypeOf != right.TypeOf)
                 {

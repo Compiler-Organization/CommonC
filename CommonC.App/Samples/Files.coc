@@ -1,0 +1,4 @@
+extern ptr CreateFileA@28(str lpFileName, i32 dwDesiredAccess, i32 dwShareMode, ptr lpSecurityAttributes, i32 dwCreationDisposition, i32 dwFlagsAndAttributes, ptr hTemplateFile);
+extern i32 WriteFile@20(ptr hFile, str lpBuffer, i32 nNumberOfBytesToWrite, i32[] lpNumberOfBytesWritten, ptr lpOverlapped);
+extern i32 CloseHandle@4(ptr hObject);
+extern i32 DeleteFileA@4(str lpFileName);

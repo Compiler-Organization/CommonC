@@ -12,7 +12,15 @@ namespace CommonC.Parser.AST.Statements
     {
         public StatementList Statements { get; set; } = new StatementList();
 
-        public Variables Locals { get; set; } = new Variables();
+        public Variables Variables { get; set; } = new Variables();
+
+        public Functions Functions { get; set; } = new Functions();
+
+        public Structs Structs { get; set; } = new Structs();
+
+        public Classes Classes { get; set; } = new Classes();
+
+        public Enums Enums { get; set; } = new Enums();
 
         public override string PrettyPrint(int indentLevel = 0)
         {

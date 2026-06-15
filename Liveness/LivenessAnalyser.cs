@@ -130,7 +130,7 @@ namespace CommonC.Liveness
 
         void AnalyseWhileStatement(WhileStatement whileStatement, Variables variables)
         {
-            AnalyseStatements(whileStatement.Body.Statements, variables, whileStatement.Body.Locals);
+            AnalyseStatements(whileStatement.Body.Statements, variables, whileStatement.Body.Variables);
         }
 
         void AnalyseForStatement(ForStatement forStatement, Variables variables)
@@ -138,13 +138,13 @@ namespace CommonC.Liveness
             Variables forVariables = new Variables(variables);
             forVariables.Add(forStatement.Variable);
 
-            AnalyseStatements(forStatement.Body.Statements, forVariables, forStatement.Body.Locals);
+            AnalyseStatements(forStatement.Body.Statements, forVariables, forStatement.Body.Variables);
         }
 
         void AnalyseIfStatement(IfStatement ifStatement, Variables variables)
         {
             AnalyseExpression(ifStatement.Condition, variables);
-            AnalyseStatements(ifStatement.Body.Statements, variables, ifStatement.Body.Locals);
+            AnalyseStatements(ifStatement.Body.Statements, variables, ifStatement.Body.Variables);
 
             foreach(IfStatement elseIf in ifStatement.ElseIfs)
             {
@@ -153,7 +153,7 @@ namespace CommonC.Liveness
 
             if(ifStatement.Else != null && ifStatement.Else.Statements.Count > 0)
             {
-                AnalyseStatements(ifStatement.Else.Statements, variables, ifStatement.Else.Locals);
+                AnalyseStatements(ifStatement.Else.Statements, variables, ifStatement.Else.Variables);
             }
         }
 
@@ -186,7 +186,7 @@ namespace CommonC.Liveness
             {
                 Variables functionVariables = new Variables(variables);
 
-                Variables functionLocalVariables = new Variables(functionDeclarationStatement.Body.Locals);
+                Variables functionLocalVariables = new Variables(functionDeclarationStatement.Body.Variables);
 
                 foreach(var stmt in functionDeclarationStatement.Body.Statements)
                 {

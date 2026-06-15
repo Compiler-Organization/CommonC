@@ -474,7 +474,7 @@ namespace CommonC.DotNet.CodeGen
                 if (functionDeclaration.Body != null && functionDeclaration.Body.Statements != null && functionDeclaration.Body.Statements.Count > 0)
                 {
                     functionDeclaration.DotNetMethod!.CilMethodBody = new CilMethodBody();
-                    GenerateStatements(functionDeclaration.DotNetMethod.CilMethodBody, functionDeclaration.Body.Statements, functionDeclaration.Body.Locals);
+                    GenerateStatements(functionDeclaration.DotNetMethod.CilMethodBody, functionDeclaration.Body.Statements, functionDeclaration.Body.Variables);
 
                     if (functionDeclaration.DotNetMethod.CilMethodBody.Instructions.Last().OpCode != CilOpCodes.Ret)
                     {
@@ -535,12 +535,12 @@ namespace CommonC.DotNet.CodeGen
             CilInstruction endBranch = new CilInstruction(CilOpCodes.Nop);
             ICilLabel endBranchLabel = endBranch.CreateLabel();
 
-            GenerateExpression(ifStatement.Condition, ifStatement.Body.Locals, body);
+            GenerateExpression(ifStatement.Condition, ifStatement.Body.Variables, body);
 
             CilInstruction ifFalseBranch = new CilInstruction(CilOpCodes.Nop);
             body.Instructions.Add(CilOpCodes.Brfalse, ifFalseBranch.CreateLabel());
 
-            GenerateStatements(body, ifStatement.Body.Statements, ifStatement.Body.Locals);
+            GenerateStatements(body, ifStatement.Body.Statements, ifStatement.Body.Variables);
 
             if (multipleBranches)
             {
@@ -551,12 +551,12 @@ namespace CommonC.DotNet.CodeGen
 
             foreach (IfStatement elseIfStatement in ifStatement.ElseIfs)
             {
-                GenerateExpression(elseIfStatement.Condition, elseIfStatement.Body.Locals, body);
+                GenerateExpression(elseIfStatement.Condition, elseIfStatement.Body.Variables, body);
 
                 CilInstruction elseIfFalseBranch = new CilInstruction(CilOpCodes.Nop);
                 body.Instructions.Add(CilOpCodes.Brfalse, elseIfFalseBranch.CreateLabel());
 
-                GenerateStatements(body, elseIfStatement.Body.Statements, elseIfStatement.Body.Locals);
+                GenerateStatements(body, elseIfStatement.Body.Statements, elseIfStatement.Body.Variables);
 
                 body.Instructions.Add(CilOpCodes.Br, endBranchLabel);
                 body.Instructions.Add(elseIfFalseBranch);
@@ -564,7 +564,7 @@ namespace CommonC.DotNet.CodeGen
 
             if (ifStatement.Else.Statements.Count > 0)
             {
-                GenerateStatements(body, ifStatement.Else.Statements, ifStatement.Else.Locals);
+                GenerateStatements(body, ifStatement.Else.Statements, ifStatement.Else.Variables);
             }
 
             if (multipleBranches)
@@ -699,14 +699,14 @@ namespace CommonC.DotNet.CodeGen
         void GenerateForStatement(CilMethodBody body, ForStatement forStatement)
         {
             forStatement.Variable.Expression = forStatement.Range.Start;
-            GenerateVariableDeclarationStatement(body, forStatement.Variable, forStatement.Body.Locals);
+            GenerateVariableDeclarationStatement(body, forStatement.Variable, forStatement.Body.Variables);
 
             CilInstruction loopStart = new CilInstruction(CilOpCodes.Nop);
             CilInstruction conditionStart = new CilInstruction(CilOpCodes.Nop);
 
             body.Instructions.Add(CilOpCodes.Br, conditionStart.CreateLabel());
             body.Instructions.Add(loopStart);
-            GenerateStatements(body, forStatement.Body.Statements, forStatement.Body.Locals);
+            GenerateStatements(body, forStatement.Body.Statements, forStatement.Body.Variables);
 
             Emitter.EmitLdc_I4(1, body);
             Emitter.EmitLdloc(forStatement.Variable.CilLocalVariable!, body);
@@ -714,7 +714,7 @@ namespace CommonC.DotNet.CodeGen
             Emitter.EmitStloc(forStatement.Variable.CilLocalVariable!, body);
 
             body.Instructions.Add(conditionStart);
-            GenerateExpression(forStatement.Range.End, forStatement.Body.Locals, body);
+            GenerateExpression(forStatement.Range.End, forStatement.Body.Variables, body);
             Emitter.EmitLdloc(forStatement.Variable.CilLocalVariable!, body);
             body.Instructions.Add(CilOpCodes.Cgt);
             //body.Instructions.Add(CilOpCodes.Ldc_I4_0);
@@ -731,10 +731,10 @@ namespace CommonC.DotNet.CodeGen
             body.Instructions.Add(CilOpCodes.Br, conditionStart.CreateLabel());
             body.Instructions.Add(loopStart);
 
-            GenerateStatements(body, whileStatement.Body.Statements, whileStatement.Body.Locals);
+            GenerateStatements(body, whileStatement.Body.Statements, whileStatement.Body.Variables);
 
             body.Instructions.Add(conditionStart);
-            GenerateExpression(whileStatement.Expression, whileStatement.Body.Locals, body);
+            GenerateExpression(whileStatement.Expression, whileStatement.Body.Variables, body);
             body.Instructions.Add(CilOpCodes.Brtrue, loopStart.CreateLabel());
         }
 

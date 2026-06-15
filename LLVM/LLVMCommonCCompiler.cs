@@ -57,6 +57,9 @@ namespace CommonC.LLVM
                 // livenessAnalyser.Analyse();
 
 
+                //LLVMCodeGen2 lLVMCodeGen = new LLVMCodeGen2(Settings.LLVMCodeGenSettings);
+                //return lLVMCodeGen.CreateModule(closure);
+
                 LLVMCodeGen lLVMCodeGen = new LLVMCodeGen(Settings.LLVMCodeGenSettings, closure);
                 return lLVMCodeGen.GenerateLLVMModule();
             }

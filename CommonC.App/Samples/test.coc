@@ -1,21 +1,98 @@
-use Console
+use Standard
 
-struct Node {
-    str Name,
-    Node Next
+ptr FileCreate(str filePath) {
+    i32 GENERIC_WRITE = 1073741824;
+    i32 FILE_SHARE_NONE = 0;
+    i32 CREATE_ALWAYS = 2;
+    i32 FILE_ATTRIBUTE_NORMAL = 128;
+
+    ptr fileHandle = CreateFileA@28(
+        filePath, 
+        GENERIC_WRITE, 
+        FILE_SHARE_NONE, 
+        null, 
+        CREATE_ALWAYS, 
+        FILE_ATTRIBUTE_NORMAL, 
+        null
+    );
+
+    return fileHandle;
 }
 
-fn main {
-    Node node = Node {
-        Name: "Node1",
-        Next: Node {
-            Name: "Node2",
-            Next: Node {
-                Name: "Node3",
-                Next: Node {}
-            }
-        }
+ptr FileOpen(str filePath) {
+    i32 GENERIC_READ = 2147483648;
+    i32 FILE_SHARE_READ = 1;
+    i32 OPEN_EXISTING = 3; 
+    i32 FILE_ATTRIBUTE_NORMAL = 128; 
+
+    ptr fileHandle = CreateFileA@28(
+        filePath, 
+        GENERIC_READ, 
+        FILE_SHARE_READ, 
+        null, 
+        OPEN_EXISTING, 
+        FILE_ATTRIBUTE_NORMAL, 
+        null
+    );
+
+    return fileHandle;
+}
+
+i32 FileWrite(ptr fileHandle, str text) {
+    if ((fileHandle == null) or (fileHandle == -1)) {
+        return 0;
     }
 
-    printl(node.Next.Next.Name)
+    i32 length = String.Length(text);
+    i32[] bytesWritten = i32[1] {}; 
+    
+    i32 success = WriteFile@20(fileHandle, text, length, bytesWritten, null);
+    return success;
+}
+
+fn FileClose(ptr fileHandle) {
+    if (!(fileHandle == null) and !(fileHandle == -1)) {
+        CloseHandle@4(fileHandle);
+    }
+}
+
+i32 FileDelete(str filePath) {
+    i32 success = DeleteFileA@4(filePath);
+    return success; 
+}
+
+class Test {
+    str var = "erb"
+
+    fn changeVar(str new) {
+        this.var = new
+    }
+}
+
+fn main() {
+    Test test = Test {}
+    printl(test.var)
+    test.changeVar("bla")
+    printl(test.var)
+
+    printl("starting")
+    str testFile = "C:\\temp\\output.txt";
+    str dataPayload = "Initializing Common C Backend Output Logging Routine.\n";
+
+    ptr handle = FileCreate(testFile);
+    printl("1")
+
+    if (handle == -1) {
+        App.Panic("System Failure: Unable to allocate a valid file stream write handle.");
+    }
+    printl("2")
+
+    FileWrite(handle, dataPayload);
+    FileWrite(handle, "Appending second operational data block line.\n");
+
+    FileClose(handle);
+
+    printl("3")
+
+    printl("4")
 }
