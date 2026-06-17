@@ -16,7 +16,7 @@ Shown below is the specifications for each benchmark.
 
 | Language | CPU               | RAM            | OS         | Compiler/Interpreter                                                                             | Optimization    |
 | -------- | ----------------- | -------------- | ---------- | ------------------------------------------------------------------------------------------------ | --------------- |
-| Common C | AMD Ryzen 7 3700X | 48GB DDR4-3000 | Windows 11 | Common C 1.0                                                                                     | No optimization |
+| Common C | AMD Ryzen 7 3700X | 48GB DDR4-3000 | Windows 11 | Common C 1.0                                                                                     | -O3             |
 | C        | AMD Ryzen 7 3700X | 48GB DDR4-3000 | Windows 11 | clang version 20.1.8, i686-pc-windows-msvc, posix                                                | -O3             |
 | C++      | AMD Ryzen 7 3700X | 48GB DDR4-3000 | Windows 11 | Microsoft (R) C/C++ Optimizing Compiler Version 19.50.35730 for x86                              | /O2             |
 | Rust     | AMD Ryzen 7 3700X | 48GB DDR4-3000 | Windows 11 | rustc 1.67.1 (d5a82bbd2 2023-02-07)                                                              | -C opt-level=3  |
@@ -34,7 +34,7 @@ i32 fib(i32 n) {
 fn main() {
     i32 n = 45
     i32 result = fib(n)
-    logl("Fibonacci(", n, ") = ", result)
+    printl("Fibonacci(", n, ") = ", result)
 }
 ```
 This application does not use a timer, meaning system overhead like application startup time is included in the benchmark.

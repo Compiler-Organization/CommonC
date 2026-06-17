@@ -1,4 +1,184 @@
+// =====================================================================================
+// FILE MANAGEMENT LIBRARY (Win32 Wrapper)
+// =====================================================================================
+// Description: 
+//   This library provides an object-oriented abstraction layer over the raw Windows 
+//   Kernel32 file API. It encapsulates low-level file handles into a managed "File" 
+//   class, abstracting complex constants, access masks, and manual handle tracking.
+//
+// Purpose:
+//   - Simplifies file creation, open, and write operations.
+//   - Prevents resource leaks by tying file paths and OS handles into a single object.
+//   - Replaces verbose Win32 boilerplate with clean, readable object methods.
+// =====================================================================================
+
 extern ptr CreateFileA@28(str lpFileName, i32 dwDesiredAccess, i32 dwShareMode, ptr lpSecurityAttributes, i32 dwCreationDisposition, i32 dwFlagsAndAttributes, ptr hTemplateFile);
 extern i32 WriteFile@20(ptr hFile, str lpBuffer, i32 nNumberOfBytesToWrite, i32[] lpNumberOfBytesWritten, ptr lpOverlapped);
 extern i32 CloseHandle@4(ptr hObject);
 extern i32 DeleteFileA@4(str lpFileName);
+extern i32 GetFileAttributesA@4(str lpFileName);
+extern i32 GetFileSize@8(ptr hFile, ptr lpFileSizeHigh);
+extern i32 GetLastError@0();
+
+enum Win32ErrorCodes {
+    ERROR_FILE_NOT_FOUND:       2,
+    ERROR_PATH_NOT_FOUND:       3,
+    ERROR_TOO_MANY_OPEN_FILES:  4,
+    ERROR_ACCESS_DENIED:        5,
+    ERROR_INVALID_HANDLE:       6,
+    ERROR_SHARING_VIOLATION:    32,
+    ERROR_LOCK_VIOLATION:       33,
+    ERROR_OPEN_FAILED:          110,
+    ERROR_INVALID_NAME:         123,
+    ERROR_FILENAME_EXCED_RANGE: 206
+}
+
+// Creating a static opening for the class
+File File = File {  }
+
+class File {
+    str Path = "";
+    ptr Handle = null;
+
+    fn IdentifyWin32Error() {
+        i32 err = GetLastError@0();
+        printl(err)
+        switch (err) 
+        {
+            Win32ErrorCodes.ERROR_FILE_NOT_FOUND:
+                Panic("Win32 Error 2: ERROR_FILE_NOT_FOUND - The system cannot find the file specified."),
+
+            Win32ErrorCodes.ERROR_PATH_NOT_FOUND:
+                Panic("Win32 Error 3: ERROR_PATH_NOT_FOUND - The system cannot find the path specified."),
+
+            Win32ErrorCodes.ERROR_TOO_MANY_OPEN_FILES:
+                Panic("Win32 Error 4: ERROR_TOO_MANY_OPEN_FILES - The system cannot open the file."),
+
+            Win32ErrorCodes.ERROR_ACCESS_DENIED:
+                Panic("Win32 Error 5: ERROR_ACCESS_DENIED - Access is denied."),
+
+            Win32ErrorCodes.ERROR_INVALID_HANDLE:
+                Panic("Win32 Error 6: ERROR_INVALID_HANDLE - The handle is invalid."),
+            
+            Win32ErrorCodes.ERROR_SHARING_VIOLATION:
+                Panic("Win32 Error 32: ERROR_SHARING_VIOLATION - The process cannot access the file because it is being used by another process."),
+            
+            Win32ErrorCodes.ERROR_LOCK_VIOLATION:
+                Panic("Win32 Error 33: ERROR_LOCK_VIOLATION - The process cannot access the file because another process has locked a portion of the file."),
+            
+            Win32ErrorCodes.ERROR_OPEN_FAILED:
+                Panic("Win32 Error 110: ERROR_OPEN_FAILED - The system cannot open the device or file specified."),
+            
+            Win32ErrorCodes.ERROR_INVALID_NAME:
+                Panic("Win32 Error 123: ERROR_INVALID_NAME - The filename, directory name, or volume label syntax is incorrect."),
+            
+            Win32ErrorCodes.ERROR_FILENAME_EXCED_RANGE:
+                Panic("Win32 Error 206: ERROR_FILENAME_EXCED_RANGE - The filename or extension is too long."),
+
+            _:
+                Panic("Could not open file!")
+        }
+    }
+
+    // Opens an existing file with read-only permissions and shared read access.
+    //
+    // @param filePath The destination path of the file to open.
+    // @return A new File object containing the opened handle and path.
+    File Open(str filePath) {
+        i32 GENERIC_READ = 2147483648;
+        i32 FILE_SHARE_READ = 1;
+        i32 OPEN_EXISTING = 3; 
+        i32 FILE_ATTRIBUTE_NORMAL = 128; 
+
+        ptr fileHandle = CreateFileA@28(
+            filePath, 
+            GENERIC_READ, 
+            FILE_SHARE_READ, 
+            null, 
+            OPEN_EXISTING, 
+            FILE_ATTRIBUTE_NORMAL, 
+            null
+        );
+
+        if (fileHandle == null) {
+            Panic("Win32 Error: CreateFileA failed with unhandled system error code.")
+        }
+
+        File.IdentifyWin32Error();
+
+
+        return File {
+            Path: filePath,
+            Handle: fileHandle
+        };
+    }
+
+    // Creates a new file or overwrites an existing one with exclusive write access.
+    // Throws a panic error if the operating system fails to generate the file handle.
+    //
+    // @param filePath The destination path where the file will be created.
+    // @return A new File object containing the valid creation handle and path.
+    File Create(str filePath) {
+        i32 GENERIC_WRITE = 1073741824;
+        i32 FILE_SHARE_NONE = 0;
+        i32 CREATE_ALWAYS = 2;
+        i32 FILE_ATTRIBUTE_NORMAL = 128;
+
+        ptr fileHandle = CreateFileA@28(
+            filePath, 
+            GENERIC_WRITE, 
+            FILE_SHARE_NONE, 
+            null, 
+            CREATE_ALWAYS, 
+            FILE_ATTRIBUTE_NORMAL, 
+            null
+        );
+
+        // Fail-fast if the OS rejects the creation request (e.g. invalid path, bad permissions)
+        if(fileHandle == null) {
+            Panic("Could not create file at path ")
+        }
+
+        return File {
+            Path: filePath,
+            Handle: fileHandle
+        };
+    }
+
+    // Writes a text string to the opened or created file buffer.
+    //
+    // @param text The string content to write into the file.
+    // @return Non-zero value on success; 0 on write failure; 100 if the file handle is null.
+    i32 Write(str text) {
+        if (this.Handle == null) {
+            Panic("Could not write to file as handle does not exist!")
+        }
+
+        i32 length = String.Length(text);
+        i32[] bytesWritten = i32[1] {}; 
+        
+        i32 success = WriteFile@20(this.Handle, text, length, bytesWritten, null);
+        return success;
+    }
+
+    // Retrieves the size of the instance's active file in bytes.
+    // 
+    // @return Total byte size of the file; returns -1 (INVALID_FILE_SIZE) if it fails.
+    i32 GetSize() {
+        if (this.Handle == null) {
+            Panic("Could not get file size as handle does not exist!")
+        }
+        
+        i32 size = GetFileSize@8(this.Handle, null);
+        return size;
+    }
+
+    // Closes the active file handle to release OS resources and prevent memory leaks.
+    fn Close() {
+        if (this.Handle == null) {
+            Panic("Could not close file as handle does not exist!")
+        }
+
+        CloseHandle@4(this.Handle);
+    }
+}

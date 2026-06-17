@@ -128,6 +128,19 @@ namespace CommonC.Semantic
                     PassDefinitionsToInnerScopes(closure, closureStatement);
                     continue;
                 }
+
+                if(statement is SwitchStatement switchStatement)
+                {
+                    foreach(SwitchCase switchCase in switchStatement.Cases)
+                    {
+                        PassDefinitionsToInnerScopes(closure, switchCase.Body);
+                    }
+
+                    if(switchStatement.DefaultCase != null)
+                    {
+                        PassDefinitionsToInnerScopes(closure, switchStatement.DefaultCase.Body);
+                    }
+                }
             }
         }
 

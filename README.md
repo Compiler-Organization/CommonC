@@ -141,6 +141,10 @@ printl("String: ", "Hello world!", ", Number: ", 123, ", Boolean: ", true)
         * Conditional loop.
     * [If](#If)
         * Conditional control flow.
+    * [Enum](#Enum)
+        * Numeral enumerator.
+    * [Class](#Class)
+        * Extended struct abstraction.
     * [Use](#Use)
         * Imports file, parses it into an AST and merges it with the main file.
     * [Extern](#Extern)
@@ -692,6 +696,107 @@ Example
 if 2 == 2 {
     printl(4)
 }
+```
+
+___
+
+## Enum
+Data type to defined a fixed set of named constants.
+
+Enumerator variants are resolved to an i32 constant unless a type is specified.
+```
+enum <name> : <type | optional> {
+    <variants>
+}
+```
+
+Example
+```cs
+enum Win32ErrorCodes : i64 { // : i64 optional here
+    ERROR_FILE_NOT_FOUND: 2,
+    ERROR_PATH_NOT_FOUND: 3,
+    ERROR_TOO_MANY_OPEN_FILES: 4,
+}
+````
+
+___
+
+## Class
+Struct abstraction with extended capabilities for functions.
+
+Use of functions in a class in a static context requires initializing a global variable (see example).
+
+To access the current instance of a class from nested functions, use the `this` keyword.
+```
+class <name> {
+    <statements>
+}
+```
+
+example
+```cs
+// Initialized global instance to access member functions.
+Person Person = Person {}
+
+class Person {
+    str Name = ""
+    i32 Age = 0
+
+    str GetName() {
+        return this.Name
+    }
+
+    fn PrintName() {
+        printl(this.GetName())
+    }
+
+    fn ChangeName(str newName) {
+        this.Name = newName
+    }
+}
+
+fn main {
+    Person person = Person {
+        Name: "John"
+    }
+
+    person.PrintName() // John
+    person.ChangeName("Jack")
+    person.PrintName() // Jack
+
+    person.Name = "Jonathan"
+
+    person.PrintName() // Jonathan
+}
+```
+
+___
+
+## Switch
+
+Switches the inputted expression into user-declared cases.
+
+Each case MUST be delimited by a comma.
+
+Cases met do NOT fall into the cases below.
+```
+switch <expr> {
+    <expr>: <statement>,
+    _: <statement>
+}
+```
+
+example
+```cs
+i32 val = 5
+switch (val) {
+    1: printl("Val was 1"),
+    3: printl("Val was 3"),
+    5: printl("Val was 5"),
+    _: printl("Unknown val")
+}
+
+// Val was 5
 ```
 
 ___

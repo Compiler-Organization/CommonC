@@ -93,7 +93,7 @@ namespace CommonC.App
             {
                 MainFilePath = Environment.CurrentDirectory + "\\Samples\\test.coc",
                 WorkingDirectory = Environment.CurrentDirectory + "\\Samples",
-                TargetTripe = "i686-pc-windows-msvc19.50.35730",
+                TargetTripe = "x86_64-pc-windows-msvc",
                 LLVMCodeGenSettings = new LLVMCodeGenSettings
                 {
                     Name = appName,
@@ -104,7 +104,9 @@ namespace CommonC.App
 
             settings.AddLibrary("gdi32");
             settings.AddLibrary("user32");
-            
+            settings.AddLibrary("advapi32");
+            settings.AddLibrary("SDL3", Environment.CurrentDirectory + "\\lib");
+
             LLVMCommonCCompiler compiler = new LLVMCommonCCompiler(settings);
             LLVMModuleRef module = compiler.Compile(out string statusMessage);
 

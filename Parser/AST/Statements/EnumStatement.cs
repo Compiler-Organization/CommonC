@@ -17,6 +17,9 @@ namespace CommonC.Parser.AST.Statements
         public EnumVariant GetVariant(string name)
             => Variants.FirstOrDefault(v => v.Name == name) ?? throw ErrorHandler.CreateError($"Variant '{name}' does not exist in enum '{Name}'", this);
 
+        public bool ContainsVariant(string name)
+            => Variants.Any(v => v.Name == name);
+
         public override string PrettyPrint(int indentLevel = 0)
         {
             StringBuilder Builder = new StringBuilder();

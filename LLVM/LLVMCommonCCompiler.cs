@@ -45,7 +45,9 @@ namespace CommonC.LLVM
         {
             if (File.Exists(Settings.MainFilePath))
             {
+                Console.WriteLine("Parsing main file..");
                 ClosureStatement closure = ParseText(File.ReadAllText(Settings.MainFilePath), Path.GetFileName(Settings.MainFilePath));
+                Console.WriteLine("Importing files..");
                 closure = ImportUseFiles(closure);
 
                 Console.WriteLine("Statements " + closure.Statements.PrettyPrint(0));
@@ -87,7 +89,7 @@ namespace CommonC.LLVM
                 ProcessStartInfo clang = new ProcessStartInfo()
                 {
                     FileName = @".\\Llvm\\bin\\clang.exe",
-                    Arguments = $"\"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.ll\" -luser32 -lgdi32 -ladvapi32 -O3 -o \"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.exe\"",
+                    Arguments = $"\"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.ll\" {Settings.Libraries.CreateArguments()} --target={Settings.TargetTripe} -O3 -o \"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.exe\"",
                 };
 
                 Process.Start(clang).WaitForExit();
@@ -97,55 +99,105 @@ namespace CommonC.LLVM
             return module;
         }
 
-        ClosureStatement ImportUseFiles(ClosureStatement closure)
+        // Thread-safe path comparison for cross-platform robustness
+        private static readonly StringComparer PathComparer =
+            OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
+        public ClosureStatement ImportUseFiles(ClosureStatement rootClosure)
         {
-            HashSet<string> importedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (rootClosure == null)
+                throw new ArgumentNullException(nameof(rootClosure));
 
-            while (true)
-            {
-                List<UseStatement> pendingUses = closure.Statements.OfType<UseStatement>().ToList();
+            var processedFiles = new HashSet<string>(PathComparer);
+            var activeStack = new HashSet<string>(PathComparer);
 
-                if (pendingUses.Count == 0)
-                {
-                    break;
-                }
+            var flattenedStatements = new StatementList();
 
-                foreach (UseStatement useStmt in pendingUses)
-                {
-                    string filePath = Path.Combine(Settings.WorkingDirectory, $"{useStmt.Identifier.Name}.coc");
+            ResolveClosure(rootClosure, processedFiles, activeStack, flattenedStatements);
 
-                    if (importedFiles.Contains(filePath))
-                    {
-                        closure.Statements.Remove(useStmt);
-                        continue;
-                    }
-
-                    if (File.Exists(filePath))
-                    {
-                        ClosureStatement importedAST = ParseText(File.ReadAllText(filePath), Path.GetFileName(filePath));
-
-                        importedFiles.Add(filePath);
-                        closure.Statements.Remove(useStmt);
-                        closure.Statements.InsertRange(0, importedAST.Statements);
-                    }
-                    else
-                    {
-                        throw new FileNotFoundException($"File {filePath} does not exist.");
-                    }
-                }
-            }
-
-            closure.Statements.RemoveAll(s => s is UseStatement);
-            return closure;
+            return new ClosureStatement(flattenedStatements);
         }
 
-
-        ClosureStatement ParseText(string code, string fileName)
+        private void ResolveClosure(
+            ClosureStatement closure,
+            HashSet<string> processedFiles,
+            HashSet<string> activeStack,
+            StatementList resultList)
         {
-            LexicalAnalyser lexicalAnalyser = new LexicalAnalyser(code);
-            LexTokenList lexTokens = lexicalAnalyser.Analyze();
+            foreach (var statement in closure.Statements)
+            {
+                if (statement is UseStatement useStmt)
+                {
+                    ResolveUseStatement(useStmt, processedFiles, activeStack, resultList);
+                }
+                else
+                {
+                    resultList.Add(statement);
+                }
+            }
+        }
 
-            SyntaxParser parser = new SyntaxParser(lexTokens, fileName);
+        private void ResolveUseStatement(
+            UseStatement useStmt,
+            HashSet<string> processedFiles,
+            HashSet<string> activeStack,
+            StatementList resultList)
+        {
+            if (useStmt?.Identifier?.Name == null)
+            {
+                throw new InvalidDataException("MalFormed AST: Use statement missing a valid identifier.");
+            }
+
+            string fileName = $"{useStmt.Identifier.Name}.coc";
+            string fullPath = Path.GetFullPath(Path.Combine(Settings.WorkingDirectory, fileName));
+
+            if (activeStack.Contains(fullPath))
+            {
+                throw new InvalidOperationException($"Circular dependency detected: {string.Join(" -> ", activeStack)} -> {fullPath}");
+            }
+
+            if (processedFiles.Contains(fullPath))
+            {
+                return;
+            }
+
+            if (!File.Exists(fullPath))
+            {
+                throw new FileNotFoundException($"Import target file not found: '{fullPath}'", fullPath);
+            }
+
+            activeStack.Add(fullPath);
+            processedFiles.Add(fullPath);
+
+            try
+            {
+                string sourceCode = File.ReadAllText(fullPath);
+
+                ClosureStatement importedAST = ParseText(sourceCode, fileName);
+                Console.WriteLine($"{fileName} parsed!");
+
+                if (importedAST?.Statements != null)
+                {
+                    ResolveClosure(importedAST, processedFiles, activeStack, resultList);
+                }
+            }
+            catch (Exception ex) when (ex is not FileNotFoundException && ex is not InvalidOperationException)
+            {
+                throw new FormatException($"Failed parsing imported file '{fullPath}'. See inner exception.", ex);
+            }
+            finally
+            {
+                activeStack.Remove(fullPath);
+            }
+        }
+
+        private ClosureStatement ParseText(string code, string fileName)
+        {
+            Console.WriteLine($"Lexing {fileName}..");
+            var lexicalAnalyser = new LexicalAnalyser(code);
+            var lexTokens = lexicalAnalyser.Analyze();
+            Console.WriteLine($"Parsing {fileName}..");
+            var parser = new SyntaxParser(lexTokens, fileName);
 
             return parser.ParseLexTokenList();
         }

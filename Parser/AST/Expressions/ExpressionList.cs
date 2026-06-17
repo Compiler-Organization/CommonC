@@ -35,11 +35,14 @@ namespace CommonC.Parser.AST.Expressions
             return matches;
         }
 
+        public override string ToString()
+            => string.Join(", ", this.Select(e => e.ToString()));
+
         /// <summary>
         /// Converts a list of expressions to a string
         /// </summary>
         /// <returns></returns>
-        public override string ToString()
-            => string.Join(", ", this.Select(e => e.ToString()));
+        public string PrettyPrint(int indentedLevel = 0)
+            => string.Join(", ", this.Select(p => p.PrettyPrint(indentedLevel)));
     }
 }

@@ -61,38 +61,6 @@ i32 FileDelete(str filePath) {
     return success; 
 }
 
-class Test {
-    str var = "erb"
-
-    fn changeVar(str new) {
-        this.var = new
-    }
-}
-
 fn main() {
-    Test test = Test {}
-    printl(test.var)
-    test.changeVar("bla")
-    printl(test.var)
-
-    printl("starting")
-    str testFile = "C:\\temp\\output.txt";
-    str dataPayload = "Initializing Common C Backend Output Logging Routine.\n";
-
-    ptr handle = FileCreate(testFile);
-    printl("1")
-
-    if (handle == -1) {
-        App.Panic("System Failure: Unable to allocate a valid file stream write handle.");
-    }
-    printl("2")
-
-    FileWrite(handle, dataPayload);
-    FileWrite(handle, "Appending second operational data block line.\n");
-
-    FileClose(handle);
-
-    printl("3")
-
-    printl("4")
+    printl("Hello")
 }

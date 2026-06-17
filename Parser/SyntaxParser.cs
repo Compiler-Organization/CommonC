@@ -1458,6 +1458,92 @@ bool ParseSimpleExpression(out Expression expression)
             return false;
         }
 
+        bool ParseSwitchStatement(out SwitchStatement switchStatement)
+        {
+            switchStatement = new SwitchStatement()
+            {
+                Line = TokenReader.Peek().Line,
+                FileName = FileName
+            };
+
+            if(TokenReader.Expect(LexKinds.Keyword, "switch"))
+            {
+                TokenReader.Consume();
+                if(ParseExpression(out Expression expression))
+                {
+                    switchStatement.Expression = expression;
+                }
+                else
+                {
+                    throw ErrorHandler.CreateError($"Could not parse expression of switch statement, invalid syntax", switchStatement);
+                }
+
+                if(TokenReader.ExpectFatal(LexKinds.BraceOpen))
+                {
+                    TokenReader.Consume();
+                }
+
+                for (; ; )
+                {
+                    SwitchCase switchCase = new SwitchCase
+                    {
+                        Line = TokenReader.Peek().Line,
+                        FileName = FileName
+                    };
+
+                    if (TokenReader.Expect(LexKinds.Keyword, "_"))
+                    {
+                        TokenReader.Consume();
+                        if(switchStatement.DefaultCase != null)
+                        {
+                            throw ErrorHandler.CreateError("Switch statement can only contain one default case.", switchCase);
+                        }
+
+                        switchStatement.DefaultCase = switchCase;
+
+                    }
+                    else if (ParseExpression(out Expression caseExpression))
+                    {
+                        switchCase.Expression = caseExpression;
+                        switchStatement.Cases.Add(switchCase);
+                    }
+                    else
+                    {
+                        throw ErrorHandler.CreateError($"Could not case expression in switch statement, invalid syntax", switchCase);
+                    }
+
+                    if (TokenReader.ExpectFatal(LexKinds.Colon))
+                    {
+                        TokenReader.Consume();
+                    }
+
+                    
+                    if (ParseClosureStatement(out ClosureStatement closureStatement))
+                    {
+                        switchCase.Body = closureStatement;
+                    }
+                    else if (ParseStatement(out Statement bodyStatement))
+                    {
+                        switchCase.Body.Statements.Add(bodyStatement);
+                    }
+
+                    if (TokenReader.Expect(LexKinds.Comma))
+                    {
+                        TokenReader.Consume();
+                        continue;
+                    }
+
+                    break;
+                }
+
+                TokenReader.ExpectFatal(LexKinds.BraceClose);
+                TokenReader.Consume();
+                return true;
+            }
+
+            return false;
+        }
+
         bool ParseEnumStatement(out EnumStatement enumStatement)
         {
             enumStatement = new EnumStatement()
@@ -1534,6 +1620,10 @@ bool ParseSimpleExpression(out Expression expression)
 
                         break;
                     }
+                    else
+                    {
+                        break;
+                    }
                 }
 
 
@@ -1558,6 +1648,12 @@ bool ParseSimpleExpression(out Expression expression)
             if(ParseEnumStatement(out EnumStatement enumStatement))
             {
                 statement = enumStatement;
+                return true;
+            }
+
+            if(ParseSwitchStatement(out SwitchStatement switchStatement))
+            {
+                statement = switchStatement;
                 return true;
             }
 

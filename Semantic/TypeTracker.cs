@@ -1,4 +1,5 @@
-﻿using CommonC.Error;
+﻿using AsmResolver;
+using CommonC.Error;
 using CommonC.Parser.AST;
 using CommonC.Parser.AST.Expressions;
 using CommonC.Parser.AST.Statements;
@@ -114,13 +115,15 @@ namespace CommonC.Semantic
                     return expression.TypeAnnotation = variableAnnotation;
                 }
 
-                List<FunctionDeclarationStatement> matchingFunctions = Functions.Where(f => f.Name == name).ToList();
+                List<FunctionDeclarationStatement> matchingGlobalFunctions = Functions.Where(f => f.Name == name).ToList();
 
-                if (matchingFunctions.Count > 0)
+                if (matchingGlobalFunctions.Count > 0)
                 {
-                    FunctionDeclarationStatement function = matchingFunctions[0];
-                    return expression.TypeAnnotation = ResolveTypeFromExpression(function.ReturnType, variables);
+                    FunctionDeclarationStatement function = matchingGlobalFunctions[0];
+                    return expression.TypeAnnotation = ResolveTypeFromExpression(function.ReturnType, variables, isType: true);
                 }
+
+                
 
                 throw ErrorHandler.CreateError($"'{name}' does not exist in the current context.", identifierExpression);
             }
@@ -255,10 +258,10 @@ namespace CommonC.Semantic
                                 VariableDeclarationStatement field = structStatement.GetField(propertyIdentifier.Name);
                                 propertyAssignment.Variable.TypeAnnotation = field.TypeAnnotation;
                                 TrackTypeForExpression(propertyAssignment.Expression, variables);
-                                if (!propertyAssignment.Expression.TypeAnnotation.Match(field.TypeAnnotation, false))
-                                {
-                                    throw ErrorHandler.CreateError($"Type of property assignment for property {propertyIdentifier.Name} ({propertyAssignment.Expression.TypeAnnotation.ToString()}) does not match type of field in struct {structStatement.Name} ({field.TypeAnnotation.ToString()}).", propertyAssignment);
-                                }
+                                //if (!propertyAssignment.Expression.TypeAnnotation.Match(field.TypeAnnotation, false))
+                                //{
+                                //    throw ErrorHandler.CreateError($"Type of property assignment for property {propertyIdentifier.Name} ({propertyAssignment.Expression.TypeAnnotation.ToString()}) does not match type of field in struct {structStatement.Name} ({field.TypeAnnotation.ToString()}).", propertyAssignment);
+                                //}
                             }
                             else
                             {
@@ -283,7 +286,7 @@ namespace CommonC.Semantic
                                 TrackTypeForExpression(propertyAssignment.Expression, variables);
                                 if (!propertyAssignment.Expression.TypeAnnotation.Match(field.TypeAnnotation, false))
                                 {
-                                    throw ErrorHandler.CreateError($"Type of property assignment for property {propertyIdentifier.Name} ({propertyAssignment.Expression.TypeAnnotation.ToString()}) does not match type of field in class {classStatement.Name} ({field.TypeAnnotation.ToString()}).", propertyAssignment);
+                                    throw ErrorHandler.CreateError($"Type of property assignment for property {propertyIdentifier.Name} ({propertyAssignment.Expression.TypeAnnotation.ToString()}) does not match type of field in class {classStatement.Name} ({field.TypeAnnotation.ToString()}).", objectInitializerExpression);
                                 }
                             }
                             else
@@ -308,153 +311,38 @@ namespace CommonC.Semantic
             if (expression is MemberExpression memberExpression)
             {
                 ExpressionList memberChain = memberExpression.Flatten();
-                StructStatement? currentStruct = null;
-                ClassStatement? currentClass = null;
-                EnumStatement? currentEnum = null;
-
-                bool isStruct = false;
-
                 if (memberChain.Count <= 0)
-                {
-                    throw ErrorHandler.CreateError("Invalid member expression when solving type, member chain contained 0 members!", memberExpression);
-                }
+                    throw ErrorHandler.CreateError("Invalid member expression: member chain contains 0 elements.", memberExpression);
 
-                TypeAnnotation firstMemberAnnotation = memberChain.First().TypeAnnotation = ResolveTypeFromExpression(memberChain.First(), variables);
+                Expression rootMember = memberChain.First();
+                TypeAnnotation currentAnnotation = rootMember.TypeAnnotation = ResolveTypeFromExpression(rootMember, variables);
 
-                if(!firstMemberAnnotation.IsStruct
-                    && !firstMemberAnnotation.IsClass
-                    && !firstMemberAnnotation.IsEnum)
-                {
-                    throw ErrorHandler.CreateError($"First member ({memberChain.First().PrettyPrint()}) must be of struct / class type, but was of type {firstMemberAnnotation}", memberExpression);
-                }
-
-                if(firstMemberAnnotation.IsStruct)
-                {
-                    currentStruct = firstMemberAnnotation.Struct;
-                    isStruct = true;
-                }
-                else if (firstMemberAnnotation.IsClass)
-                {
-                    currentClass = firstMemberAnnotation.Class;
-                    isStruct = false;
-                }
-                else if (firstMemberAnnotation.IsEnum)
-                {
-                    currentEnum = firstMemberAnnotation.Enum;
-                    isStruct = false;
-                }
+                if (!currentAnnotation.IsStruct && !currentAnnotation.IsClass && !currentAnnotation.IsEnum)
+                    throw ErrorHandler.CreateError($"Root member '{rootMember.PrettyPrint()}' must be a struct, class, or enum, but was '{currentAnnotation}'.", memberExpression);
 
                 foreach (Expression member in memberChain.Skip(1))
                 {
-                    IdentifierExpression? memberIdentifier = GetInnerIdentifierExpression(member);
+                    IdentifierExpression memberIdentifier = GetInnerIdentifierExpression(member) ?? throw ErrorHandler.CreateError($"Could not resolve inner identifier expression for member '{member.PrettyPrint()}'.", memberExpression);
 
-                    if(memberIdentifier == null)
+                    if (member is CallExpression { Arguments: { } args })
                     {
-                        throw ErrorHandler.CreateError($"Could not resolve inner identifier expression for member in member expression when resolving type from member expression.", memberExpression);
-                    }
-
-                    if(member is CallExpression memberCall
-                        && memberCall.Arguments != null
-                        && memberCall.Arguments.Count > 0)
-                    {
-                        foreach(Expression argument in memberCall.Arguments)
-                        {
+                        foreach (Expression argument in args)
                             argument.TypeAnnotation = ResolveTypeFromExpression(argument, variables);
-                        }
                     }
 
-                    VariableDeclarationStatement? field = isStruct
-                        ? currentStruct.GetField(memberIdentifier.Name) 
-                        : firstMemberAnnotation.IsClass
-                        ? currentClass.GetField(memberIdentifier.Name)
-                        : null;
+                    Expression typeEx = ResolveMemberTypeExpression(currentAnnotation, memberIdentifier, member, memberExpression);
 
-                    if(field == null && firstMemberAnnotation.IsEnum)
-                    {
-                        member.TypeAnnotation = currentEnum.TypeAnnotation;
-                        return expression.TypeAnnotation = member.TypeAnnotation;
-                    }
+                    currentAnnotation = member.TypeAnnotation = ResolveTypeFromExpression(typeEx, variables);
+                    currentAnnotation = EnrichAnnotationWithTypeDefinition(typeEx, currentAnnotation, memberIdentifier, member, memberChain, memberExpression);
 
-                    Expression? type = null;
-
-                    if(field != null)
-                    {
-                        type = field.Type;
-                    }
-                    else if(!isStruct) // check if function
-                    {
-                        FunctionDeclarationStatement? func = currentClass.Body.Statements.OfType<FunctionDeclarationStatement>().FirstOrDefault(f => f.Name == memberIdentifier.Name);
-                        if(func == null)
-                        {
-                            throw ErrorHandler.CreateError($"'{memberIdentifier.Name}' does not exist in class {currentClass.Name}", memberExpression);
-                        }
-
-                        if(func.ReturnType.TypeAnnotation.IsStruct)
-                        {
-                            currentStruct = func.ReturnType.TypeAnnotation.Struct;
-                            isStruct = true;
-
-                            if(memberChain.IsLast(member))
-                            {
-                                return expression.TypeAnnotation = func.ReturnType.TypeAnnotation;
-                            }
-
-                            continue;
-                        }
-
-                        type = func.ReturnType;
-                    }
-                    // field.Type
-
-                    if (type is IdentifierExpression or IndexExpression)
-                    {
-                        ResolveTypeFromExpression(member, [field ?? new VariableDeclarationStatement(), .. variables ?? []]);
-                        member.TypeAnnotation = ResolveTypeFromExpression(type, variables);
-
-                        if (memberChain.IsLast(member))
-                        {
-                            return expression.TypeAnnotation = ResolveTypeFromExpression(type, variables);
-                        }
-
-                        IdentifierExpression? fieldTypeIdentifier = GetInnerIdentifierExpression(type);
-                        if (fieldTypeIdentifier == null)
-                        {
-                            throw ErrorHandler.CreateError($"Could not resolve inner identifier expression for field {field.Name} of struct {currentStruct.Name}: {type.TypeAnnotation.ToString()}", memberExpression);
-                        }
-
-                        // I'll need to change up this code so it properly identifies nested structs and classes
-                        if (Structs.ContainsKey(fieldTypeIdentifier.Name)) 
-                        {
-                            currentStruct = Structs[fieldTypeIdentifier.Name];
-                            isStruct = true;
-                            continue;
-                        }
-                        else if (Classes.ContainsKey(fieldTypeIdentifier.Name))
-                        {
-                            currentClass = Classes[fieldTypeIdentifier.Name];
-                            isStruct = false;
-                            continue;
-                        }
-                        else
-                        {
-                            throw ErrorHandler.CreateError($"Struct {fieldTypeIdentifier.Name} not found when resolving type from member expression.", memberExpression);
-                        }
-                    }
-
-                    if (type is TypeExpression fieldTypeExpression)
-                    {
-                        if (!memberChain.IsLast(member))
-                        {
-                            throw ErrorHandler.CreateError($"Member {memberIdentifier.Name} of struct {currentStruct.Name} is of reserved type {fieldTypeExpression.Type}, but is not the last member in the member expression chain.", memberExpression);
-                        }
-                        member.TypeAnnotation = ResolveTypeFromExpression(fieldTypeExpression, variables);
-                        return expression.TypeAnnotation = member.TypeAnnotation;
-                    }
-
-                    throw ErrorHandler.CreateError($"Member expressions accessing field of type {type} are not supported.", memberExpression);
+                    if (currentAnnotation is null)
+                        break;
                 }
+
+                return expression.TypeAnnotation = memberChain.Last().TypeAnnotation;
             }
-            if(expression is NegateExpression negateExpression)
+
+            if (expression is NegateExpression negateExpression)
             {
                 return expression.TypeAnnotation = ResolveTypeFromExpression(negateExpression.Expression, variables);
             }
@@ -468,6 +356,119 @@ namespace CommonC.Semantic
             }
 
             throw ErrorHandler.CreateError($"Could not resolve type of expression with type {expression.GetType().Name}", expression);
+        }
+
+        private Expression ResolveMemberTypeExpression(TypeAnnotation currentAnnotation, IdentifierExpression memberIdentifier, Expression member, MemberExpression memberExpression)
+        {
+            if (currentAnnotation.IsStruct)
+            {
+                if (currentAnnotation.Struct == null)
+                    throw ErrorHandler.CreateError("Corrupted AST: struct type metadata is missing.", memberExpression);
+
+                VariableDeclarationStatement? field = currentAnnotation.Struct.GetField(memberIdentifier.Name);
+                if (field == null)
+                    throw ErrorHandler.CreateError($"Field '{memberIdentifier.Name}' does not exist in struct '{currentAnnotation.Struct.Name}'.", memberExpression);
+
+                return field.Type;
+            }
+
+            if (currentAnnotation.IsClass)
+            {
+                if (currentAnnotation.Class == null)
+                    throw ErrorHandler.CreateError("Corrupted AST: class type metadata is missing.", memberExpression);
+
+                VariableDeclarationStatement? field = currentAnnotation.Class.GetField(memberIdentifier.Name);
+                if (field != null)
+                    return field.Type;
+
+                FunctionDeclarationStatement? method = currentAnnotation.Class.Body?.Statements?.OfType<FunctionDeclarationStatement>().FirstOrDefault(f => f.Name == memberIdentifier.Name);
+                if (method == null)
+                    throw ErrorHandler.CreateError($"Member '{memberIdentifier.Name}' does not exist in class '{currentAnnotation.Class.Name}'.", memberExpression);
+
+                if (method.ReturnType == null)
+                    throw ErrorHandler.CreateError($"Method '{memberIdentifier.Name}' in class '{currentAnnotation.Class.Name}' has no declared return type.", memberExpression);
+
+                return method.ReturnType;
+            }
+
+            if (currentAnnotation.IsEnum)
+            {
+                if (currentAnnotation.Enum == null)
+                    throw ErrorHandler.CreateError("Corrupted AST: enum type metadata is missing.", memberExpression);
+
+                if (!currentAnnotation.Enum.ContainsVariant(memberIdentifier.Name))
+                    throw ErrorHandler.CreateError($"Enum '{currentAnnotation.Enum.Name}' has no value '{memberIdentifier.Name}'.", memberExpression);
+
+                member.TypeAnnotation = currentAnnotation;
+                if(currentAnnotation.Enum.Type == null)
+                {
+                    return new TypeExpression
+                    {
+                        Type = ReservedTypes.I32,
+                        Line = currentAnnotation.Enum.Line,
+                        FileName = currentAnnotation.Enum.FileName,
+                    };
+                }
+                else
+                {
+                    return currentAnnotation.Enum.Type;
+                }
+            }
+
+            throw ErrorHandler.CreateError($"Internal error: unexpected type annotation kind '{currentAnnotation}' reached member resolution.", memberExpression);
+        }
+
+        private TypeAnnotation? EnrichAnnotationWithTypeDefinition(Expression typeExpression, TypeAnnotation currentAnnotation, IdentifierExpression memberIdentifier, Expression member, ExpressionList memberChain, MemberExpression memberExpression)
+        {
+            if (typeExpression is IdentifierExpression or IndexExpression)
+            {
+                IdentifierExpression? typeId = GetInnerIdentifierExpression(typeExpression);
+
+                if (typeId == null)
+                {
+                    if (!memberChain.IsLast(member))
+                        throw ErrorHandler.CreateError($"Member '{memberIdentifier.Name}' is a primitive/reserved type " + $"and must be the last member in the expression chain.", memberExpression);
+
+                    return null;
+                }
+
+
+                if (Structs.TryGetValue(typeId.Name, out var targetStruct))
+                {
+                    currentAnnotation.Struct = targetStruct;
+                    currentAnnotation.IsStruct = true;
+                    return currentAnnotation;
+                }
+
+                if (Classes.TryGetValue(typeId.Name, out var targetClass))
+                {
+                    currentAnnotation.Class = targetClass;
+                    currentAnnotation.IsClass = true;
+                    return currentAnnotation;
+                }
+
+                if (Enums.TryGetValue(typeId.Name, out var targetEnum))
+                {
+                    currentAnnotation.Enum = targetEnum;
+                    currentAnnotation.IsEnum = true;
+                    return currentAnnotation;
+                }
+
+                if (!memberChain.IsLast(member))
+                    throw ErrorHandler.CreateError($"Unknown complex type symbol '{typeId.Name}' encountered in chain. " + $"If this is a primitive alias, it must be the terminal member.", memberExpression);
+
+                return null;
+            }
+
+            if (typeExpression is TypeExpression)
+            {
+                if (!memberChain.IsLast(member))
+                    throw ErrorHandler.CreateError($"Member '{memberIdentifier.Name}' is a primitive/reserved type " + $"and must be the last member in the expression chain.", memberExpression);
+
+                return null;
+            }
+
+            throw ErrorHandler.CreateError($"Member expressions accessing definitions of AST node type " + $"'{typeExpression.GetType().Name}' are not supported.", memberExpression);
         }
 
         IdentifierExpression? GetInnerIdentifierExpression(Expression expression)
@@ -560,11 +561,49 @@ namespace CommonC.Semantic
             {
                 CurrentFunction = functionDeclarationStatement;
 
+                if(CurrentClass != null)
+                {
+                    foreach (VariableDeclarationStatement parameter in functionDeclarationStatement.Body.Variables.Where(v => v.IsParameter))
+                    {
+                        parameter.ParameterIndex++;
+                    }
+
+                    TypeAnnotation typeAnnotation = new TypeAnnotation
+                    {
+                        IsClass = true,
+                        Class = CurrentClass
+                    };
+
+                    IdentifierExpression typeExpression = new IdentifierExpression
+                    {
+                        Name = CurrentClass.Name,
+                        TypeAnnotation = typeAnnotation
+                    };
+
+                    functionDeclarationStatement.Parameters.Prepend(new ParameterExpression
+                    {
+                        Name = "this",
+                        Type = typeExpression,
+                        TypeAnnotation = typeAnnotation
+                    });
+
+                    functionDeclarationStatement.Body.Variables.Add(new VariableDeclarationStatement
+                    {
+                        Name = "this",
+                        ParameterIndex = 0,
+                        IsParameter = true,
+                        Type = typeExpression,
+                        TypeAnnotation = typeAnnotation,
+                    });
+                }
+
                 TrackTypeForExpression(functionDeclarationStatement.ReturnType, variables, isType: true);
                 TrackTypeForParameters(functionDeclarationStatement.Parameters, variables);
 
                 if (functionDeclarationStatement.Body != null)
                     TrackStatements(functionDeclarationStatement.Body);
+
+                functionDeclarationStatement.TypeAnnotation = functionDeclarationStatement.ReturnType.TypeAnnotation.Copy();
 
                 CurrentFunction = null;
                 return;
@@ -655,7 +694,26 @@ namespace CommonC.Semantic
             if (statement is ReturnStatement returnStatement)
             {
                 if (returnStatement.Expression != null)
+                {
+                    if(CurrentFunction.ReturnType.TypeAnnotation.IsReservedType && CurrentFunction.ReturnType.TypeAnnotation.ReservedType == ReservedTypes.Fn)
+                    {
+                        throw ErrorHandler.CreateError($"Cannot return a value in a function without a return type ({CurrentFunction.ReturnType.TypeAnnotation.ToString()} {CurrentFunction.Name}))", returnStatement);
+                    }
+
                     TrackTypeForExpression(returnStatement.Expression, variables);
+
+                    if (!CurrentFunction.ReturnType.TypeAnnotation.Match(returnStatement.Expression.TypeAnnotation, false))
+                    {
+                        throw ErrorHandler.CreateError($"Return value of type '{returnStatement.Expression.TypeAnnotation.ToString()}' does not match the functions return type {CurrentFunction.ReturnType.TypeAnnotation.ToString()} ({CurrentFunction.Name})", returnStatement);
+                    }
+                }
+                else
+                {
+                    if (CurrentFunction.ReturnType.TypeAnnotation.IsReservedType && CurrentFunction.ReturnType.TypeAnnotation.ReservedType != ReservedTypes.Fn)
+                    {
+                        throw ErrorHandler.CreateError($"Cannot return without a value in a function with a return type ({CurrentFunction.ReturnType.TypeAnnotation.ToString()} {CurrentFunction.Name})", returnStatement);
+                    }
+                }
 
                 return;
             }
@@ -692,6 +750,21 @@ namespace CommonC.Semantic
                     enumAnnotation.Enum = enumStatement;
 
                     enumStatement.TypeAnnotation = enumAnnotation;
+                }
+                return;
+            }
+            if(statement is SwitchStatement switchStatement)
+            {
+                TrackTypeForExpression(switchStatement.Expression, variables);
+
+                foreach (SwitchCase switchCase in switchStatement.Cases)
+                {
+                    TrackStatements(switchCase.Body);
+                }
+
+                if(switchStatement.DefaultCase != null)
+                {
+                    TrackStatements(switchStatement.DefaultCase.Body);
                 }
                 return;
             }

@@ -1,11 +1,7 @@
 use Console
 use Files
 
-__App App = __App {}
-
-class __App {
-    // Production Panic Handler Routine
-    fn Panic(str message) {
+fn Panic(str message) {
         __SetConsoleColor(12);
         __SystemWrite("PANIC: ");
         __SystemWrite(message);
@@ -16,4 +12,3 @@ class __App {
         // right after this call to safely seal the containing basic block!
         ExitProcess@4(1);
     }
-}

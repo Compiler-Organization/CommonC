@@ -10,6 +10,10 @@ namespace CommonC.Parser.AST.Statements
 	/// </summary>
 	public class ClosureStatement : Statement
     {
+        public ClosureStatement() { }
+
+        public ClosureStatement(StatementList statements) { Statements = statements; }
+
         public StatementList Statements { get; set; } = new StatementList();
 
         public Variables Variables { get; set; } = new Variables();
