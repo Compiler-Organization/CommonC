@@ -363,3 +363,5 @@ MigrationBackup/
 FodyWeavers.xsd
 /CommonC.App/Llvm/ARM73/lib
 /CommonC.App/Llvm/x73/lib
+/CommonC.App/Samples/.vscode
+/CommonC.App/Samples/test.ll
