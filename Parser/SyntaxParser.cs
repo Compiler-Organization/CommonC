@@ -284,6 +284,59 @@ namespace CommonC.Parser
             return false;
         }
 
+        bool ParseVectorTypeExpression(out VectorTypeExpression vectorTypeExpression)
+        {
+            vectorTypeExpression = new VectorTypeExpression
+            {
+                Line = TokenReader.Peek().Line,
+                FileName = FileName
+            };
+
+            if(TokenReader.Expect(LexKinds.Keyword, "vector")) 
+            {
+                TokenReader.Consume();
+            }
+            else
+            {
+                return false;
+            }
+
+            if(TokenReader.ExpectFatal(LexKinds.ChevronOpen))
+            {
+                TokenReader.Consume();
+            }
+
+            if(ParseNumberExpression(out NumberExpression numberExpression))
+            {
+                vectorTypeExpression.Size = numberExpression;
+            }
+            else
+            {
+                throw ErrorHandler.CreateError("Number of elements in vector must be a number", vectorTypeExpression);
+            }
+
+            if(TokenReader.ExpectFatal(LexKinds.Identifier, "x"))
+            {
+                TokenReader.Consume();
+            }
+
+            if (ParseTypeExpression(out TypeExpression typeExpression))
+            {
+                vectorTypeExpression.Type = typeExpression;
+            }
+            else
+            {
+                throw ErrorHandler.CreateError("Type of elements in vector must be a number", vectorTypeExpression);
+            }
+
+            if (TokenReader.ExpectFatal(LexKinds.ChevronClose))
+            {
+                TokenReader.Consume();
+            }
+
+            return true;
+        }
+
         /// <summary>
         /// Parses expressions without a right hand side
         /// </summary>
@@ -306,6 +359,12 @@ namespace CommonC.Parser
             if(ParseIdentifierExpression(out IdentifierExpression identifierExpression))
             {
                 expression = identifierExpression;
+                return true;
+            }
+
+            if(ParseVectorTypeExpression(out VectorTypeExpression vectorTypeExpression))
+            {
+                expression = vectorTypeExpression;
                 return true;
             }
 
@@ -1740,7 +1799,8 @@ bool ParseSimpleExpression(out Expression expression)
                 if(expression is TypeExpression 
                     || expression is IdentifierExpression
                     || expression is MemberExpression
-                    || expression is IndexExpression)
+                    || expression is IndexExpression
+                    || expression is VectorTypeExpression)
                 {
 
                     if(ParseIdentifierExpression(out IdentifierExpression nameExpression))

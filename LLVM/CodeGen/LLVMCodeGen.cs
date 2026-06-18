@@ -136,8 +136,7 @@ namespace CommonC.LLVM.CodeGen
 
                 if(isClassFunction)
                 {
-
-                    functionDeclarationStatement.Name += $"_{CurrentClass.Name}";
+                    functionDeclarationStatement.Name = GetMangledName(CurrentClass.Name, functionDeclarationStatement.Name);
                 }
 
                 LLVMValueRef function = Module.AddFunction(functionDeclarationStatement.Name, functionType);
@@ -156,6 +155,11 @@ namespace CommonC.LLVM.CodeGen
 
                 Functions.Add(functionDeclarationStatement);
             }
+        }
+
+        string GetMangledName(string className, string functionName)
+        {
+            return $"{className}.{functionName}";
         }
 
         void CreateGlobalReferences(ClosureStatement closure)
@@ -431,7 +435,25 @@ namespace CommonC.LLVM.CodeGen
 
         void EmitAssignmentStatement(AssignmentStatement assignmentStatement, Variables variables)
         {
-            LLVMValueRef valueToStore = EmitExpression(assignmentStatement.Expression, variables);
+            LLVMValueRef valueToStore;
+
+            if (assignmentStatement.TypeAnnotation.IsVectorType)
+            {
+                if (assignmentStatement.Expression is ArrayExpression arrayExpression)
+                {
+                    Console.WriteLine("__________________ VECTOR CREATED");
+                    valueToStore = CreateVectorFromArray(arrayExpression, variables);
+                }
+                else
+                {
+                    throw ErrorHandler.CreateError("Variable of a vector type must be assigned with a valid array expression", assignmentStatement);
+                }
+            }
+            else
+            {
+                valueToStore = EmitExpression(assignmentStatement.Expression, variables);
+            }
+
             LLVMValueRef destinationPointer = EmitLValueAddress(assignmentStatement.Variable, variables, pointerOnly: true);
 
             LLVMTypeRef targetType;
@@ -706,6 +728,49 @@ namespace CommonC.LLVM.CodeGen
             throw ErrorHandler.CreateError($"Call statement's expression cannot be a '{callStatement.Expression.GetType().Name}'", callStatement);
         }
 
+        LLVMValueRef CreateVectorFromArray(ArrayExpression arrayExpression, Variables variables)
+        {
+            bool isConstVector = true;
+            foreach(Expression arrayElement in arrayExpression.Expressions)
+            {
+                if(arrayElement is not NumberExpression)
+                {
+                    isConstVector = false;
+                }
+            }
+
+            if(isConstVector)
+            {
+                return LLVMValueRef.CreateConstVector(arrayExpression.Expressions.Select(e => EmitNumberExpression(e as NumberExpression)).ToArray());
+            }
+            else
+            {
+                LLVMValueRef[] elements = arrayExpression.Expressions
+                    .Select(e => EmitExpression(e, variables))
+                    .ToArray();
+
+                uint laneCount = (uint)elements.Length;
+
+                LLVMTypeRef elementType = elements[0].TypeOf;
+                LLVMTypeRef vectorType = LLVMTypeRef.CreateVector(elementType, laneCount);
+
+                LLVMValueRef dynamicVector = vectorType.Undef;
+                for (uint i = 0; i < laneCount; i++)
+                {
+                    LLVMValueRef indexValue = LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, i);
+                    dynamicVector = Builder.BuildInsertElement(
+                        dynamicVector,
+                        elements[i],
+                        indexValue,
+                        $"vector_init_lane_{i}"
+                    );
+                }
+
+                return dynamicVector;
+            }
+
+        }
+
         void EmitVariableDeclarationStatement(VariableDeclarationStatement variableDeclaration, Variables variables)
         {
             if (variableDeclaration.IsGlobal)
@@ -762,42 +827,61 @@ namespace CommonC.LLVM.CodeGen
 
 
 
-            if (variableDeclaration.Expression != null)
+            if (variableDeclaration.Expression == null)
             {
-                LLVMValueRef initValue = EmitExpression(variableDeclaration.Expression, variables);
+                throw ErrorHandler.CreateError("Variable declarations cannot be left uninitialized", variableDeclaration);
+            }
 
-                if (variableDeclaration.Type.TypeAnnotation.IsPointerType())
+            LLVMValueRef initValue;
+
+            if(variableDeclaration.Type.TypeAnnotation.IsVectorType)
+            {
+                if(variableDeclaration.Expression is ArrayExpression arrayExpression)
                 {
-                    variableDeclaration.LLVMAlloca = initValue;
+                    Console.WriteLine("__________________ VECTOR CREATED");
+                    initValue = CreateVectorFromArray(arrayExpression, variables);
                 }
                 else
                 {
-                    if (initValue.TypeOf != varType)
-                    {
-                        initValue = CoerceType(initValue, varType, "local.init.cast", variableDeclaration);
-                    }
-
-                    LLVMBasicBlockRef currentBlock = Builder.InsertBlock;
-
-                    LLVMBasicBlockRef entryBlock = CurrentFunction.LLVMFunction.EntryBasicBlock;
-                    LLVMValueRef terminator = entryBlock.LastInstruction;
-
-                    if (terminator.Handle != IntPtr.Zero && terminator.IsATerminatorInst != null)
-                    {
-                        Builder.PositionBefore(terminator);
-                    }
-                    else
-                    {
-                        Builder.PositionAtEnd(entryBlock);
-                    }
-
-                    LLVMValueRef allocaPtr = Builder.BuildAlloca(varType, variableDeclaration.Name);
-                    variableDeclaration.LLVMAlloca = allocaPtr;
-
-                    Builder.PositionAtEnd(currentBlock);
-
-                    Builder.BuildStore(initValue, allocaPtr);
+                    throw ErrorHandler.CreateError("Variable of a vector type must be initialized with a valid array expression", variableDeclaration);
                 }
+            }
+            else
+            {
+                initValue = EmitExpression(variableDeclaration.Expression, variables);
+            }
+
+            if (variableDeclaration.Type.TypeAnnotation.IsPointerType())
+            {
+                variableDeclaration.LLVMAlloca = initValue;
+            }
+            else
+            {
+                if (initValue.TypeOf != varType)
+                {
+                    initValue = CoerceType(initValue, varType, "local.init.cast", variableDeclaration);
+                }
+
+                LLVMBasicBlockRef currentBlock = Builder.InsertBlock;
+
+                LLVMBasicBlockRef entryBlock = CurrentFunction.LLVMFunction.EntryBasicBlock;
+                LLVMValueRef terminator = entryBlock.LastInstruction;
+
+                if (terminator.Handle != IntPtr.Zero && terminator.IsATerminatorInst != null)
+                {
+                    Builder.PositionBefore(terminator);
+                }
+                else
+                {
+                    Builder.PositionAtEnd(entryBlock);
+                }
+
+                LLVMValueRef allocaPtr = Builder.BuildAlloca(varType, variableDeclaration.Name);
+                variableDeclaration.LLVMAlloca = allocaPtr;
+
+                Builder.PositionAtEnd(currentBlock);
+
+                Builder.BuildStore(initValue, allocaPtr);
             }
 
         }
@@ -832,6 +916,12 @@ namespace CommonC.LLVM.CodeGen
                 {
                     return Builder.BuildFPTrunc(value, targetType, name);
                 }
+            }
+
+            if (value.TypeOf.Kind == LLVMTypeKind.LLVMIntegerTypeKind &&
+                (targetType.Kind == LLVMTypeKind.LLVMFloatTypeKind || targetType.Kind == LLVMTypeKind.LLVMDoubleTypeKind))
+            {
+                return Builder.BuildSIToFP(value, targetType, name);
             }
 
             if (value.TypeOf.Kind == LLVMTypeKind.LLVMPointerTypeKind && targetType.Kind == LLVMTypeKind.LLVMStructTypeKind)
@@ -883,7 +973,7 @@ namespace CommonC.LLVM.CodeGen
         }
 
 
-        LLVMValueRef EmitIdentifierExpression(IdentifierExpression identifierExpression, Variables variables)
+        LLVMValueRef EmitIdentifierExpression(IdentifierExpression identifierExpression, Variables variables, bool pointerOnly = false)
         {
             if (Functions.Contains(identifierExpression.Name))
                 return Functions.GetFunction(identifierExpression.Name).LLVMFunction;
@@ -892,6 +982,11 @@ namespace CommonC.LLVM.CodeGen
 
             LLVMValueRef pointer = variable.LLVMAlloca;
             LLVMTypeRef valueType = variable.Type.TypeAnnotation.ToLLVMType();
+
+            if(pointerOnly)
+            {
+                return pointer;
+            }
 
             if(variable.Type.TypeAnnotation.IsPointerType())
             {
@@ -1187,6 +1282,10 @@ namespace CommonC.LLVM.CodeGen
                 LLVMTypeRef intermediateType = nestedIndex.TypeAnnotation.ToLLVMType();
                 arrayPtr = Builder.BuildLoad2(intermediateType, innerGepAddr, "array.subptr.load");
             }
+            else if (indexExpression.Expression is IdentifierExpression indexIdentifier)
+            {
+                arrayPtr = EmitIdentifierExpression(indexIdentifier, variables, pointerOnly: true);
+            }
             else
             {
                 arrayPtr = EmitExpression(indexExpression.Expression, variables);
@@ -1458,7 +1557,7 @@ namespace CommonC.LLVM.CodeGen
         {
             IdentifierExpression callId = GetInnerIdentifierExpression(call) ?? throw ErrorHandler.CreateError("Could not resolve inner identifier of call expression.", context);
 
-            string mangledName = $"{callId.Name}_{currentStruct!.Name}";
+            string mangledName = $"{currentStruct!.Name}.{callId.Name}";
             FunctionDeclarationStatement fn = Functions.GetFunction(mangledName, call.Arguments, context);
 
             LLVMValueRef[] args =

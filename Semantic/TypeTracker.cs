@@ -120,6 +120,7 @@ namespace CommonC.Semantic
                 if (matchingGlobalFunctions.Count > 0)
                 {
                     FunctionDeclarationStatement function = matchingGlobalFunctions[0];
+                    
                     return expression.TypeAnnotation = ResolveTypeFromExpression(function.ReturnType, variables, isType: true);
                 }
 
@@ -354,6 +355,17 @@ namespace CommonC.Semantic
                     ReservedType = ReservedTypes.Ptr
                 };
             }
+            if(expression is VectorTypeExpression vectorTypeExpression)
+            {
+                vectorTypeExpression.Type.TypeAnnotation = ResolveTypeFromExpression(vectorTypeExpression.Type, variables, isType: true);
+                vectorTypeExpression.Size.TypeAnnotation = ResolveTypeFromExpression(vectorTypeExpression.Size, variables, isType: true);
+
+                return expression.TypeAnnotation = new TypeAnnotation
+                {
+                    IsVectorType = true,
+                    VectorType = vectorTypeExpression
+                };
+            } 
 
             throw ErrorHandler.CreateError($"Could not resolve type of expression with type {expression.GetType().Name}", expression);
         }
@@ -560,42 +572,6 @@ namespace CommonC.Semantic
             if (statement is FunctionDeclarationStatement functionDeclarationStatement)
             {
                 CurrentFunction = functionDeclarationStatement;
-
-                if(CurrentClass != null)
-                {
-                    foreach (VariableDeclarationStatement parameter in functionDeclarationStatement.Body.Variables.Where(v => v.IsParameter))
-                    {
-                        parameter.ParameterIndex++;
-                    }
-
-                    TypeAnnotation typeAnnotation = new TypeAnnotation
-                    {
-                        IsClass = true,
-                        Class = CurrentClass
-                    };
-
-                    IdentifierExpression typeExpression = new IdentifierExpression
-                    {
-                        Name = CurrentClass.Name,
-                        TypeAnnotation = typeAnnotation
-                    };
-
-                    functionDeclarationStatement.Parameters.Prepend(new ParameterExpression
-                    {
-                        Name = "this",
-                        Type = typeExpression,
-                        TypeAnnotation = typeAnnotation
-                    });
-
-                    functionDeclarationStatement.Body.Variables.Add(new VariableDeclarationStatement
-                    {
-                        Name = "this",
-                        ParameterIndex = 0,
-                        IsParameter = true,
-                        Type = typeExpression,
-                        TypeAnnotation = typeAnnotation,
-                    });
-                }
 
                 TrackTypeForExpression(functionDeclarationStatement.ReturnType, variables, isType: true);
                 TrackTypeForParameters(functionDeclarationStatement.Parameters, variables);

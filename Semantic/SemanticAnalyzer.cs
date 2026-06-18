@@ -28,6 +28,8 @@ namespace CommonC.Semantic
             typeAnnotator.TrackTypes(Closure);
         }
 
+        ClassStatement? CurrentClass = null;
+
         void PassDefinitionsToInnerScopes(ClosureStatement previousClosure, ClosureStatement closure)
         {
             foreach (VariableDeclarationStatement variableDeclarationStatement in closure.Statements.OfType<VariableDeclarationStatement>())
@@ -71,7 +73,43 @@ namespace CommonC.Semantic
                         continue;
                     }
 
-                    for(int i = 0; i < functionDeclarationStatement.Parameters.Count; i++)
+                    if (CurrentClass != null)
+                    {
+                        foreach (VariableDeclarationStatement parameter in functionDeclarationStatement.Body.Variables.Where(v => v.IsParameter))
+                        {
+                            parameter.ParameterIndex++;
+                        }
+
+                        TypeAnnotation typeAnnotation = new TypeAnnotation
+                        {
+                            IsClass = true,
+                            Class = CurrentClass
+                        };
+
+                        IdentifierExpression typeExpression = new IdentifierExpression
+                        {
+                            Name = CurrentClass.Name,
+                            TypeAnnotation = typeAnnotation
+                        };
+
+                        functionDeclarationStatement.Parameters.Prepend(new ParameterExpression
+                        {
+                            Name = "this",
+                            Type = typeExpression,
+                            TypeAnnotation = typeAnnotation
+                        });
+
+                        functionDeclarationStatement.Body.Variables.Add(new VariableDeclarationStatement
+                        {
+                            Name = "this",
+                            ParameterIndex = 0,
+                            IsParameter = true,
+                            Type = typeExpression,
+                            TypeAnnotation = typeAnnotation,
+                        });
+                    }
+
+                    for (int i = 0; i < functionDeclarationStatement.Parameters.Count; i++)
                     {
                         functionDeclarationStatement.Body.Variables.Add(new VariableDeclarationStatement
                         {
@@ -113,7 +151,9 @@ namespace CommonC.Semantic
 
                 if(statement is ClassStatement classStatement)
                 {
+                    CurrentClass = classStatement;
                     PassDefinitionsToInnerScopes(closure, classStatement.Body);
+                    CurrentClass = null;
                     continue;
                 }
 
