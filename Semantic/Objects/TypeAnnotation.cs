@@ -29,7 +29,7 @@ namespace CommonC.Semantic.Objects
         public bool IsArray { get; set; }
         public int ArrayDepth { get; set; }
 
-        public bool IsVectorType { get; set; }
+        public bool IsVector { get; set; }
         public VectorTypeExpression VectorType { get; set; }
 
 
@@ -90,7 +90,7 @@ namespace CommonC.Semantic.Objects
                 //{ IsClass: true } => Class.LLVMStructType,
                 { IsStruct: true } => LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),
                 { IsClass: true } => LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),
-                { IsVectorType: true } => LLVMTypeRef.CreateVector(VectorType.Type.TypeAnnotation.ToLLVMType(), (uint)VectorType.Size.ToUlong()),
+                { IsVector: true } => LLVMTypeRef.CreateVector(VectorType.Type.TypeAnnotation.ToLLVMType(), (uint)VectorType.Size.ToUlong()),
                 _ => throw new InvalidOperationException($"Type annotation does not have a valid LLVM type: {ToString()}")
             };
 
@@ -113,7 +113,6 @@ namespace CommonC.Semantic.Objects
             IsStruct 
             || IsArray 
             || IsClass
-            || IsVectorType
             || ReservedType == ReservedTypes.String
             || ReservedType == ReservedTypes.Ptr;
 
@@ -143,7 +142,7 @@ namespace CommonC.Semantic.Objects
                 Struct = Struct,
                 IsClass = IsClass,
                 Class = Class,
-                IsVectorType = IsVectorType,
+                IsVector = IsVector,
                 VectorType = VectorType,
                 IsArray = IsArray,
                 ArrayDepth = ArrayDepth,
@@ -157,7 +156,7 @@ namespace CommonC.Semantic.Objects
         /// <returns></returns>
         public override string ToString()
         {
-            return $"{(IsReservedType ? ReservedType.ToString() : IsStruct ? Struct.Name : IsClass ? Class.Name : IsEnum ? Enum.Name : IsVectorType ? VectorType.PrettyPrint() : "<Unknown!>")}{(IsArray ? string.Concat(Enumerable.Repeat("[]", ArrayDepth)) : "")}";
+            return $"{(IsReservedType ? ReservedType.ToString() : IsStruct ? Struct.Name : IsClass ? Class.Name : IsEnum ? Enum.Name : IsVector ? VectorType.PrettyPrint() : "<Unknown!>")}{(IsArray ? string.Concat(Enumerable.Repeat("[]", ArrayDepth)) : "")}";
         }
     }
 }

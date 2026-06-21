@@ -8,6 +8,13 @@ namespace CommonC.Error
 {
     public class ErrorHandler
     {
+        public static void Warn(string message)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"[Warning]: {message}");
+            Console.ForegroundColor = ConsoleColor.Gray;
+        }
+
         public static Exception CreateError(string message)
         {
             Console.ForegroundColor = ConsoleColor.Red;

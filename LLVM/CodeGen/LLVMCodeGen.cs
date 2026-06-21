@@ -437,17 +437,10 @@ namespace CommonC.LLVM.CodeGen
         {
             LLVMValueRef valueToStore;
 
-            if (assignmentStatement.TypeAnnotation.IsVectorType)
+            if (assignmentStatement.TypeAnnotation.IsVector && assignmentStatement.Expression is ArrayExpression arrayExpression)
             {
-                if (assignmentStatement.Expression is ArrayExpression arrayExpression)
-                {
-                    Console.WriteLine("__________________ VECTOR CREATED");
-                    valueToStore = CreateVectorFromArray(arrayExpression, variables);
-                }
-                else
-                {
-                    throw ErrorHandler.CreateError("Variable of a vector type must be assigned with a valid array expression", assignmentStatement);
-                }
+                Console.WriteLine("__________________ VECTOR CREATED");
+                valueToStore = CreateVectorFromArray(arrayExpression, variables);
             }
             else
             {
@@ -834,22 +827,16 @@ namespace CommonC.LLVM.CodeGen
 
             LLVMValueRef initValue;
 
-            if(variableDeclaration.Type.TypeAnnotation.IsVectorType)
+            if (variableDeclaration.Type.TypeAnnotation.IsVector && variableDeclaration.Expression is ArrayExpression arrayExpression)
             {
-                if(variableDeclaration.Expression is ArrayExpression arrayExpression)
-                {
-                    Console.WriteLine("__________________ VECTOR CREATED");
-                    initValue = CreateVectorFromArray(arrayExpression, variables);
-                }
-                else
-                {
-                    throw ErrorHandler.CreateError("Variable of a vector type must be initialized with a valid array expression", variableDeclaration);
-                }
+                Console.WriteLine("__________________ VECTOR CREATED");
+                initValue = CreateVectorFromArray(arrayExpression, variables);
             }
             else
             {
                 initValue = EmitExpression(variableDeclaration.Expression, variables);
             }
+
 
             if (variableDeclaration.Type.TypeAnnotation.IsPointerType())
             {
@@ -1340,7 +1327,17 @@ namespace CommonC.LLVM.CodeGen
                     $"array.expr.gep.{i}"
                 );
 
-                LLVMValueRef evaluatedVal = EmitExpression(arrayExpression.Expressions[i], variables);
+                LLVMValueRef evaluatedVal;
+
+                if (arrayExpression.TypeAnnotation.IsVector && arrayExpression.Expressions[i] is ArrayExpression innerArray)
+                {
+                    evaluatedVal = CreateVectorFromArray(innerArray, variables);
+                }
+                else
+                {
+                    // Fallback for regular scalars or true multidimensional arrays
+                    evaluatedVal = EmitExpression(arrayExpression.Expressions[i], variables);
+                }
                 Builder.BuildStore(evaluatedVal, elementPtr);
             }
 

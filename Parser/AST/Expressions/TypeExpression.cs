@@ -1,4 +1,5 @@
-﻿using CommonC.Parser.AST;
+﻿using CommonC.Error;
+using CommonC.Parser.AST;
 using CommonC.Parser.AST.Expressions;
 using System;
 using System.Collections.Generic;
@@ -12,6 +13,47 @@ namespace CommonC.Parser.AST.Expressions
     public class TypeExpression : Expression
     {
         public ReservedTypes Type { get; set; }
+
+        public int GetByteSize()
+        {
+            switch (Type)
+            {
+                case ReservedTypes.None:
+                    return 0;
+
+                case ReservedTypes.I8:
+                case ReservedTypes.U8:
+                case ReservedTypes.Bool:
+                case ReservedTypes.Char:
+                    return 1;
+
+                case ReservedTypes.I16:
+                case ReservedTypes.U16:
+                    return 2;
+
+                case ReservedTypes.I32:
+                case ReservedTypes.U32:
+                case ReservedTypes.F32:
+                    return 4;
+
+                case ReservedTypes.I64:
+                case ReservedTypes.U64:
+                case ReservedTypes.F64:
+                    return 8;
+
+                case ReservedTypes.I128:
+                case ReservedTypes.U128:
+                    return 16;
+
+                case ReservedTypes.Ptr:
+                case ReservedTypes.Fn:
+                case ReservedTypes.String:
+                    return IntPtr.Size;
+
+                default:
+                    throw ErrorHandler.CreateError($"Byte size calculation for reserved type {Type} is not implemented.");
+            }
+        }
 
         public override string PrettyPrint(int indentLevel = 0)
         {

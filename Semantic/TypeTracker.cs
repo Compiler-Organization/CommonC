@@ -6,7 +6,9 @@ using CommonC.Parser.AST.Statements;
 using CommonC.Semantic.Objects;
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 using System.Text;
 
@@ -160,7 +162,32 @@ namespace CommonC.Semantic
                 {
                     indexTypeAnnotation.IsArray = true;
                 }
-                indexTypeAnnotation.ArrayDepth += indexTypeAnnotation.IsVariable ? 0 : 1;
+                else
+                {
+                    // Fix: Only peel off the vector layer if we aren't indexing an outer array block!
+                    if (indexTypeAnnotation.IsArray)
+                    {
+                        // Lower the array depth by 1 because we are indexing the outer array block.
+                        // This leaves the underlying Vector type untouched!
+                        indexTypeAnnotation.ArrayDepth -= 1;
+                        if (indexTypeAnnotation.ArrayDepth == 0)
+                        {
+                            indexTypeAnnotation.IsArray = false;
+                        }
+                    }
+                    else if (indexTypeAnnotation.IsVector)
+                    {
+                        // If it's NOT an array, but it IS a vector (e.g. Result[i]),
+                        // then we are indexing individual vector lanes, so peel it down to a scalar i32!
+                        indexTypeAnnotation = ResolveTypeFromExpression(indexTypeAnnotation.VectorType.Type, variables);
+                    }
+                }
+
+                // Checks against the underlying type
+                if (indexTypeAnnotation.IsArray)
+                {
+                    indexTypeAnnotation.ArrayDepth += indexTypeAnnotation.IsVariable ? 0 : 1;
+                }
 
                 return expression.TypeAnnotation = indexTypeAnnotation;
             }
@@ -360,9 +387,21 @@ namespace CommonC.Semantic
                 vectorTypeExpression.Type.TypeAnnotation = ResolveTypeFromExpression(vectorTypeExpression.Type, variables, isType: true);
                 vectorTypeExpression.Size.TypeAnnotation = ResolveTypeFromExpression(vectorTypeExpression.Size, variables, isType: true);
 
+                if(!Vector.IsHardwareAccelerated)
+                {
+                    ErrorHandler.Warn($"SIMD is not hardware accelerated on the CPU of this device!");
+                }
+
+                int maxSimdBytes = Vector<byte>.Count * Unsafe.SizeOf<byte>();
+                int vectorSimdBytes = (int)vectorTypeExpression.Size.ToUlong() * vectorTypeExpression.Type.GetByteSize();
+                if (vectorSimdBytes > maxSimdBytes)
+                {
+                    ErrorHandler.Warn($"A vector exceeds the maximum hardware-supported SIMD register width on the CPU of this device! Vector size: {vectorSimdBytes} bytes, hardware maximum: {maxSimdBytes} bytes");
+                }
+
                 return expression.TypeAnnotation = new TypeAnnotation
                 {
-                    IsVectorType = true,
+                    IsVector = true,
                     VectorType = vectorTypeExpression
                 };
             } 
