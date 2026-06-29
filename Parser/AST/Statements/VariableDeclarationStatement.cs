@@ -41,6 +41,8 @@ namespace CommonC.Parser.AST.Statements
 
         internal LLVMTypeRef LLVMType;
 
+        internal bool HasAllocation { get; set; } = true;
+
         public override string PrettyPrint(int indentLevel = 0)
         {
             StringBuilder Builder = new StringBuilder();

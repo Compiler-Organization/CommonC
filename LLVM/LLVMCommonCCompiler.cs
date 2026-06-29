@@ -89,7 +89,7 @@ namespace CommonC.LLVM
                 ProcessStartInfo clang = new ProcessStartInfo()
                 {
                     FileName = @".\\Llvm\\bin\\clang.exe",
-                    Arguments = $"\"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.ll\" {Settings.Libraries.CreateArguments()} --target={Settings.TargetTripe} -O3 -o \"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.exe\"",
+                    Arguments = $"\"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.ll\" {Settings.Libraries.CreateArguments()} --target=\"{Settings.TargetTripe}\" -O3 -o \"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.exe\"",
                 };
 
                 Process.Start(clang).WaitForExit();

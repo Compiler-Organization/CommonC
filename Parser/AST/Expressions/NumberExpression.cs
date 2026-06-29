@@ -16,7 +16,14 @@ namespace CommonC.Parser.AST.Expressions
         {
             if(ulong.TryParse(Value, out ulong result)) return result;
 
-            throw ErrorHandler.CreateError($"Could not parse number as int", this);
+            throw ErrorHandler.CreateError($"Could not parse number as an ulong: {this.Value}", this);
+        }
+
+        public double ToDouble()
+        {
+            if (double.TryParse(Value, out double result)) return result;
+
+            throw ErrorHandler.CreateError($"Could not parse number as a double: {this.Value}", this);
         }
 
         public override string PrettyPrint(int indentLevel = 0)

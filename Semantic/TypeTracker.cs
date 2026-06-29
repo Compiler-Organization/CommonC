@@ -105,7 +105,13 @@ namespace CommonC.Semantic
 
                 if (Enums.TryGetValue(name, out var enumStatement))
                 {
-                    return expression.TypeAnnotation = enumStatement.TypeAnnotation;
+                    enumStatement.Type.TypeAnnotation = ResolveTypeFromExpression(enumStatement.Type, variables, isType: true);
+
+                    return expression.TypeAnnotation = new TypeAnnotation
+                    {
+                        IsEnum = true,
+                        Enum = enumStatement
+                    };
                 }
 
                 if (variables?.Contains(name) == true)
@@ -125,8 +131,6 @@ namespace CommonC.Semantic
                     
                     return expression.TypeAnnotation = ResolveTypeFromExpression(function.ReturnType, variables, isType: true);
                 }
-
-                
 
                 throw ErrorHandler.CreateError($"'{name}' does not exist in the current context.", identifierExpression);
             }
@@ -164,11 +168,9 @@ namespace CommonC.Semantic
                 }
                 else
                 {
-                    // Fix: Only peel off the vector layer if we aren't indexing an outer array block!
+                    // Checks against the underlying type
                     if (indexTypeAnnotation.IsArray)
                     {
-                        // Lower the array depth by 1 because we are indexing the outer array block.
-                        // This leaves the underlying Vector type untouched!
                         indexTypeAnnotation.ArrayDepth -= 1;
                         if (indexTypeAnnotation.ArrayDepth == 0)
                         {
@@ -177,13 +179,10 @@ namespace CommonC.Semantic
                     }
                     else if (indexTypeAnnotation.IsVector)
                     {
-                        // If it's NOT an array, but it IS a vector (e.g. Result[i]),
-                        // then we are indexing individual vector lanes, so peel it down to a scalar i32!
                         indexTypeAnnotation = ResolveTypeFromExpression(indexTypeAnnotation.VectorType.Type, variables);
                     }
                 }
 
-                // Checks against the underlying type
                 if (indexTypeAnnotation.IsArray)
                 {
                     indexTypeAnnotation.ArrayDepth += indexTypeAnnotation.IsVariable ? 0 : 1;
@@ -639,8 +638,16 @@ namespace CommonC.Semantic
             }
             if (statement is ForStatement forStatement)
             {
-                TrackTypeForExpression(forStatement.Range, variables);
-                TrackTypeForExpression(forStatement.Variable.Type, variables);
+                TypeAnnotation rangeType = TrackTypeForExpression(forStatement.Range, variables);
+                forStatement.Variable.Type = new TypeExpression
+                {
+                    FileName = forStatement.FileName,
+                    Line = forStatement.Line,
+                    Type = rangeType.ReservedType,
+                    TypeAnnotation = rangeType.Copy()
+                };
+
+                // TrackTypeForExpression(forStatement.Variable.Type, variables);
                 TrackStatements(forStatement.Body);
                 return;
             }

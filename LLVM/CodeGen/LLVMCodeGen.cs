@@ -373,24 +373,28 @@ namespace CommonC.LLVM.CodeGen
                 throw ErrorHandler.CreateError("Current function is not set when emitting for statement.", forStatement);
             }
 
+            LLVMBasicBlockRef preheaderBlock = Builder.InsertBlock;
+
             LLVMBasicBlockRef loopConditionBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("for.cond");
             LLVMBasicBlockRef loopBodyBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("for.body");
             LLVMBasicBlockRef loopIncrementBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("for.inc");
             LLVMBasicBlockRef loopEndBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("for.end");
 
             LLVMTypeRef loopVarType = forStatement.Variable.Type.TypeAnnotation.ToLLVMType();
-            forStatement.Variable.LLVMAlloca = Builder.BuildAlloca(loopVarType, forStatement.Variable.Name);
 
             LLVMValueRef startValue = EmitExpression(forStatement.Range.Start, variables);
-            Builder.BuildStore(startValue, forStatement.Variable.LLVMAlloca);
-
             LLVMValueRef endValue = EmitExpression(forStatement.Range.End, variables);
 
             Builder.BuildBr(loopConditionBlock);
 
             Builder.PositionAtEnd(loopConditionBlock);
-            LLVMValueRef loopVar = Builder.BuildLoad2(loopVarType, forStatement.Variable.LLVMAlloca);
-            LLVMValueRef condition = Builder.BuildICmp(LLVMIntPredicate.LLVMIntSLT, loopVar, endValue, "loopcond");
+
+            LLVMValueRef loopVarPhi = Builder.BuildPhi(loopVarType, $"{forStatement.Variable.Name}_phi");
+
+            forStatement.Variable.LLVMAlloca = loopVarPhi;
+            forStatement.Variable.HasAllocation = false;
+
+            LLVMValueRef condition = CoerceRelationalType(RelationalOperators.LessThan, loopVarPhi, endValue, forStatement.Range);
             Builder.BuildCondBr(condition, loopBodyBlock, loopEndBlock);
 
             Builder.PositionAtEnd(loopBodyBlock);
@@ -402,13 +406,67 @@ namespace CommonC.LLVM.CodeGen
             }
 
             Builder.PositionAtEnd(loopIncrementBlock);
-            LLVMValueRef incrementVar = Builder.BuildLoad2(loopVarType, forStatement.Variable.LLVMAlloca);
-            LLVMValueRef incrementedValue = Builder.BuildAdd(incrementVar, LLVMValueRef.CreateConstInt(loopVarType, 1, false), "loopinc");
-            Builder.BuildStore(incrementedValue, forStatement.Variable.LLVMAlloca);
+
+            LLVMValueRef incrementedValue = Builder.BuildAdd(
+                loopVarPhi,
+                LLVMValueRef.CreateConstInt(loopVarType, 1, false),
+                "loopinc"
+            );
             Builder.BuildBr(loopConditionBlock);
+
+            loopVarPhi.AddIncoming(
+                new LLVMValueRef[] { startValue, incrementedValue },
+                new LLVMBasicBlockRef[] { preheaderBlock, loopIncrementBlock },
+                2
+            );
 
             Builder.PositionAtEnd(loopEndBlock);
         }
+
+        //void EmitForStatement(ForStatement forStatement, Variables variables)
+        //{
+        //    if (CurrentFunction == null)
+        //    {
+        //        throw ErrorHandler.CreateError("Current function is not set when emitting for statement.", forStatement);
+        //    }
+
+        //    LLVMBasicBlockRef loopConditionBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("for.cond");
+        //    LLVMBasicBlockRef loopBodyBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("for.body");
+        //    LLVMBasicBlockRef loopIncrementBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("for.inc");
+        //    LLVMBasicBlockRef loopEndBlock = CurrentFunction.LLVMFunction.AppendBasicBlock("for.end");
+
+        //    LLVMTypeRef loopVarType = forStatement.Variable.Type.TypeAnnotation.ToLLVMType();
+        //    forStatement.Variable.LLVMAlloca = Builder.BuildAlloca(loopVarType, forStatement.Variable.Name);
+
+        //    LLVMValueRef startValue = EmitExpression(forStatement.Range.Start, variables);
+        //    Builder.BuildStore(startValue, forStatement.Variable.LLVMAlloca);
+
+        //    LLVMValueRef endValue = EmitExpression(forStatement.Range.End, variables);
+
+        //    Builder.BuildBr(loopConditionBlock);
+
+        //    Builder.PositionAtEnd(loopConditionBlock);
+        //    LLVMValueRef loopVar = Builder.BuildLoad2(loopVarType, forStatement.Variable.LLVMAlloca);
+        //    LLVMValueRef condition = Builder.BuildICmp(LLVMIntPredicate.LLVMIntSLT, loopVar, endValue, "loopcond");
+        //    Builder.BuildCondBr(condition, loopBodyBlock, loopEndBlock);
+
+        //    Builder.PositionAtEnd(loopBodyBlock);
+        //    EmitStatements(forStatement.Body.Statements, forStatement.Body.Variables);
+
+        //    if (Builder.InsertBlock.Terminator == null)
+        //    {
+        //        Builder.BuildBr(loopIncrementBlock);
+        //    }
+
+        //    Builder.PositionAtEnd(loopIncrementBlock);
+        //    LLVMValueRef incrementVar = Builder.BuildLoad2(loopVarType, forStatement.Variable.LLVMAlloca);
+        //    LLVMValueRef incrementedValue = Builder.BuildAdd(incrementVar, LLVMValueRef.CreateConstInt(loopVarType, 1, false), "loopinc");
+        //    Builder.BuildStore(incrementedValue, forStatement.Variable.LLVMAlloca);
+        //    Builder.BuildBr(loopConditionBlock);
+
+        //    Builder.PositionAtEnd(loopEndBlock);
+        //}
+
 
 
         void EmitWhileStatement(WhileStatement whileStatement, Variables variables)
@@ -440,7 +498,7 @@ namespace CommonC.LLVM.CodeGen
             if (assignmentStatement.TypeAnnotation.IsVector && assignmentStatement.Expression is ArrayExpression arrayExpression)
             {
                 Console.WriteLine("__________________ VECTOR CREATED");
-                valueToStore = CreateVectorFromArray(arrayExpression, variables);
+                valueToStore = CreateVectorFromArray(assignmentStatement.TypeAnnotation.VectorType, arrayExpression, variables);
             }
             else
             {
@@ -567,7 +625,6 @@ namespace CommonC.LLVM.CodeGen
                     }
                 }
             }
-
 
             if (targetType.Kind == LLVMTypeKind.LLVMStructTypeKind)
             {
@@ -721,7 +778,7 @@ namespace CommonC.LLVM.CodeGen
             throw ErrorHandler.CreateError($"Call statement's expression cannot be a '{callStatement.Expression.GetType().Name}'", callStatement);
         }
 
-        LLVMValueRef CreateVectorFromArray(ArrayExpression arrayExpression, Variables variables)
+        LLVMValueRef CreateVectorFromArray(VectorTypeExpression vectorTypeExpression, ArrayExpression arrayExpression, Variables variables)
         {
             bool isConstVector = true;
             foreach(Expression arrayElement in arrayExpression.Expressions)
@@ -734,7 +791,7 @@ namespace CommonC.LLVM.CodeGen
 
             if(isConstVector)
             {
-                return LLVMValueRef.CreateConstVector(arrayExpression.Expressions.Select(e => EmitNumberExpression(e as NumberExpression)).ToArray());
+                return LLVMValueRef.CreateConstVector(arrayExpression.Expressions.Select(e => EmitNumberExpression(e as NumberExpression, vectorTypeExpression.Type.TypeAnnotation)).ToArray());
             }
             else
             {
@@ -830,7 +887,7 @@ namespace CommonC.LLVM.CodeGen
             if (variableDeclaration.Type.TypeAnnotation.IsVector && variableDeclaration.Expression is ArrayExpression arrayExpression)
             {
                 Console.WriteLine("__________________ VECTOR CREATED");
-                initValue = CreateVectorFromArray(arrayExpression, variables);
+                initValue = CreateVectorFromArray(variableDeclaration.Type.TypeAnnotation.VectorType, arrayExpression, variables);
             }
             else
             {
@@ -916,6 +973,34 @@ namespace CommonC.LLVM.CodeGen
                 return Builder.BuildLoad2(targetType, value, name);
             }
 
+            if (value.TypeOf.Kind == LLVMTypeKind.LLVMVectorTypeKind && targetType.Kind == LLVMTypeKind.LLVMVectorTypeKind)
+            {
+                if (value.TypeOf.VectorSize != targetType.VectorSize)
+                {
+                    throw ErrorHandler.CreateError($"Vector length mismatch in type conversion: Cannot convert {value.TypeOf} to {targetType}.", errorObject);
+                }
+
+                LLVMTypeRef srcElementT = value.TypeOf.ElementType;
+                LLVMTypeRef dstElementT = targetType.ElementType;
+
+                if (srcElementT.Kind == LLVMTypeKind.LLVMIntegerTypeKind && dstElementT.Kind == LLVMTypeKind.LLVMIntegerTypeKind)
+                {
+                    if (srcElementT.IntWidth < dstElementT.IntWidth)
+                    {
+                        return Builder.BuildZExt(value, targetType, name ?? "v.zext");
+                    }
+                    else if (srcElementT.IntWidth > dstElementT.IntWidth)
+                    {
+                        return Builder.BuildTrunc(value, targetType, name ?? "v.trunc");
+                    }
+                }
+
+                if (srcElementT.Kind == LLVMTypeKind.LLVMFloatTypeKind && dstElementT.Kind == LLVMTypeKind.LLVMDoubleTypeKind)
+                    return Builder.BuildFPExt(value, targetType, name ?? "v.fpext");
+                if (srcElementT.Kind == LLVMTypeKind.LLVMDoubleTypeKind && dstElementT.Kind == LLVMTypeKind.LLVMFloatTypeKind)
+                    return Builder.BuildFPTrunc(value, targetType, name ?? "v.fptrunc");
+            }
+
             throw ErrorHandler.CreateError($"Implicit type conversion from {value.TypeOf} to {targetType} is unsupported.", errorObject);
         }
 
@@ -928,9 +1013,36 @@ namespace CommonC.LLVM.CodeGen
         }
 
         // Rewrite this so it accruately creates a number given the expression using it
-        LLVMValueRef EmitNumberExpression(NumberExpression numberExpression)
+        LLVMValueRef EmitNumberExpression(NumberExpression numberExpression, TypeAnnotation? numberType = null)
         {
             System.Globalization.CultureInfo culture = System.Globalization.CultureInfo.InvariantCulture;
+
+            if (numberType != null)
+            {
+                LLVMTypeRef numberLLVMType = numberType.ToLLVMType();
+
+                if (numberLLVMType.Kind == LLVMTypeKind.LLVMDoubleTypeKind ||
+                    numberLLVMType.Kind == LLVMTypeKind.LLVMFloatTypeKind ||
+                    numberLLVMType.Kind == LLVMTypeKind.LLVMHalfTypeKind ||
+                    numberLLVMType.Kind == LLVMTypeKind.LLVMFP128TypeKind)
+                {
+                    return LLVMValueRef.CreateConstReal(numberLLVMType, numberExpression.ToDouble());
+                }
+
+                if (numberLLVMType.Kind == LLVMTypeKind.LLVMIntegerTypeKind)
+                {
+                    if (ulong.TryParse(numberExpression.Value, culture, out ulong integerValue))
+                    {
+                        return LLVMValueRef.CreateConstInt(numberLLVMType, integerValue, numberType.IsSigned());
+                    }
+                    if (long.TryParse(numberExpression.Value, culture, out long signedNumberValue))
+                    {
+                        return LLVMValueRef.CreateConstInt(numberLLVMType, (ulong)signedNumberValue, true);
+                    }
+                }
+
+                throw ErrorHandler.CreateError($"Cannot cast numeric literal '{numberExpression.Value}' to requested type: {numberType.ToString()}", numberExpression);
+            }
 
             if (numberExpression.IsDouble)
             {
@@ -969,6 +1081,11 @@ namespace CommonC.LLVM.CodeGen
 
             LLVMValueRef pointer = variable.LLVMAlloca;
             LLVMTypeRef valueType = variable.Type.TypeAnnotation.ToLLVMType();
+
+            if(!variable.HasAllocation)
+            {
+                return pointer;
+            }
 
             if(pointerOnly)
             {
@@ -1329,9 +1446,9 @@ namespace CommonC.LLVM.CodeGen
 
                 LLVMValueRef evaluatedVal;
 
-                if (arrayExpression.TypeAnnotation.IsVector && arrayExpression.Expressions[i] is ArrayExpression innerArray)
+                if (arrayExpression.Expressions[i].TypeAnnotation.IsVector && arrayExpression.Expressions[i] is ArrayExpression innerArray)
                 {
-                    evaluatedVal = CreateVectorFromArray(innerArray, variables);
+                    evaluatedVal = CreateVectorFromArray(arrayExpression.Expressions[i].TypeAnnotation.VectorType, innerArray, variables);
                 }
                 else
                 {
@@ -1769,8 +1886,91 @@ namespace CommonC.LLVM.CodeGen
                 throw ErrorHandler.CreateError("Left or right operand expression evaluated to null.", relationalExpression);
             }
 
+            return CoerceRelationalType(relationalExpression.Operator, left, right, relationalExpression);
+        }
+
+        LLVMValueRef CoerceRelationalType(RelationalOperators relationalOperator, LLVMValueRef left, LLVMValueRef right, object errorObject)
+        {
             LLVMTypeKind leftKind = left.TypeOf.Kind;
             LLVMTypeKind rightKind = right.TypeOf.Kind;
+
+            if (leftKind == LLVMTypeKind.LLVMVectorTypeKind || rightKind == LLVMTypeKind.LLVMVectorTypeKind)
+            {
+                if (leftKind != rightKind)
+                {
+                    throw ErrorHandler.CreateError($"Type mismatch: Cannot compare vector with non-vector type.", errorObject);
+                }
+
+                LLVMTypeRef leftElementT = left.TypeOf.ElementType;
+                LLVMTypeRef rightElementT = right.TypeOf.ElementType;
+
+                if (left.TypeOf.VectorSize != right.TypeOf.VectorSize)
+                {
+                    throw ErrorHandler.CreateError($"Vector length mismatch: Cannot compare vector of size {left.TypeOf.VectorSize} with size {right.TypeOf.VectorSize}.", errorObject);
+                }
+
+                if (leftElementT.Kind == LLVMTypeKind.LLVMFloatTypeKind || leftElementT.Kind == LLVMTypeKind.LLVMDoubleTypeKind ||
+                    rightElementT.Kind == LLVMTypeKind.LLVMFloatTypeKind || rightElementT.Kind == LLVMTypeKind.LLVMDoubleTypeKind)
+                {
+                    if (leftElementT != rightElementT)
+                    {
+                        if (leftElementT.Kind == LLVMTypeKind.LLVMFloatTypeKind && rightElementT.Kind == LLVMTypeKind.LLVMDoubleTypeKind)
+                        {
+                            LLVMTypeRef targetVecT = LLVMTypeRef.CreateVector(LLVMTypeRef.Double, left.TypeOf.VectorSize);
+                            left = Builder.BuildFPExt(left, targetVecT, "v.fpext.left");
+                        }
+                        else if (leftElementT.Kind == LLVMTypeKind.LLVMDoubleTypeKind && rightElementT.Kind == LLVMTypeKind.LLVMFloatTypeKind)
+                        {
+                            LLVMTypeRef targetVecT = LLVMTypeRef.CreateVector(LLVMTypeRef.Double, right.TypeOf.VectorSize);
+                            right = Builder.BuildFPExt(right, targetVecT, "v.fpext.right");
+                        }
+                    }
+
+                    switch (relationalOperator)
+                    {
+                        case RelationalOperators.Equal: return Builder.BuildFCmp(LLVMRealPredicate.LLVMRealOEQ, left, right, "v.fcmp");
+                        case RelationalOperators.NotEqual: return Builder.BuildFCmp(LLVMRealPredicate.LLVMRealONE, left, right, "v.fcmp");
+                        case RelationalOperators.GreaterThan: return Builder.BuildFCmp(LLVMRealPredicate.LLVMRealOGT, left, right, "v.fcmp");
+                        case RelationalOperators.LessThan: return Builder.BuildFCmp(LLVMRealPredicate.LLVMRealOLT, left, right, "v.fcmp");
+                        case RelationalOperators.GreaterThanOrEqual: return Builder.BuildFCmp(LLVMRealPredicate.LLVMRealOGE, left, right, "v.fcmp");
+                        case RelationalOperators.LessThanOrEqual: return Builder.BuildFCmp(LLVMRealPredicate.LLVMRealOLE, left, right, "v.fcmp");
+                        default: throw ErrorHandler.CreateError($"Unsupported float vector relational operator: {relationalOperator}", errorObject);
+                    }
+                }
+
+                if (leftElementT.Kind == LLVMTypeKind.LLVMIntegerTypeKind && rightElementT.Kind == LLVMTypeKind.LLVMIntegerTypeKind)
+                {
+                    uint leftWidth = leftElementT.IntWidth;
+                    uint rightWidth = rightElementT.IntWidth;
+
+                    if (leftWidth != rightWidth)
+                    {
+                        if (leftWidth < rightWidth)
+                        {
+                            LLVMTypeRef targetVecT = LLVMTypeRef.CreateVector(rightElementT, left.TypeOf.VectorSize);
+                            left = Builder.BuildSExt(left, targetVecT, "v.sext.left");
+                        }
+                        else
+                        {
+                            LLVMTypeRef targetVecT = LLVMTypeRef.CreateVector(leftElementT, right.TypeOf.VectorSize);
+                            right = Builder.BuildSExt(right, targetVecT, "v.sext.right");
+                        }
+                    }
+
+                    switch (relationalOperator)
+                    {
+                        case RelationalOperators.Equal: return Builder.BuildICmp(LLVMIntPredicate.LLVMIntEQ, left, right, "v.icmp");
+                        case RelationalOperators.NotEqual: return Builder.BuildICmp(LLVMIntPredicate.LLVMIntNE, left, right, "v.icmp");
+                        case RelationalOperators.GreaterThan: return Builder.BuildICmp(LLVMIntPredicate.LLVMIntSGT, left, right, "v.icmp");
+                        case RelationalOperators.LessThan: return Builder.BuildICmp(LLVMIntPredicate.LLVMIntSLT, left, right, "v.icmp");
+                        case RelationalOperators.GreaterThanOrEqual: return Builder.BuildICmp(LLVMIntPredicate.LLVMIntSGE, left, right, "v.icmp");
+                        case RelationalOperators.LessThanOrEqual: return Builder.BuildICmp(LLVMIntPredicate.LLVMIntSLE, left, right, "v.icmp");
+                        default: throw ErrorHandler.CreateError($"Unsupported integer vector relational operator: {relationalOperator}", errorObject);
+                    }
+                }
+
+                throw ErrorHandler.CreateError($"Unsupported vector element type comparison.", errorObject);
+            }
 
             if (leftKind == LLVMTypeKind.LLVMFloatTypeKind || leftKind == LLVMTypeKind.LLVMDoubleTypeKind ||
                 rightKind == LLVMTypeKind.LLVMFloatTypeKind || rightKind == LLVMTypeKind.LLVMDoubleTypeKind)
@@ -1783,7 +1983,7 @@ namespace CommonC.LLVM.CodeGen
                         right = Builder.BuildFPExt(right, LLVMTypeRef.Double, "fpext.right");
                 }
 
-                switch (relationalExpression.Operator)
+                switch (relationalOperator)
                 {
                     case RelationalOperators.Equal: return Builder.BuildFCmp(LLVMRealPredicate.LLVMRealOEQ, left, right, "fcmp");
                     case RelationalOperators.NotEqual: return Builder.BuildFCmp(LLVMRealPredicate.LLVMRealONE, left, right, "fcmp");
@@ -1791,7 +1991,7 @@ namespace CommonC.LLVM.CodeGen
                     case RelationalOperators.LessThan: return Builder.BuildFCmp(LLVMRealPredicate.LLVMRealOLT, left, right, "fcmp");
                     case RelationalOperators.GreaterThanOrEqual: return Builder.BuildFCmp(LLVMRealPredicate.LLVMRealOGE, left, right, "fcmp");
                     case RelationalOperators.LessThanOrEqual: return Builder.BuildFCmp(LLVMRealPredicate.LLVMRealOLE, left, right, "fcmp");
-                    default: throw ErrorHandler.CreateError($"Unsupported float relational operator: {relationalExpression.Operator}", relationalExpression);
+                    default: throw ErrorHandler.CreateError($"Unsupported float relational operator: {relationalOperator}", errorObject);
                 }
             }
 
@@ -1809,14 +2009,14 @@ namespace CommonC.LLVM.CodeGen
 
                 if (left.TypeOf != right.TypeOf)
                 {
-                    throw ErrorHandler.CreateError($"Type mismatch: Cannot compare pointer types {left.TypeOf} and {right.TypeOf}.", relationalExpression);
+                    throw ErrorHandler.CreateError($"Type mismatch: Cannot compare pointer types {left.TypeOf} and {right.TypeOf}.", errorObject);
                 }
 
-                switch (relationalExpression.Operator)
+                switch (relationalOperator)
                 {
                     case RelationalOperators.Equal: return Builder.BuildICmp(LLVMIntPredicate.LLVMIntEQ, left, right, "ptr.icmp");
                     case RelationalOperators.NotEqual: return Builder.BuildICmp(LLVMIntPredicate.LLVMIntNE, left, right, "ptr.icmp");
-                    default: throw ErrorHandler.CreateError($"Operator {relationalExpression.Operator} is invalid for pointer types.", relationalExpression);
+                    default: throw ErrorHandler.CreateError($"Operator {relationalOperator} is invalid for pointer types.", errorObject);
                 }
             }
 
@@ -1833,7 +2033,7 @@ namespace CommonC.LLVM.CodeGen
                         right = Builder.BuildSExt(right, left.TypeOf, "sext.right");
                 }
 
-                switch (relationalExpression.Operator)
+                switch (relationalOperator)
                 {
                     case RelationalOperators.Equal: return Builder.BuildICmp(LLVMIntPredicate.LLVMIntEQ, left, right, "icmp");
                     case RelationalOperators.NotEqual: return Builder.BuildICmp(LLVMIntPredicate.LLVMIntNE, left, right, "icmp");
@@ -1841,11 +2041,11 @@ namespace CommonC.LLVM.CodeGen
                     case RelationalOperators.LessThan: return Builder.BuildICmp(LLVMIntPredicate.LLVMIntSLT, left, right, "icmp");
                     case RelationalOperators.GreaterThanOrEqual: return Builder.BuildICmp(LLVMIntPredicate.LLVMIntSGE, left, right, "icmp");
                     case RelationalOperators.LessThanOrEqual: return Builder.BuildICmp(LLVMIntPredicate.LLVMIntSLE, left, right, "icmp");
-                    default: throw ErrorHandler.CreateError($"Unsupported integer relational operator: {relationalExpression.Operator}", relationalExpression);
+                    default: throw ErrorHandler.CreateError($"Unsupported integer relational operator: {relationalOperator}", errorObject);
                 }
             }
 
-            throw ErrorHandler.CreateError($"Cannot emit comparison between unhandled types: {leftKind} and {rightKind}.", relationalExpression);
+            throw ErrorHandler.CreateError($"Cannot emit comparison between unhandled types: {leftKind} and {rightKind}.", errorObject);
         }
 
         LLVMValueRef EmitSizeOfExpression(SizeOfExpression sizeOfExpression, Variables variables)
@@ -1977,8 +2177,13 @@ namespace CommonC.LLVM.CodeGen
             {
                 throw ErrorHandler.CreateError("Logical operators require boolean operands.", logicalExpression);
             }
+            if (left.TypeOf.IntWidth != 1)
+            {
+                left = Builder.BuildICmp(LLVMIntPredicate.LLVMIntNE, left, LLVMValueRef.CreateConstInt(left.TypeOf, 0, false), "left.tobool");
+            }
 
-            LLVMValueRef currentFunction = Builder.InsertBlock.Parent;
+            LLVMBasicBlockRef lhsEndBlock = Builder.InsertBlock;
+            LLVMValueRef currentFunction = lhsEndBlock.Parent;
 
             LLVMBasicBlockRef rhsBlock = currentFunction.AppendBasicBlock("logical.rhs");
             LLVMBasicBlockRef mergeBlock = currentFunction.AppendBasicBlock("logical.merge");
@@ -1994,7 +2199,7 @@ namespace CommonC.LLVM.CodeGen
                     break;
 
                 default:
-                    throw ErrorHandler.CreateError($"Logical operator {logicalExpression.Operator} is not supported when emitting LLVM logical expressions.", logicalExpression);
+                    throw ErrorHandler.CreateError($"Logical operator {logicalExpression.Operator} is not supported.", logicalExpression);
             }
 
             Builder.PositionAtEnd(rhsBlock);
@@ -2009,11 +2214,13 @@ namespace CommonC.LLVM.CodeGen
             {
                 throw ErrorHandler.CreateError("Logical operators require boolean operands.", logicalExpression);
             }
+            if (right.TypeOf.IntWidth != 1)
+            {
+                right = Builder.BuildICmp(LLVMIntPredicate.LLVMIntNE, right, LLVMValueRef.CreateConstInt(right.TypeOf, 0, false), "right.tobool");
+            }
 
             LLVMBasicBlockRef rhsEndBlock = Builder.InsertBlock;
             Builder.BuildBr(mergeBlock);
-
-            LLVMBasicBlockRef lhsEndBlock = rhsBlock.Previous;
 
             Builder.PositionAtEnd(mergeBlock);
             LLVMValueRef phi = Builder.BuildPhi(LLVMTypeRef.Int1, "logical.result");
@@ -2029,6 +2236,7 @@ namespace CommonC.LLVM.CodeGen
 
             return phi;
         }
+
 
 
 

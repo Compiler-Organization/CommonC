@@ -693,6 +693,16 @@ bool ParseSimpleExpression(out Expression expression)
             return false;
         }
 
+        bool ParseTypeLayout(out Expression layout)
+        {
+            if (ParseTypeExpression(out TypeExpression type)) { layout = type; return true; }
+            if (ParseIdentifierExpression(out IdentifierExpression id)) { layout = id; return true; }
+            if (ParseVectorTypeExpression(out VectorTypeExpression vec)) { layout = vec; return true; }
+
+            layout = null;
+            return false;
+        }
+
         bool ParseParameterExpression(out ParameterExpression parameterExpression)
         {
             parameterExpression = new ParameterExpression()
@@ -700,41 +710,18 @@ bool ParseSimpleExpression(out Expression expression)
                 Line = TokenReader.Peek().Line, FileName = FileName
             };
 
-            if(ParseTypeExpression(out TypeExpression typeExpression))
-            {
-                Expression currentTypeLayout = typeExpression;
 
-                while (ParseIndexExpression(currentTypeLayout, out IndexExpression indexExpression))
-                {
-                    currentTypeLayout = indexExpression;
-                }
-
-                parameterExpression.Type = currentTypeLayout;
-            }
-            else
+            if (!ParseTypeLayout(out Expression currentTypeLayout))
             {
-                if (ParseIdentifierExpression(out IdentifierExpression identifierExpression))
-                {
-                    if (ParseMemberExpression(identifierExpression, out MemberExpression memberExpression))
-                    {
-                        parameterExpression.Type = memberExpression;
-                    }
-                    else if(ParseIndexExpression(identifierExpression, out IndexExpression indexExpression))
-                    {
-                        parameterExpression.Type = indexExpression;
-                    }
-                    else
-                    {
-                        parameterExpression.Type = identifierExpression;
-                    }
-                }
-                else
-                {
-                    return false;
-                }
+                return false;
             }
 
-            
+            parameterExpression.Type = currentTypeLayout switch
+            {
+                _ when ParseMemberExpression(currentTypeLayout, out MemberExpression member) => member,
+                _ when ParseIndexExpression(currentTypeLayout, out IndexExpression index) => index,
+                _ => currentTypeLayout
+            };
 
             if (ParseIdentifierExpression(out IdentifierExpression nameExpression))
             {
@@ -1634,6 +1621,15 @@ bool ParseSimpleExpression(out Expression expression)
                     {
                         throw ErrorHandler.CreateError($"Could not parse type of enum, invalid syntax", enumStatement);
                     }
+                }
+                else
+                {
+                    enumStatement.Type = new TypeExpression
+                    {
+                        FileName = FileName,
+                        Line = TokenReader.Peek().Line,
+                        Type = ReservedTypes.I32,
+                    };
                 }
 
                 TokenReader.ExpectFatal(LexKinds.BraceOpen);

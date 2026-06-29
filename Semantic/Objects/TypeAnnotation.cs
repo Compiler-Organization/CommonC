@@ -91,6 +91,7 @@ namespace CommonC.Semantic.Objects
                 { IsStruct: true } => LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),
                 { IsClass: true } => LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),
                 { IsVector: true } => LLVMTypeRef.CreateVector(VectorType.Type.TypeAnnotation.ToLLVMType(), (uint)VectorType.Size.ToUlong()),
+                { IsEnum: true } => Enum.Type == null ? LLVMTypeRef.Int32 : Enum.Type.TypeAnnotation.ToLLVMType(),
                 _ => throw new InvalidOperationException($"Type annotation does not have a valid LLVM type: {ToString()}")
             };
 

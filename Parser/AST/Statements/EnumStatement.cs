@@ -10,7 +10,7 @@ namespace CommonC.Parser.AST.Statements
     {
         public string Name { get; set; }
 
-        public Expression? Type { get; set; }
+        public Expression Type { get; set; } = null!;
 
         public List<EnumVariant> Variants = new List<EnumVariant>();
 

@@ -102,6 +102,9 @@ printl("String: ", "Hello world!", ", Number: ", 123, ", Boolean: ", true)
         * Power.
         * Left shift.
         * Right shift.
+    * [Logical](#Logical)
+        * And.
+        * Or.
     * [Negate](#Negate)
         * Negate expression from positive to negative.
     * [Not](#Not)
@@ -349,6 +352,23 @@ Performs an arithmetic operation on two expressions.
 Example
 ```cs
 2 + 2
+```
+
+___
+
+## Logical
+Performs a logical operation on two expressions.
+**Supported operations**
+* `and` - Logical conjunction. Returns true if both expressions are true.
+* `or` - Logical disjunction. Returns true if at least one expression is true.
+
+```
+<expr> <operator> <expr>
+```
+
+Example
+```cs
+true and false
 ```
 
 ___
@@ -798,6 +818,35 @@ switch (val) {
 
 // Val was 5
 ```
+
+___
+
+## Vectors
+Vector types using SIMD instructions for parallel computing.
+
+For the fastest creation of vectors, use constants when initializing.
+Using virtual values requires the vector registers to be built manually, slowing down performance.
+
+**Supported configurations**
+* `count` - Must be a power of two (e.g., 2, 4, 8, 16).
+* `type` - Supported scalar primitive types (e.g., `i32`, `f32`, `u16`).
+
+```
+vector<<count> x <type>>
+```
+
+example
+````cs
+vector<8 x i32> NumberA = { 
+    20, 30, 40, 50, 0, 0, 0, 0
+};
+
+vector<8 x i32> NumberB = { 
+    60, 70, 80, 50, 0, 0, 0, 0
+};
+
+vector<8 x i32> RawSum = NumberA + NumberB;
+````
 
 ___
 
