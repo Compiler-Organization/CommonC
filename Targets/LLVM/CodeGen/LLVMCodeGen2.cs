@@ -12,7 +12,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 
-namespace CommonC.LLVM.CodeGen
+namespace CommonC.Targets.LLVM.CodeGen
 {
     public class LLVMCodeGen2
     {

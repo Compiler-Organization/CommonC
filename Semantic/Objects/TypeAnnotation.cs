@@ -1,6 +1,8 @@
 ﻿using CommonC.Parser.AST;
 using CommonC.Parser.AST.Expressions;
 using CommonC.Parser.AST.Statements;
+using CommonIR.IR.Grammar;
+using CommonIR.IR.Grammar.Objects;
 using LLVMSharp.Interop;
 using System;
 using System.Collections.Generic;
@@ -106,6 +108,36 @@ namespace CommonC.Semantic.Objects
                 }
                 return pointerType;
             }
+
+            return baseType;
+        }
+
+        public IRType ToCommonIRType(bool destructArray = false)
+        {
+            IRType baseType = this switch
+            {
+                { IsReservedType: true } => ReservedType switch
+                {
+                    ReservedTypes.I8 or ReservedTypes.U8 or ReservedTypes.Char => new IRType(IRDataTypes.Int8),
+                    ReservedTypes.I16 or ReservedTypes.U16 => new IRType(IRDataTypes.Int16),
+                    ReservedTypes.I32 or ReservedTypes.U32 => new IRType(IRDataTypes.Int32),
+                    ReservedTypes.I64 or ReservedTypes.U64 => new IRType(IRDataTypes.Int64),
+                    ReservedTypes.F32 => new IRType(IRDataTypes.Float32),
+                    ReservedTypes.F64 => new IRType(IRDataTypes.Float64),
+                    ReservedTypes.Bool => new IRType(IRDataTypes.Bool),
+                    ReservedTypes.String => new IRType(IRDataTypes.String),
+                    ReservedTypes.Fn => new IRType(IRDataTypes.Void),
+                    ReservedTypes.Ptr => new IRType(IRDataTypes.Pointer),
+                    _ => throw new InvalidOperationException($"Unsupported reserved type: {ReservedType}")
+                },
+                //{ IsStruct: true } => Struct.LLVMStructType,
+                //{ IsClass: true } => Class.LLVMStructType,
+                { IsStruct: true } => new IRType(IRDataTypes.Pointer),
+                { IsClass: true } => new IRType(IRDataTypes.Pointer),
+                { IsVector: true } => new IRType(IRDataTypes.Vector),
+                { IsEnum: true } => Enum.Type == null ? new IRType(IRDataTypes.Int32) : Enum.Type.TypeAnnotation.ToCommonIRType(),
+                _ => throw new InvalidOperationException($"Type annotation does not have a valid LLVM type: {ToString()}")
+            };
 
             return baseType;
         }

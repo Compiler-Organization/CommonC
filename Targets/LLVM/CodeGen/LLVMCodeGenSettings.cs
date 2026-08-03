@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace CommonC.LLVM.CodeGen
+namespace CommonC.Targets.LLVM.CodeGen
 {
     public class LLVMCodeGenSettings
     {

@@ -3,12 +3,14 @@ using CommonC.DotNet;
 using CommonC.DotNet.CodeGen;
 using CommonC.Lexer;
 using CommonC.Lexer.Objects;
-using CommonC.LLVM;
-using CommonC.LLVM.CodeGen;
 using CommonC.Parser;
 using CommonC.Parser.AST.Statements;
 using CommonC.Printer;
 using CommonC.Semantic;
+using CommonC.Targets.CommonIR.CodeGen;
+using CommonC.Targets.LLVM;
+using CommonC.Targets.LLVM.CodeGen;
+using CommonIR;
 using GeneralTK.Extensions.Console;
 using GeneralTK.Extensions.Logging;
 using LLVMSharp.Interop;
@@ -23,11 +25,42 @@ namespace CommonC.App
         {
             Console.Clear();
 
+            CreateWebAssembly();
             // CreateDotNet();
-             CreateLLVM();
+            // CreateLLVM();
             // RunLLVM();
 
             // Console.WriteLine($"LLVM IR\n=========\n{CreateLLVMModule()}");
+        }
+
+        static void CreateWebAssembly()
+        {
+            string code = @"
+                i32 add(i32 a, i32 b) {
+                    return a + b;
+                }
+            ";
+
+            var lexicalAnalyser = new LexicalAnalyser(code);
+            var lexTokens = lexicalAnalyser.Analyze();
+            var parser = new SyntaxParser(lexTokens);
+
+            ClosureStatement closure = parser.ParseLexTokenList();
+
+            SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer(closure);
+            semanticAnalyzer.Analyze();
+
+            CommonIRCodeGen codeGen = new CommonIRCodeGen(closure);
+
+            List<SourceFile> sourceFiles = codeGen.GenerateSourceFiles();
+
+            foreach (SourceFile sourceFile in sourceFiles)
+            {
+                string filename = $"{sourceFile.Name}{sourceFile.Extension}";
+                Console.WriteLine($"{filename} ({sourceFile.Data.Length} bytes): {string.Join(" ", sourceFile.Data.Select(t => t.ToString("X2")))}");
+                Console.WriteLine();
+                sourceFile.WriteToDisk();
+            }
         }
 
         static void RunLLVM()
@@ -93,7 +126,8 @@ namespace CommonC.App
             {
                 MainFilePath = Environment.CurrentDirectory + "\\Samples\\test.coc",
                 WorkingDirectory = Environment.CurrentDirectory + "\\Samples",
-                TargetTripe = "x86_64-pc-windows-msvc",
+                // TargetTripe = "x86_64-pc-windows-msvc",
+                TargetTripe = "i686-pc-windows-msvc",
                 LLVMCodeGenSettings = new LLVMCodeGenSettings
                 {
                     Name = appName,

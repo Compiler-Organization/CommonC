@@ -1,10 +1,10 @@
 ﻿using CommonC.DotNet.CodeGen;
-using CommonC.LLVM.CodeGen;
+using CommonC.Targets.LLVM.CodeGen;
 using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace CommonC.LLVM
+namespace CommonC.Targets.LLVM
 {
     public class LLVMCommonCCompilerSettings
     {

@@ -292,6 +292,11 @@ namespace CommonC.Lexer.Objects
         Vararg,
 
         /// <summary>
+        /// E.g 'T'
+        /// </summary>
+        GenericType,
+
+        /// <summary>
         /// E.g '#'
         /// </summary>
         Hashtag,

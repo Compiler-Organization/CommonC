@@ -1,19 +1,19 @@
 ﻿using CommonC.Lexer;
 using CommonC.Lexer.Objects;
 using CommonC.Liveness;
-using CommonC.LLVM.CodeGen;
 using CommonC.Optimizer;
 using CommonC.Parser;
 using CommonC.Parser.AST.Statements;
 using CommonC.Printer;
 using CommonC.Semantic;
+using CommonC.Targets.LLVM.CodeGen;
 using LLVMSharp.Interop;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 
-namespace CommonC.LLVM
+namespace CommonC.Targets.LLVM
 {
     public class LLVMCommonCCompiler
     {

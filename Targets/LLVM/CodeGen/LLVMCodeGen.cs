@@ -7,7 +7,7 @@ using CommonC.Semantic.Objects;
 using LLVMSharp.Interop;
 using System.Data;
 
-namespace CommonC.LLVM.CodeGen
+namespace CommonC.Targets.LLVM.CodeGen
 {
     // Rewrite
     public class LLVMCodeGen

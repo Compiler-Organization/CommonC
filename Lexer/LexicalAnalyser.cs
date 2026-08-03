@@ -100,6 +100,9 @@ namespace CommonC.Lexer
             if(Operators.TryGetValue(Value, out LexKinds _operator))
                 return _operator;
 
+            if (Value == "T")
+                return LexKinds.GenericType;
+
             return LexKinds.Identifier;
         }
 
