@@ -18,6 +18,7 @@
   <ItemGroup>
     <PackageReference Include="AsmResolver" Version="6.0.0-rc.1" />
     <PackageReference Include="AsmResolver.DotNet" Version="6.0.0-rc.1" />
+    <PackageReference Include="CommonIR" Version="1.0.0" />
     <PackageReference Include="LLVMSharp" Version="20.1.2" />
 	  <PackageReference Include="libLLVM" Version="20.1.2" />
     <PackageReference Include="Microsoft.NET.HostModel" Version="3.1.16" />
@@ -25,12 +26,6 @@
 
   <ItemGroup>
     <Folder Include="Samples\" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="CommonIR">
-      <HintPath>..\CommonIR\bin\Debug\net10.0\CommonIR.dll</HintPath>
-    </Reference>
   </ItemGroup>
 
 </Project>

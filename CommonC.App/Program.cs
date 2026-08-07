@@ -36,8 +36,11 @@ namespace CommonC.App
         static void CreateWebAssembly()
         {
             string code = @"
-                i32 add(i32 a, i32 b) {
-                    return a + b;
+                i32 addIf(i32 a, i32 b) {
+                    if (a > b) {
+                        return a + 1;
+                    }
+                    return a + 20;
                 }
             ";
 

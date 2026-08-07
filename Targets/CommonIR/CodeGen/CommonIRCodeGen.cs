@@ -1,4 +1,5 @@
-﻿using CommonC.Parser.AST.Expressions;
+﻿using CommonC.Error;
+using CommonC.Parser.AST.Expressions;
 using CommonC.Parser.AST.Statements;
 using CommonIR;
 using CommonIR.Generators.WASM;
@@ -20,7 +21,7 @@ namespace CommonC.Targets.CommonIR.CodeGen
         /// </summary>
         ClosureStatement UpperClosure { get; set; }
 
-        IRModule Module { get; set; } = new IRModule();
+        IRModule Module { get; set; } = new IRModule("app");
 
         IRBuilder? Builder { get; set; }
 
@@ -47,7 +48,7 @@ namespace CommonC.Targets.CommonIR.CodeGen
                 }
                 else
                 {
-                    IRFunction iRFunction = Module.CreateFunction(function.Name, function.ReturnType.TypeAnnotation.ToCommonIRType(), [.. function.Parameters.Select(p => new IRLocal(p.Name, p.Type.TypeAnnotation.ToCommonIRType(), false))]);
+                    IRFunction iRFunction = Module.CreateFunction(function.Name, [function.ReturnType.TypeAnnotation.ToCommonIRType()], [.. function.Parameters.Select(p => new IRLocal(p.Name, p.Type.TypeAnnotation.ToCommonIRType(), false))]);
                     EmitFunction(function, iRFunction);
                 }
             }
@@ -86,6 +87,10 @@ namespace CommonC.Targets.CommonIR.CodeGen
                 case CallStatement callStatement:
                     EmitCallStatement(callStatement);
                     break;
+
+                case IfStatement ifStatement:
+                    EmitIfStatement(ifStatement);
+                    break;
             }
         }
 
@@ -122,21 +127,56 @@ namespace CommonC.Targets.CommonIR.CodeGen
                     return EmitNumberExpression(numberExpression);
                 case ArithmeticExpression arithmeticExpression:
                     return EmitArithmeticExpression(arithmeticExpression);
+                case ParenthesizedExpression parenthesizedExpression:
+                    return EmitParenthesizedExpression(parenthesizedExpression);
+                case RelationalExpression relationalExpression:
+                    return EmitRelationalExpression(relationalExpression);
                 default:
                     throw new NotImplementedException($"Expression type {expression.GetType().Name} is not implemented.");
             }
         }
 
+        IRValueInstruction EmitRelationalExpression(RelationalExpression relationalExpression)
+        {
+            IRValueInstruction left = EmitExpression(relationalExpression.Left);
+            IRValueInstruction right = EmitExpression(relationalExpression.Right);
+            IRComparisonOperator comparisonOperator = TranslateRelationalOperator(relationalExpression.Operator);
+
+            return Builder.BuildCompare(comparisonOperator, left, right);
+        }
+
+        IRComparisonOperator TranslateRelationalOperator(RelationalOperators relationalOperator)
+        {
+            return relationalOperator switch
+            {
+                RelationalOperators.Equal => IRComparisonOperator.EqualTo,
+                RelationalOperators.NotEqual => IRComparisonOperator.NotEqualTo,
+
+                RelationalOperators.LessThan => IRComparisonOperator.LessThan,
+                RelationalOperators.LessThanOrEqual => IRComparisonOperator.LessThanOrEqual,
+
+                RelationalOperators.GreaterThan => IRComparisonOperator.GreaterThan,
+                RelationalOperators.GreaterThanOrEqual => IRComparisonOperator.GreaterThanOrEqual,
+
+                _ => throw ErrorHandler.CreateError($"Cannot translate relational operator {relationalOperator} to its WASM variant.")
+            };
+        }
+
+        IRValueInstruction EmitParenthesizedExpression(ParenthesizedExpression parenthesizedExpression)
+        {
+            return EmitExpression(parenthesizedExpression.Expression);
+        }
+
         IRValueInstruction EmitIdentifierExpression(IdentifierExpression identifierExpression)
         {
             List<IRLocal> locals = Builder.Function.Locals.Where(l => l.Name == identifierExpression.Name).ToList();
-            if (locals.Count == 1)
+            if (locals.Count > 0)
             {
                 return Builder.BuildLoad(locals[0]);
             }
 
             List<IRLocal> parameters = Builder.Function.Parameters.Where(p => p.Name == identifierExpression.Name).ToList();
-            if(parameters.Count == 1)
+            if(parameters.Count > 0)
             {
                 return Builder.BuildLoad(parameters[0]);
             }
@@ -168,6 +208,19 @@ namespace CommonC.Targets.CommonIR.CodeGen
                 default:
                     throw new NotImplementedException($"Arithmetic operator {arithmeticExpression.Operator} is not implemented.");
             }
+        }
+
+        IRVoidInstruction EmitIfStatement(IfStatement ifStatement)
+        {
+            IRValueInstruction condition = EmitExpression(ifStatement.Condition);
+            IRBlock thenBlock = Builder.Function.CreateBlock("if.then");
+            IRVoidInstruction conditionalBranch = Builder.BuildConditionalBranch(condition, thenBlock);
+
+            Builder.PositionAtStart(Builder.Function, thenBlock);
+            EmitStatements(ifStatement.Body.Statements);
+
+            Builder.PositionAtEnd(Builder.Function, Builder.Function.Entryblock);
+            return conditionalBranch;
         }
     }
 }
