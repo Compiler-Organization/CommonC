@@ -8,7 +8,6 @@ using CommonC.Parser.AST.Statements;
 using CommonC.Printer;
 using CommonC.Semantic;
 using CommonC.Targets.CommonIR.CodeGen;
-using CommonC.Targets.LLVM;
 using CommonC.Targets.LLVM.CodeGen;
 using CommonIR;
 using GeneralTK.Extensions.Console;
@@ -16,157 +15,125 @@ using GeneralTK.Extensions.Logging;
 using LLVMSharp.Interop;
 using System.Buffers;
 using System.Diagnostics;
+using System.CommandLine;
+using CommonC.Error;
 
 namespace CommonC.App
 {
     internal class Program
     {
-        static void Main(string[] args)
+        static async Task<int> Main(string[] args)
         {
-            Console.Clear();
+            args = ["compile", "C:\\Users\\_King_\\source\\repos\\CommonC\\CommonC.App\\bin\\Debug\\net10.0\\win-x64\\Samples\\test.coc", "-o=C:\\Users\\_King_\\source\\repos\\CommonC\\CommonC.App\\bin\\Debug\\net10.0\\win-x64\\Samples\\tester.exe", "-t=webassembly-1-0-mvp"];
 
-            CreateWebAssembly();
-            // CreateDotNet();
-            // CreateLLVM();
-            // RunLLVM();
-
-            // Console.WriteLine($"LLVM IR\n=========\n{CreateLLVMModule()}");
-        }
-
-        static void CreateWebAssembly()
-        {
-            string code = @"
-                i32 addIf(i32 a, i32 b) {
-                    if (a > b) {
-                        return a + 1;
-                    }
-                    return a + 20;
-                }
-            ";
-
-            var lexicalAnalyser = new LexicalAnalyser(code);
-            var lexTokens = lexicalAnalyser.Analyze();
-            var parser = new SyntaxParser(lexTokens);
-
-            ClosureStatement closure = parser.ParseLexTokenList();
-
-            SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer(closure);
-            semanticAnalyzer.Analyze();
-
-            CommonIRCodeGen codeGen = new CommonIRCodeGen(closure);
-
-            List<SourceFile> sourceFiles = codeGen.GenerateSourceFiles();
-
-            foreach (SourceFile sourceFile in sourceFiles)
+            Option<string> targetOption = new("--target", "-t")
             {
-                string filename = $"{sourceFile.Name}{sourceFile.Extension}";
-                Console.WriteLine($"{filename} ({sourceFile.Data.Length} bytes): {string.Join(" ", sourceFile.Data.Select(t => t.ToString("X2")))}");
-                Console.WriteLine();
-                sourceFile.WriteToDisk();
-            }
-        }
-
-        static void RunLLVM()
-        {
-            string appName = "test";
-
-            LLVMCommonCCompilerSettings settings = new LLVMCommonCCompilerSettings
-            {
-                MainFilePath = Environment.CurrentDirectory + "\\Samples\\test.coc",
-                WorkingDirectory = Environment.CurrentDirectory + "\\Samples",
-                LLVMCodeGenSettings = new LLVMCodeGenSettings
-                {
-                    Name = appName,
-                    EntryPoint = "main",
-                    Version = new Version(1, 0, 0, 0)
-                }
+                Description = "The compiler target architecture",
+                DefaultValueFactory = _ => "i686-pc-windows-msvc"
             };
 
-            LLVMCommonCCompiler compiler = new LLVMCommonCCompiler(settings);
-
-            ConsoleColor.Green.WriteLine("Compiling module...");
-            LLVMModuleRef module = compiler.BuildLLVMModule();
-            Console.WriteLine($"LLVM IR\n=========\n{module}");
-
-            ConsoleColor.Green.WriteLine("Running module...");
-
-            Stopwatch stopwatch = new Stopwatch();
-
-            stopwatch.Start();
-            LLVMGenericValueRef p = compiler.RunModule(module, new LLVMGenericValueRef[0]);
-            stopwatch.Stop();
-
-            ConsoleColor.Green.WriteLine($"\nExecution completed in;");
-            ConsoleColor.Green.WriteLine($"Seconds; {(stopwatch.ElapsedMilliseconds) / (double)1000}s");
-            ConsoleColor.Green.WriteLine($"Milliseconds; {stopwatch.ElapsedMilliseconds}ms");
-        }
-
-        static LLVMModuleRef CreateLLVMModule()
-        {
-            string appName = "test";
-
-            LLVMCommonCCompilerSettings settings = new LLVMCommonCCompilerSettings
+            Option<FileInfo> outputOption = new("--output", "-o")
             {
-                MainFilePath = Environment.CurrentDirectory + "\\Samples\\test.coc",
-                WorkingDirectory = Environment.CurrentDirectory + "\\Samples",
-                LLVMCodeGenSettings = new LLVMCodeGenSettings
-                {
-                    Name = appName,
-                    EntryPoint = "main",
-                    Version = new Version(1, 0, 0, 0)
-                }
+                Description = "The path the compiler should output the file to"
             };
 
-            LLVMCommonCCompiler compiler = new LLVMCommonCCompiler(settings);
-            return compiler.BuildLLVMModule();
-        }
-
-        static void CreateLLVM()
-        {
-            string appName = "test";
-
-            LLVMCommonCCompilerSettings settings = new LLVMCommonCCompilerSettings
+            Option<int> optimizationOption = new("--optimization", "-opt")
             {
-                MainFilePath = Environment.CurrentDirectory + "\\Samples\\test.coc",
-                WorkingDirectory = Environment.CurrentDirectory + "\\Samples",
-                // TargetTripe = "x86_64-pc-windows-msvc",
-                TargetTripe = "i686-pc-windows-msvc",
-                LLVMCodeGenSettings = new LLVMCodeGenSettings
-                {
-                    Name = appName,
-                    EntryPoint = "main",
-                    Version = new Version(1, 0, 0, 0)
-                }
+                Description = "The optimization mode the compiler should use (0 = None, 1 = Basic, 2 = Moderate, 3 = Aggressive)"
             };
 
-            settings.AddLibrary("gdi32");
-            settings.AddLibrary("user32");
-            settings.AddLibrary("advapi32");
-            settings.AddLibrary("SDL3", Environment.CurrentDirectory + "\\lib");
-
-            LLVMCommonCCompiler compiler = new LLVMCommonCCompiler(settings);
-            LLVMModuleRef module = compiler.Compile(out string statusMessage);
-
-
-            string moduleIR = string.Join(Environment.NewLine,
-            module.ToString().Split('\n')
-                .Select((line, index) => $"{index}: {line}"));
-
-
-            Console.WriteLine($"LLVM IR\n=========\n{moduleIR}");
-
-            if(string.IsNullOrEmpty(statusMessage))
+            Argument<FileInfo> inputFileArgument = new("source-file")
             {
-                File.WriteAllText($"{appName}.ll", module.ToString());
-                StartApp($"{Environment.CurrentDirectory}\\{appName}");
-            }
-            else
+                Description = "The .coc source file to compile."
+            };
+            inputFileArgument.AcceptExistingOnly();
+
+            RootCommand rootCommand = new("Common C compiler");
+
+            Command compileCommand = new("compile", "Compiles a source file to a specified architecture")
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Module failed verification!\n{statusMessage}");
-                Console.ForegroundColor = ConsoleColor.Gray;
-            }
+                inputFileArgument
+            };
+            compileCommand.Options.Add(targetOption);
+            compileCommand.Options.Add(outputOption);
+            compileCommand.Options.Add(optimizationOption);
+            rootCommand.Subcommands.Add(compileCommand);
+
+            compileCommand.SetAction(parseResult =>
+            {
+                FileInfo inputFile = parseResult.GetValue(inputFileArgument)!;
+                FileInfo? output = parseResult.GetValue(outputOption);
+                string target = parseResult.GetValue(targetOption)!;
+                int optimization = parseResult.GetValue(optimizationOption);
+
+                if (output == null)
+                {
+                    throw ErrorHandler.CreateError("Output path is invalid. Provide an output path using --output or -o.");
+                }
+
+                CommonCCompilerSettings settings = new()
+                {
+                    MainFilePath = inputFile.FullName,
+                    WorkingDirectory = inputFile.DirectoryName ?? throw ErrorHandler.CreateError("Working directory path is invalid."),
+                    Target = target,
+                    Name = inputFile.Name,
+                    EntryPoint = "main",
+                    Version = new Version(1, 0, 0, 0)
+                };
+
+                CommonCCompiler compiler = new(settings);
+                compiler.Compile(out string statusMessage);
+
+                Console.WriteLine(statusMessage);
+            });
+
+            return rootCommand.Parse(args).Invoke();
         }
+
+
+        //static void CreateLLVM()
+        //{
+        //    string appName = "test";
+
+        //    LLVMCommonCCompilerSettings settings = new LLVMCommonCCompilerSettings
+        //    {
+        //        MainFilePath = Environment.CurrentDirectory + "\\Samples\\test.coc",
+        //        WorkingDirectory = Environment.CurrentDirectory + "\\Samples",
+        //        // TargetTripe = "x86_64-pc-windows-msvc",
+        //        Target = "i686-pc-windows-msvc",
+        //        Name = appName,
+        //        EntryPoint = "main",
+        //        Version = new Version(1, 0, 0, 0)
+        //    };
+
+        //    settings.AddLibrary("gdi32");
+        //    settings.AddLibrary("user32");
+        //    settings.AddLibrary("advapi32");
+        //    settings.AddLibrary("SDL3", Environment.CurrentDirectory + "\\lib");
+
+        //    LLVMCommonCCompiler compiler = new LLVMCommonCCompiler(settings);
+        //    LLVMModuleRef module = compiler.Compile(out string statusMessage);
+
+
+        //    string moduleIR = string.Join(Environment.NewLine,
+        //    module.ToString().Split('\n')
+        //        .Select((line, index) => $"{index}: {line}"));
+
+
+        //    Console.WriteLine($"LLVM IR\n=========\n{moduleIR}");
+
+        //    if(string.IsNullOrEmpty(statusMessage))
+        //    {
+        //        File.WriteAllText($"{appName}.ll", module.ToString());
+        //        StartApp($"{Environment.CurrentDirectory}\\{appName}");
+        //    }
+        //    else
+        //    {
+        //        Console.ForegroundColor = ConsoleColor.Red;
+        //        Console.WriteLine($"Module failed verification!\n{statusMessage}");
+        //        Console.ForegroundColor = ConsoleColor.Gray;
+        //    }
+        //}
 
         static void CreateDotNet()
         {

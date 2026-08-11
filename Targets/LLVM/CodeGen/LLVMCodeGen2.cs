@@ -20,7 +20,7 @@ namespace CommonC.Targets.LLVM.CodeGen
         public LLVMModuleRef Module { get; private set; }
         public LLVMBuilderRef Builder { get; private set; }
 
-        public LLVMCodeGenSettings Settings { get; private set; }
+        public CommonCCompilerSettings Settings { get; private set; }
 
         ClosureStatement CurrentClosure = new ClosureStatement();
 
@@ -28,7 +28,7 @@ namespace CommonC.Targets.LLVM.CodeGen
 
         ClassStatement? CurrentClass = null;
 
-        public LLVMCodeGen2(LLVMCodeGenSettings settings)
+        public LLVMCodeGen2(CommonCCompilerSettings settings)
         {
             Settings = settings ?? throw new ArgumentNullException(nameof(settings));
 

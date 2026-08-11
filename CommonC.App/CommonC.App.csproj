@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="2.0.10" />
     <PackageReference Include="Tools.GeneralTK" Version="1.0.2" />
   </ItemGroup>
 

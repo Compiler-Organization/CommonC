@@ -6,42 +6,29 @@ using CommonC.Parser;
 using CommonC.Parser.AST.Statements;
 using CommonC.Printer;
 using CommonC.Semantic;
+using CommonC.Targets.CommonIR.CodeGen;
 using CommonC.Targets.LLVM.CodeGen;
+using CommonIR;
+using CommonIR.Generators;
+using CommonIR.Passes.Optimization;
 using LLVMSharp.Interop;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 
-namespace CommonC.Targets.LLVM
+namespace CommonC
 {
-    public class LLVMCommonCCompiler
+    public class CommonCCompiler
     {
-        LLVMCommonCCompilerSettings Settings { get; set; }
+        CommonCCompilerSettings Settings { get; set; }
 
-        public LLVMCommonCCompiler(LLVMCommonCCompilerSettings settings)
+        public CommonCCompiler(CommonCCompilerSettings settings)
         {
             Settings = settings;
         }
 
-        /// <summary>
-        /// Runs the given LLVM module with the provided arguments into the entry point function, which is specified in the code gen settings.
-        /// </summary>
-        /// <param name="module"></param>
-        /// <param name="args"></param>
-        /// <returns></returns>
-        public LLVMGenericValueRef RunModule(LLVMModuleRef module, LLVMGenericValueRef[] args)
-        {
-            LLVMExecutionEngineRef executionEngine = module.CreateExecutionEngine();
-            return executionEngine.RunFunction(module.GetNamedFunction(Settings.LLVMCodeGenSettings.EntryPoint), args);
-        }
-
-        /// <summary>
-        /// Builds a LLVM module
-        /// </summary>
-        /// <returns></returns>
-        /// <exception cref="FileNotFoundException"></exception>
-        public LLVMModuleRef BuildLLVMModule()
+        public bool Compile(out string statusMessage)
         {
             if (File.Exists(Settings.MainFilePath))
             {
@@ -55,48 +42,87 @@ namespace CommonC.Targets.LLVM
                 SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer(closure);
                 semanticAnalyzer.Analyze();
 
-                // LivenessAnalyser livenessAnalyser = new LivenessAnalyser(closure);
-                // livenessAnalyser.Analyse();
+                switch (Settings.Target)
+                {
+                    case "webassembly-1-0-mvp":
+                        {
+                            return CompileCommonIR(closure, out statusMessage);
+                        }
 
-
-                //LLVMCodeGen2 lLVMCodeGen = new LLVMCodeGen2(Settings.LLVMCodeGenSettings);
-                //return lLVMCodeGen.CreateModule(closure);
-
-                LLVMCodeGen lLVMCodeGen = new LLVMCodeGen(Settings.LLVMCodeGenSettings, closure);
-                return lLVMCodeGen.GenerateLLVMModule();
+                    default:
+                        {
+                            return CompileLLVM(closure, out statusMessage);
+                        }
+                }
             }
 
             throw new FileNotFoundException($"Main file {Settings.MainFilePath} does not exist");
+        }
+
+        bool CompileCommonIR(ClosureStatement closure, out string statusMessage)
+        {
+            CommonIRCodeGeneratorSettings codeGenSettings = new CommonIRCodeGeneratorSettings
+            {
+                Target = CommonIRTargets.WebAssembly_1_0_MVP,
+                OptimizingMode = (OptimizingMode)Settings.OptimizationMode,
+            };
+            CommonIRCodeGen codeGen = new CommonIRCodeGen(closure, codeGenSettings, this.Settings);
+
+            List<SourceFile> sourceFiles = codeGen.GenerateSourceFiles();
+
+            foreach (SourceFile sourceFile in sourceFiles)
+            {
+                string filename = $"{sourceFile.Name}{sourceFile.Extension}";
+                sourceFile.WriteToDisk();
+            }
+
+            statusMessage = "Success";
+            return true;
         }
 
         /// <summary>
         /// Compiles the application to a .exe
         /// </summary>
         /// <returns></returns>
-        public LLVMModuleRef Compile(out string statusMessage)
+        bool CompileLLVM(ClosureStatement closure, out string statusMessage)
         {
-            LLVMModuleRef module = BuildLLVMModule();
-            module.Target = Settings.TargetTripe;
+            LLVMCodeGen lLVMCodeGen = new LLVMCodeGen(Settings, closure);
+            LLVMModuleRef module = lLVMCodeGen.GenerateLLVMModule();
 
-            if(!module.TryVerify(LLVMVerifierFailureAction.LLVMPrintMessageAction, out string message))
+            module.Target = Settings.Target;
+
+            if (!module.TryVerify(LLVMVerifierFailureAction.LLVMPrintMessageAction, out string message))
             {
                 statusMessage = message;
             }
             else
             {
-                File.WriteAllText($"{Settings.LLVMCodeGenSettings.Name}.ll", module.ToString());
+                File.WriteAllText($"{Settings.Name}.ll", module.ToString());
 
                 ProcessStartInfo clang = new ProcessStartInfo()
                 {
                     FileName = @".\\Llvm\\bin\\clang.exe",
-                    Arguments = $"\"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.ll\" {Settings.Libraries.CreateArguments()} --target=\"{Settings.TargetTripe}\" -O3 -o \"{Environment.CurrentDirectory}\\{Settings.LLVMCodeGenSettings.Name}.exe\"",
+                    Arguments = $"\"{Environment.CurrentDirectory}\\{Settings.Name}.ll\" {Settings.Libraries.CreateArguments()} --target=\"{Settings.Target}\" -O{Settings.OptimizationMode} -o \"{Environment.CurrentDirectory}\\{Settings.Name}.exe\"",
                 };
 
                 Process.Start(clang).WaitForExit();
                 statusMessage = message;
+                return true;
             }
 
-            return module;
+            return false;
+        }
+
+        /// <summary>
+        /// Runs the given LLVM module with the provided arguments into the entry point function, which is specified in the code gen settings.
+        /// </summary>
+        /// <param name="module"></param>
+        /// <param name="args"></param>
+        /// <returns></returns>
+        public LLVMGenericValueRef RunModule(LLVMModuleRef module, LLVMGenericValueRef[] args)
+        {
+            LLVMExecutionEngineRef executionEngine = module.CreateExecutionEngine();
+            return executionEngine.RunFunction(module.GetNamedFunction(Settings.EntryPoint), args);
         }
 
         // Thread-safe path comparison for cross-platform robustness

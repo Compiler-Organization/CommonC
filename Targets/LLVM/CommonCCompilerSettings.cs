@@ -4,9 +4,9 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace CommonC.Targets.LLVM
+namespace CommonC
 {
-    public class LLVMCommonCCompilerSettings
+    public class CommonCCompilerSettings
     {
 
         /// <summary>
@@ -22,7 +22,7 @@ namespace CommonC.Targets.LLVM
         /// <summary>
         /// The compiler backend target
         /// </summary>
-        public string TargetTripe { get; set; } = "";
+        public string Target { get; set; } = "";
 
         public Libraries Libraries = new Libraries();
 
@@ -30,12 +30,30 @@ namespace CommonC.Targets.LLVM
 
         public void AddLibrary(string name, string? rootPath = null) => Libraries.Add(new Library { LibraryName = name, Root = rootPath });
 
-        public LLVMCodeGenSettings LLVMCodeGenSettings { get; set; } = new LLVMCodeGenSettings
-        {
-            Name = "app",
-            EntryPoint = "main",
-            Version = new Version(1, 0, 0, 0),
-        };
+        /// <summary>
+        /// Name of the assembly to be generated, without the .dll extension (E.g: "MyAssembly")
+        /// </summary>
+        public required string Name { get; set; }
+
+        /// <summary>
+        /// Version of the assembly.
+        /// </summary>
+        public Version Version { get; set; } = new Version(1, 0, 0, 0);
+
+        /// <summary>
+        /// Determines the entry point of the application.
+        /// </summary>
+        public string EntryPoint { get; set; } = "main";
+
+        /// <summary>
+        /// What optimization mode the compiler should use.
+        /// <para>0 = None</para>
+        /// <para>1 = Basic</para>
+        /// <para>2 = Moderate</para>
+        /// <para>3 = Aggressive</para>
+        /// <para></para>
+        /// </summary>
+        public int OptimizationMode { get; set; } = 0;
     }
 
     public class Library

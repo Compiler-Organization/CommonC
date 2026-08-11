@@ -12,14 +12,14 @@ namespace CommonC.Targets.LLVM.CodeGen
     // Rewrite
     public class LLVMCodeGen
     {
-        LLVMCodeGenSettings Settings { get; set; }
+        CommonCCompilerSettings Settings { get; set; }
 
         /// <summary>
         /// The topmost closure of the tree. Contains all statements, functions, structs and globals.
         /// </summary>
         ClosureStatement UpperClosure { get; set; }
 
-        public LLVMCodeGen(LLVMCodeGenSettings settings, ClosureStatement closure)
+        public LLVMCodeGen(CommonCCompilerSettings settings, ClosureStatement closure)
         {
             UpperClosure = closure;
             Settings = settings;
@@ -1012,7 +1012,7 @@ namespace CommonC.Targets.LLVM.CodeGen
             return Builder.BuildGlobalStringPtr(stringExpression.Value, stringExpression.Value.Substring(0, Math.Min(stringExpression.Value.Length, 5)));
         }
 
-        // Rewrite this so it accruately creates a number given the expression using it
+        // Rewrite this so it accurately creates a number given the expression using it
         LLVMValueRef EmitNumberExpression(NumberExpression numberExpression, TypeAnnotation? numberType = null)
         {
             System.Globalization.CultureInfo culture = System.Globalization.CultureInfo.InvariantCulture;

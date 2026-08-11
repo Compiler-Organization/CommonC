@@ -2,6 +2,7 @@
 using CommonC.Parser.AST.Expressions;
 using CommonC.Parser.AST.Statements;
 using CommonIR;
+using CommonIR.Generators;
 using CommonIR.Generators.WASM;
 using CommonIR.IR;
 using CommonIR.IR.Grammar;
@@ -21,20 +22,24 @@ namespace CommonC.Targets.CommonIR.CodeGen
         /// </summary>
         ClosureStatement UpperClosure { get; set; }
 
-        IRModule Module { get; set; } = new IRModule("app");
+        IRModule Module { get; set; }
 
         IRBuilder? Builder { get; set; }
 
-        public CommonIRCodeGen(ClosureStatement closure)
+        CommonIRCodeGeneratorSettings Settings { get; set; }
+
+        public CommonIRCodeGen(ClosureStatement closure, CommonIRCodeGeneratorSettings settings, CommonCCompilerSettings commonCSettings)
         {
             UpperClosure = closure;
+            this.Settings = settings;
+            this.Module = new IRModule(commonCSettings.Name);
         }
 
         public List<SourceFile> GenerateSourceFiles()
         {
             CreateFunctions();
-            WasmGenerator generator = new WasmGenerator(Module);
-            return generator.GenerateSourceFiles();
+            CommonIRCodeGenerator codeGen = new CommonIRCodeGenerator(this.Settings);
+            return codeGen.GenerateSourceFiles(this.Module);
         }
 
         void CreateFunctions()
@@ -48,7 +53,7 @@ namespace CommonC.Targets.CommonIR.CodeGen
                 }
                 else
                 {
-                    IRFunction iRFunction = Module.CreateFunction(function.Name, [function.ReturnType.TypeAnnotation.ToCommonIRType()], [.. function.Parameters.Select(p => new IRLocal(p.Name, p.Type.TypeAnnotation.ToCommonIRType(), false))]);
+                    IRFunction iRFunction = Module.CreateFunction(function.Name, [function.ReturnType.TypeAnnotation.ToCommonIRType()], [.. function.Parameters.Select(p => new IRLocal(p.Name, p.Type.TypeAnnotation.ToCommonIRType(), false))], isExport: true);
                     EmitFunction(function, iRFunction);
                 }
             }
@@ -98,9 +103,23 @@ namespace CommonC.Targets.CommonIR.CodeGen
         {
             if(callStatement.Expression is IdentifierExpression callTarget)
             {
-                if(Module.TryGetFunction(callTarget.Name, out IRFunction? function))
+                if(Module.Functions.Any(f => f.Name == callTarget.Name))
                 {
+                    IRFunctionImport function = Module.FunctionImports.First(f => f.Name == callTarget.Name);
+                    Builder.BuildCall(function, [.. callStatement.Arguments.Select(EmitExpression)]);
+                }
 
+                if(callTarget.Name.Contains("__"))
+                {
+                    string[] importName = callTarget.Name.Split("__");
+                    if(importName.Length > 1)
+                    {
+                        if(Module.FunctionImports.Any(f => f.Name == importName[1]))
+                        {
+                            IRFunctionImport importedFunction = Module.FunctionImports.First(f => f.Name == importName[1]);
+                            Builder.BuildCall(importedFunction, [.. callStatement.Arguments.Select(EmitExpression)]);
+                        }
+                    }
                 }
             }
         }
@@ -131,9 +150,17 @@ namespace CommonC.Targets.CommonIR.CodeGen
                     return EmitParenthesizedExpression(parenthesizedExpression);
                 case RelationalExpression relationalExpression:
                     return EmitRelationalExpression(relationalExpression);
+                case StringExpression stringExpression:
+                    return EmitStringExpression(stringExpression);
                 default:
                     throw new NotImplementedException($"Expression type {expression.GetType().Name} is not implemented.");
             }
+        }
+
+        IRValueInstruction EmitStringExpression(StringExpression stringExpression)
+        {
+            IRValueInstruction str = Builder.BuildString(stringExpression.Value);
+            return str;
         }
 
         IRValueInstruction EmitRelationalExpression(RelationalExpression relationalExpression)
