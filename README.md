@@ -61,3 +61,25 @@ Example
 printl("String: ", "Hello world!", ", Number: ", 123, ", Boolean: ", true)
 // String: Hello world!, Number: 123, Boolean: true
 ```
+
+# CLI
+
+CommonC.App now provides a ``compile`` command.
+
+The command is structured as followed:
+```
+Description:
+  Compiles a source file to a specified architecture
+
+Usage:
+  CommonC.App compile <source-file> [options]
+
+Arguments:
+  <source-file>  The .coc source file to compile.
+
+Options:
+  -t, --target <target>                The compiler target architecture [default: i686-pc-windows-msvc]
+  -o, --output <output>                The path the compiler should output the file to
+  -opt, --optimization <optimization>  The optimization mode the compiler should use (0 = None, 1 = Basic, 2 =
+                                       Moderate, 3 = Aggressive)
+```

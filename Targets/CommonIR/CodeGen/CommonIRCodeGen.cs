@@ -7,6 +7,8 @@ using CommonIR.Generators.WASM;
 using CommonIR.IR;
 using CommonIR.IR.Grammar;
 using CommonIR.IR.Grammar.Instructions;
+using CommonIR.IR.Grammar.Instructions.ControlFlow;
+using CommonIR.IR.Grammar.Instructions.Numeric;
 using CommonIR.IR.Grammar.Objects;
 using System;
 using System.Collections.Generic;
@@ -152,9 +154,44 @@ namespace CommonC.Targets.CommonIR.CodeGen
                     return EmitRelationalExpression(relationalExpression);
                 case StringExpression stringExpression:
                     return EmitStringExpression(stringExpression);
+                case CallExpression callExpression:
+                    return EmitCallExpression(callExpression);
                 default:
                     throw new NotImplementedException($"Expression type {expression.GetType().Name} is not implemented.");
             }
+        }
+
+        IRValueInstruction EmitCallExpression(CallExpression callExpression)
+        {
+            if (callExpression.Expression is IdentifierExpression callTarget)
+            {
+                if (Module.FunctionImports.Any(f => f.Name == callTarget.Name))
+                {
+                    IRFunctionImport function = Module.FunctionImports.First(f => f.Name == callTarget.Name);
+                    return (IRValueInstruction)Builder.BuildCall(function, [.. callExpression.Arguments.Select(EmitExpression)]);
+                }
+
+                if (Module.Functions.Any(f => f.Name == callTarget.Name))
+                {
+                    IRFunction function = Module.Functions.First(f => f.Name == callTarget.Name);
+                    return (IRValueInstruction)Builder.BuildCall(function, [.. callExpression.Arguments.Select(EmitExpression)]);
+                }
+
+                if (callTarget.Name.Contains("__"))
+                {
+                    string[] importName = callTarget.Name.Split("__");
+                    if (importName.Length > 1)
+                    {
+                        if (Module.FunctionImports.Any(f => f.Name == importName[1]))
+                        {
+                            IRFunctionImport importedFunction = Module.FunctionImports.First(f => f.Name == importName[1]);
+                            return (IRValueInstruction)Builder.BuildCall(importedFunction, [.. callExpression.Arguments.Select(EmitExpression)]);
+                        }
+                    }
+                }
+            }
+
+            throw ErrorHandler.CreateError($"Call expression targets must be an identifier");
         }
 
         IRValueInstruction EmitStringExpression(StringExpression stringExpression)
@@ -199,13 +236,13 @@ namespace CommonC.Targets.CommonIR.CodeGen
             List<IRLocal> locals = Builder.Function.Locals.Where(l => l.Name == identifierExpression.Name).ToList();
             if (locals.Count > 0)
             {
-                return Builder.BuildLoad(locals[0]);
+                return locals[0];
             }
 
             List<IRLocal> parameters = Builder.Function.Parameters.Where(p => p.Name == identifierExpression.Name).ToList();
             if(parameters.Count > 0)
             {
-                return Builder.BuildLoad(parameters[0]);
+                return parameters[0];
             }
 
             throw new Exception($"Identifier {identifierExpression.Name} not found in function {Builder.Function.Name}.");
@@ -232,6 +269,12 @@ namespace CommonC.Targets.CommonIR.CodeGen
             {
                 case ArithmeticOperator.Addition:
                     return Builder.BuildAdd(left, right);
+                case ArithmeticOperator.Subtraction:
+                    return Builder.BuildSubtract(left, right);
+                case ArithmeticOperator.Multiplication:
+                    return Builder.BuildMultiply(left, right);
+                case ArithmeticOperator.Division:
+                    return Builder.BuildDivide(left, right);
                 default:
                     throw new NotImplementedException($"Arithmetic operator {arithmeticExpression.Operator} is not implemented.");
             }
