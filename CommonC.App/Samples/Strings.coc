@@ -9,9 +9,13 @@ class __String
     // Returns the length of a null-terminated string.
     i32 Length(str strBuffer) 
     {
+        if (strBuffer == null) {
+            return 0;
+        }
+
         i32 length = 0;
         while !(strBuffer[length] == 0) {
-            length = length + 1;
+            length += 1;
         }
         return length;
     }
@@ -34,6 +38,19 @@ class __String
         buffer[length1 + length2] = 0;
         return I8ArrayToString(buffer);
     }
+}
+
+i32 GetStringLength(str strBuffer) 
+{
+        if (strBuffer == null) {
+                return 0;
+        }
+
+        i32 length = 0;
+        while !(strBuffer[length] == 0) {
+                length += 1;
+        }
+        return length;
 }
 
 // Converts a string to a 32-bit integer. Returns 0 if the string is not a valid integer.
