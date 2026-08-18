@@ -24,7 +24,7 @@ namespace CommonC.App
     {
         static async Task<int> Main(string[] args)
         {
-            // args = ["compile", "C:\\Users\\_King_\\source\\repos\\CommonC\\CommonC.App\\bin\\Debug\\net10.0\\win-x64\\Samples\\test.coc", "-o=C:\\Users\\_King_\\source\\repos\\CommonC\\CommonC.App\\bin\\Debug\\net10.0\\win-x64\\Samples\\tester.exe", "-t=webassembly-1-0-mvp"];
+            args = ["compile", "C:\\Users\\_King_\\source\\repos\\CommonC\\CommonC.App\\bin\\Debug\\net10.0\\win-x64\\Samples\\test.coc", "-o=C:\\Users\\_King_\\source\\repos\\CommonC\\CommonC.App\\bin\\Debug\\net10.0\\win-x64\\Samples\\tester.exe", "-t=webassembly-1-0-mvp"];
 
             Option<string> targetOption = new("--target", "-t")
             {

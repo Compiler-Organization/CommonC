@@ -18,7 +18,7 @@
   <ItemGroup>
     <PackageReference Include="AsmResolver" Version="6.0.0-rc.1" />
     <PackageReference Include="AsmResolver.DotNet" Version="6.0.0-rc.1" />
-    <PackageReference Include="CommonIR" Version="1.1.3" />
+    <PackageReference Include="CommonIR" Version="1.1.4" />
     <PackageReference Include="LLVMSharp" Version="20.1.2" />
 	  <PackageReference Include="libLLVM" Version="20.1.2" />
     <PackageReference Include="Microsoft.NET.HostModel" Version="3.1.16" />

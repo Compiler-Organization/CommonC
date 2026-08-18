@@ -1,4 +1,5 @@
-﻿using CommonC.Error;
+﻿using AsmResolver;
+using CommonC.Error;
 using CommonC.Parser.AST.Expressions;
 using CommonC.Parser.AST.Statements;
 using CommonIR;
@@ -39,9 +40,22 @@ namespace CommonC.Targets.CommonIR.CodeGen
 
         public List<SourceFile> GenerateSourceFiles()
         {
+            CreateStructs();
             CreateFunctions();
             CommonIRCodeGenerator codeGen = new CommonIRCodeGenerator(this.Settings);
             return codeGen.GenerateSourceFiles(this.Module);
+        }
+
+        void CreateStructs()
+        {
+            foreach(StructStatement structStatement in UpperClosure.Structs)
+            {
+                IRStruct irStruct = Module.CreateStruct(structStatement.Name);
+                foreach(VariableDeclarationStatement field in structStatement.Fields)
+                {
+                    irStruct.AddProperty(field.TypeAnnotation.ToCommonIRType(), field.Name);
+                }
+            }
         }
 
         void CreateFunctions()
@@ -98,6 +112,23 @@ namespace CommonC.Targets.CommonIR.CodeGen
                 case IfStatement ifStatement:
                     EmitIfStatement(ifStatement);
                     break;
+
+                case VariableDeclarationStatement variableDeclarationStatement:
+                    EmitVariableDeclarationStatement(variableDeclarationStatement);
+                    break;
+
+                default:
+                    throw ErrorHandler.CreateError($"Statement type {statement.GetType().Name} is not implemented.");
+            }
+        }
+
+        void EmitVariableDeclarationStatement(VariableDeclarationStatement variableDeclarationStatement)
+        {
+            IRLocal local = Builder.Function.CreateLocal(variableDeclarationStatement.Name, variableDeclarationStatement.TypeAnnotation.ToCommonIRType(), isMutable: true);
+            if(variableDeclarationStatement.Expression != null)
+            {
+                IRValueInstruction initialization = EmitExpression(variableDeclarationStatement.Expression);
+                Builder.BuildStore(local, initialization);
             }
         }
 
@@ -156,9 +187,102 @@ namespace CommonC.Targets.CommonIR.CodeGen
                     return EmitStringExpression(stringExpression);
                 case CallExpression callExpression:
                     return EmitCallExpression(callExpression);
+                case MemberExpression memberExpression:
+                    return EmitMemberExpression(memberExpression);
+                case ObjectInitializerExpression objectInitializerExpression:
+                    return EmitObjectInitializerExpression(objectInitializerExpression);
                 default:
                     throw new NotImplementedException($"Expression type {expression.GetType().Name} is not implemented.");
             }
+        }
+
+        IRValueInstruction EmitObjectInitializerExpression(ObjectInitializerExpression objectInitializerExpression)
+        {
+            if(objectInitializerExpression.Expression is IdentifierExpression identifier)
+            {
+                List<IRStruct> irstructs = this.Module.Objects.OfType<IRStruct>().Where(s => s.Name == identifier.Name).ToList();
+                if(irstructs.Count == 0)
+                {
+                    throw ErrorHandler.CreateError($"Struct '{identifier.Name}' does not exist in the current context.");
+                }
+
+                IRStruct irstruct = irstructs.First();
+                IRLocal temp = Builder.Function.CreateLocal("temp_oi", new IRType(IRDataTypes.UserObject), isMutable: true);
+
+                IRValueInstruction malloc = Builder.BuildMalloc(Builder.BuildConstantInteger(IRDataTypes.Int32, irstruct.Width));
+                Builder.BuildStore(temp, malloc);
+
+                foreach(AssignmentStatement propertyAssignment in objectInitializerExpression.Fields)
+                {
+                    if(propertyAssignment.Variable is IdentifierExpression propertyIdentifier)
+                    {
+                        List<IRProperty> matchingProperties = irstruct.Properties.Where(p => p.Name == propertyIdentifier.Name).ToList();
+                        if(matchingProperties.Count == 0)
+                        {
+                            throw ErrorHandler.CreateError($"Found no matching property '{propertyIdentifier.Name}' in object initializer.");
+                        }
+
+                        IRValueInstruction propertyAssignmentValue = EmitExpression(propertyAssignment.Expression);
+                        Builder.BuildStore(temp, matchingProperties.First(), propertyAssignmentValue);
+                    }
+                    else
+                    {
+                        throw ErrorHandler.CreateError($"Property assignment '{propertyAssignment.Expression.GetType().FullName}' in object initializer must be an identifier.");
+                    }
+                    
+                }
+
+                return Builder.BuildLoad(temp);
+            }
+
+            throw ErrorHandler.CreateError($"Object initializer expression must be an identifier.");
+        }
+
+        // lazy member evaluation (literally)
+        IRValueInstruction EmitMemberExpression(MemberExpression memberExpression)
+        {
+            if(memberExpression.Parent is IdentifierExpression parentIdentifier)
+            {
+                List<IRLocal> locals = Builder.Function.Locals.Where(s => s.Name == parentIdentifier.Name).ToList();
+                if(locals.Count == 0)
+                {
+                    throw ErrorHandler.CreateError($"Local '{parentIdentifier}' does not exist in the current context.");
+                }
+
+                IRLocal local = locals.First();
+
+                if(!memberExpression.Parent.TypeAnnotation.IsStruct)
+                {
+                    throw ErrorHandler.CreateError($"Member parent must be of type 'struct'");
+                }
+
+                List<IRStruct> irstructs = Module.Objects.OfType<IRStruct>().Where(s => s.Name == memberExpression.Parent.TypeAnnotation.Struct.Name).ToList();
+                if(irstructs.Count == 0)
+                {
+                    throw ErrorHandler.CreateError($"Member parent type's struct does not exist in the current context.");
+                }
+
+                IRStruct irstruct = irstructs.First();
+
+                if (memberExpression.Member is IdentifierExpression memberIdentifier)
+                {
+                    List<IRProperty> properties = irstruct.Properties.Where(p => p.Name == memberIdentifier.Name).ToList();
+                    if (properties.Count == 0)
+                    {
+                        throw ErrorHandler.CreateError($"Property '{memberIdentifier.Name}' does not exist in user object '{parentIdentifier.Name}'");
+                    }
+
+                    IRProperty property = properties.First();
+
+                    return Builder.BuildLoad(local, property);
+                }
+                else
+                {
+                    throw ErrorHandler.CreateError($"Member child must be an identifier.");
+                }
+            }
+
+            throw ErrorHandler.CreateError($"Member parent must be an identifier.");
         }
 
         IRValueInstruction EmitCallExpression(CallExpression callExpression)

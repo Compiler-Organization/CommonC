@@ -1,5 +1,15 @@
-use Standard
+extern fn console__log(i32 num)
+
+struct TestStruct {
+    i32 num
+}
 
 fn main() {
-    printl("Hello, world!")
+    TestStruct testStruct = TestStruct {
+        num: 42
+    }
+
+    console__log(testStruct.num)
+
+    return
 }
